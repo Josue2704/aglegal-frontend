@@ -1,0 +1,214 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── LIGHT MODE (default) ──────────────────────────────── */
+  :root {
+    --background:      220 25% 96%;
+    --foreground:      225 35% 10%;
+
+    --card:            0 0% 100%;
+    --card-foreground: 225 35% 10%;
+
+    --popover:         0 0% 100%;
+    --popover-foreground: 225 35% 10%;
+
+    --primary:         220 100% 48%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary:       220 20% 92%;
+    --secondary-foreground: 225 30% 20%;
+
+    --muted:           220 20% 93%;
+    --muted-foreground: 225 10% 48%;
+
+    --accent:          260 70% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive:     0 70% 50%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border:          220 20% 88%;
+    --input:           220 20% 92%;
+    --ring:            220 100% 48%;
+    --radius:          0.75rem;
+
+    /* Sidebar: always dark in both modes */
+    --sidebar-bg:       225 40% 4%;
+    --sidebar-border-c: 225 25% 10%;
+
+    /* Content-area tokens that adapt */
+    --c-header-bg:       0 0% 100%;
+    --c-header-border:   220 20% 90%;
+    --c-panel-bg:        220 20% 98%;
+    --c-panel-border:    220 20% 88%;
+    --c-surface-1:       220 20% 96%;
+    --c-inner-border:    220 20% 89%;
+    --c-table-border-h:  220 20% 87%;
+    --c-table-border-r:  220 20% 92%;
+    --c-surface-track:   220 20% 88%;
+    --c-timeline-line:   220 20% 85%;
+    --c-nav-pill-bg:     220 15% 92%;
+    --c-nav-pill-border: 220 20% 86%;
+    --c-crumb-slash:     225 10% 62%;
+    --c-crumb-text:      225 35% 12%;
+    --c-meta:            225 10% 46%;
+    --c-tab-inactive:    225 12% 46%;
+    --c-overlay:         220 25% 20% / 0.4;
+    --c-panel-shadow:    220 30% 40% / 0.12;
+    --c-scrollbar:       220 15% 75%;
+  }
+
+  /* ── DARK MODE ──────────────────────────────────────────── */
+  .dark {
+    --background:      225 40% 5%;
+    --foreground:      210 20% 94%;
+
+    --card:            225 35% 8%;
+    --card-foreground: 210 20% 94%;
+
+    --popover:         225 35% 8%;
+    --popover-foreground: 210 20% 94%;
+
+    --primary:         220 100% 63%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary:       225 28% 14%;
+    --secondary-foreground: 210 20% 82%;
+
+    --muted:           225 28% 11%;
+    --muted-foreground: 225 15% 50%;
+
+    --accent:          260 70% 62%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive:     0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border:          225 25% 16%;
+    --input:           225 28% 14%;
+    --ring:            220 100% 63%;
+
+    --c-header-bg:       225 38% 5%;
+    --c-header-border:   225 25% 12%;
+    --c-panel-bg:        225 35% 7%;
+    --c-panel-border:    225 25% 14%;
+    --c-surface-1:       225 35% 9%;
+    --c-inner-border:    225 25% 13%;
+    --c-table-border-h:  225 25% 14%;
+    --c-table-border-r:  225 25% 11%;
+    --c-surface-track:   225 25% 14%;
+    --c-timeline-line:   225 25% 16%;
+    --c-nav-pill-bg:     225 25% 9%;
+    --c-nav-pill-border: 225 25% 14%;
+    --c-crumb-slash:     225 15% 30%;
+    --c-crumb-text:      210 20% 94%;
+    --c-meta:            225 15% 40%;
+    --c-tab-inactive:    225 15% 55%;
+    --c-overlay:         225 40% 5% / 0.7;
+    --c-panel-shadow:    220 100% 10% / 0.5;
+    --c-scrollbar:       225 25% 22%;
+  }
+}
+
+/* ── Base resets ─────────────────────────────────────────── */
+@layer base {
+  * { @apply border-border; }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: hsl(var(--background)); }
+  ::-webkit-scrollbar-thumb { background: hsl(var(--c-scrollbar)); border-radius: 99px; }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.6); }
+
+  ::selection { background: hsl(var(--primary) / 0.25); }
+}
+
+/* ── Components ──────────────────────────────────────────── */
+@layer components {
+  .card-glow {
+    transition: border-color 0.25s, box-shadow 0.25s;
+  }
+  .card-glow:hover {
+    border-color: hsl(var(--primary) / 0.35) !important;
+    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.08),
+                0 8px 32px hsl(var(--primary) / 0.08);
+  }
+
+  .glass {
+    background: hsl(var(--card) / 0.7);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid hsl(var(--border) / 0.8);
+  }
+
+  .gradient-text {
+    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Sidebar nav — always dark sidebar */
+  .nav-item-active {
+    background: linear-gradient(90deg, hsl(220 100% 63% / 0.15) 0%, transparent 100%);
+    border-left: 2px solid hsl(220 100% 63%);
+    color: white;
+  }
+  .nav-item-inactive {
+    border-left: 2px solid transparent;
+    color: hsl(225 15% 58%);
+  }
+  .nav-item-inactive:hover {
+    background: hsl(220 100% 63% / 0.06);
+    border-left-color: hsl(220 100% 63% / 0.3);
+    color: hsl(210 20% 85%);
+  }
+  .section-label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: hsl(225 15% 38%);
+    padding: 0.75rem 1rem 0.25rem;
+  }
+
+  /* Table row hover */
+  .tr-hover:hover {
+    background: hsl(var(--primary) / 0.04) !important;
+    box-shadow: inset 3px 0 0 hsl(var(--primary) / 0.5);
+  }
+
+  /* Input focus glow */
+  input:focus-visible,
+  textarea:focus-visible {
+    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.25) !important;
+  }
+
+  /* Button glow */
+  .btn-glow {
+    box-shadow: 0 0 14px hsl(var(--primary) / 0.25);
+  }
+  .btn-glow:hover {
+    box-shadow: 0 0 22px hsl(var(--primary) / 0.4);
+  }
+
+  /* Pulse animation */
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.5; transform: scale(0.85); }
+  }
+  .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
+
+  /* Badge gradient */
+  .badge-gradient {
+    background: linear-gradient(135deg, hsl(var(--primary) / 0.2), hsl(var(--accent) / 0.2));
+    border: 1px solid hsl(var(--primary) / 0.3);
+    color: hsl(var(--primary));
+  }
+}
