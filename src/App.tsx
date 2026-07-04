@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { Toaster } from 'sonner'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { useSettingsStore } from './store/settings'
@@ -14,6 +15,9 @@ import Categories from './pages/Categories'
 import Payroll from './pages/Payroll'
 import Users from './pages/Users'
 import Settings from './pages/Settings'
+import Invoices from './pages/Invoices'
+import Tasks from './pages/Tasks'
+import Roles from './pages/Roles'
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } })
 
@@ -33,6 +37,7 @@ function ThemeSync() {
 export default function App() {
   return (
     <QueryClientProvider client={qc}>
+      <Toaster richColors position="top-right" />
       <ThemeSync />
       <BrowserRouter>
         <Routes>
@@ -47,11 +52,14 @@ export default function App() {
             <Route index element={<Dashboard />} />
             <Route path="clients" element={<Clients />} />
             <Route path="cases" element={<Cases />} />
+            <Route path="tasks" element={<Tasks />} />
             <Route path="sessions" element={<Sessions />} />
             <Route path="cashflow" element={<Cashflow />} />
             <Route path="categories" element={<Categories />} />
             <Route path="payroll" element={<Payroll />} />
+            <Route path="invoices" element={<Invoices />} />
             <Route path="users" element={<Users />} />
+            <Route path="roles" element={<Roles />} />
             <Route path="settings" element={<Settings />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

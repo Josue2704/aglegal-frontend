@@ -1,10 +1,21 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 
+export interface FirmInfo {
+  name: string
+  phone: string
+  email: string
+  address: string
+  tax_id: string
+}
+
 export interface AppSettings {
   currency: string
   theme: 'light' | 'dark'
+  firm: FirmInfo
 }
+
+const DEFAULT_FIRM: FirmInfo = { name: '', phone: '', email: '', address: '', tax_id: '' }
 
 interface SettingsStore extends AppSettings {
   save: (s: Partial<AppSettings>) => void
@@ -16,6 +27,7 @@ export const useSettingsStore = create<SettingsStore>()(
     (set) => ({
       currency: 'CRC',
       theme: 'dark',
+      firm: DEFAULT_FIRM,
       save: (s) => set((prev) => ({ ...prev, ...s })),
       toggleTheme: () =>
         set((prev) => ({ ...prev, theme: prev.theme === 'dark' ? 'light' : 'dark' })),
@@ -32,8 +44,9 @@ export function getStoredSettings(): AppSettings {
       return {
         currency: parsed?.state?.currency ?? 'CRC',
         theme: parsed?.state?.theme ?? 'dark',
+        firm: parsed?.state?.firm ?? DEFAULT_FIRM,
       }
     }
   } catch {}
-  return { currency: 'CRC', theme: 'dark' }
+  return { currency: 'CRC', theme: 'dark', firm: DEFAULT_FIRM }
 }

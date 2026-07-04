@@ -9,6 +9,11 @@ export default {
       screens: { "2xl": "1400px" },
     },
     extend: {
+      fontFamily: {
+        sans: ['Poppins', 'Roboto', 'system-ui', 'sans-serif'],
+        heading: ['Poppins', 'system-ui', 'sans-serif'],
+        data: ['Roboto', 'system-ui', 'sans-serif'],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
@@ -43,9 +48,15 @@ export default {
           DEFAULT: "hsl(var(--popover))",
           foreground: "hsl(var(--popover-foreground))",
         },
-        sidebar: "hsl(215 28% 17%)",
-        "sidebar-foreground": "hsl(210 40% 90%)",
-        "sidebar-accent": "hsl(215 25% 27%)",
+        /* Brand tokens — available as bg-brand-navy, text-brand-gold, etc. */
+        brand: {
+          navy:  "#0A2342",
+          gold:  "#B38C31",
+          gray:  "#EAEAEA",
+        },
+        sidebar: "hsl(213 74% 8%)",
+        "sidebar-foreground": "hsl(210 20% 90%)",
+        "sidebar-accent": "hsl(213 50% 14%)",
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Pencil, TrendingUp, TrendingDown, Users, ArrowUpDown } from 'lucide-react'
+import { Plus, Trash2, Pencil, TrendingUp, TrendingDown, Users, ArrowUpDown, Download, Paperclip } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { incomesApi } from '@/api/incomes'
@@ -19,7 +19,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import { formatCurrency, formatDate, today } from '@/lib/utils'
+import { formatCurrency, formatDate, today, exportCsv } from '@/lib/utils'
+import { useSortable } from '@/hooks/useSortable'
+import { SortableTh } from '@/components/ui/sortable-th'
+import { AttachmentsDialog } from '@/components/AttachmentsDialog'
 
 function DateRange({ start, end, onStart, onEnd }: { start: string; end: string; onStart: (v: string) => void; onEnd: (v: string) => void }) {
   return (
@@ -86,28 +89,69 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
 
   const total = incomes.reduce((s, i) => s + i.amount, 0)
   const f = (k: keyof IncomeForm) => (v: string) => setForm((p) => ({ ...p, [k]: v }))
+  const { sorted: sortedInc, sortKey: incKey, sortDir: incDir, toggle: incToggle } = useSortable(incomes as unknown as Record<string, unknown>[], 'income_date', 'desc')
+
+  const [attachIncome, setAttachIncome] = useState<Income | null>(null)
+
+  function downloadCsv() {
+    exportCsv(`ingresos_${today()}.csv`,
+      ['Fecha', 'Detalle', 'Cliente', 'Caso', 'Categoría', 'Monto'],
+      (sortedInc as unknown as Income[]).map((i) => [i.income_date, i.detail || i.concept, i.client_name, i.case_title, i.category_name, i.amount]),
+    )
+  }
 
   return (
     <>
+      {attachIncome && (
+        <AttachmentsDialog
+          entityType="income"
+          entityId={attachIncome.id}
+          label={`${formatDate(attachIncome.income_date)} · ${attachIncome.detail || attachIncome.concept}`}
+          onClose={() => setAttachIncome(null)}
+        />
+      )}
       <Card>
         <CardHeader className="flex-row items-center justify-between py-3">
           <CardTitle className="text-sm font-medium text-muted-foreground">Total: <span className="text-green-700 font-bold text-base">{formatCurrency(total)}</span></CardTitle>
-          <Button size="sm" onClick={openNew}><Plus className="h-4 w-4" />Nuevo ingreso</Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={downloadCsv}><Download className="h-4 w-4" />CSV</Button>
+            <Button size="sm" onClick={openNew}><Plus className="h-4 w-4" />Nuevo ingreso</Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50"><tr>{['Fecha', 'Detalle', 'Cliente', 'Caso', 'Categoría', 'Monto', ''].map((h) => <th key={h} className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">{h}</th>)}</tr></thead>
+            <thead className="bg-muted/50">
+              <tr>
+                <SortableTh label="Fecha" colKey="income_date" currentKey={incKey as string} dir={incDir} onSort={incToggle as (k: string) => void} />
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Detalle</th>
+                <SortableTh label="Cliente" colKey="client_name" currentKey={incKey as string} dir={incDir} onSort={incToggle as (k: string) => void} />
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Caso</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Categoría</th>
+                <SortableTh label="Monto" colKey="amount" currentKey={incKey as string} dir={incDir} onSort={incToggle as (k: string) => void} />
+                <th className="px-4 py-2.5"></th>
+              </tr>
+            </thead>
             <tbody>
-              {incomes.map((i) => (
+              {(sortedInc as unknown as Income[]).map((i) => (
                 <tr key={i.id} className="border-t hover:bg-muted/30">
                   <td className="px-4 py-2.5">{formatDate(i.income_date)}</td>
-                  <td className="px-4 py-2.5 max-w-[180px] truncate">{i.detail || i.concept}</td>
+                  <td className="px-4 py-2.5 max-w-[200px]">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      <span className="truncate">{i.detail || i.concept}</span>
+                      {i.invoice_number && (
+                        <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-blue-500/10 text-blue-500">
+                          {i.invoice_number}
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{i.client_name ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs truncate max-w-[120px]">{i.case_title ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{i.category_name ?? '—'}</td>
                   <td className="px-4 py-2.5 font-semibold text-green-700">{formatCurrency(i.amount)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Adjuntos" onClick={() => setAttachIncome(i)}><Paperclip className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(i)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="text-destructive h-7 w-7" onClick={() => { if (confirm('¿Eliminar ingreso?')) remove.mutate(i.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
@@ -181,19 +225,48 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
   }
 
   const total = expenses.reduce((s, e) => s + e.amount, 0)
+  const { sorted: sortedExp, sortKey: expKey, sortDir: expDir, toggle: expToggle } = useSortable(expenses as unknown as Record<string, unknown>[], 'expense_date', 'desc')
+  const [attachExpense, setAttachExpense] = useState<Expense | null>(null)
+
+  function downloadCsv() {
+    exportCsv(`gastos_${today()}.csv`,
+      ['Fecha', 'Detalle', 'Categoría', 'Notas', 'Monto'],
+      (sortedExp as unknown as Expense[]).map((e) => [e.expense_date, e.detail || e.concept, e.category_name, e.notes, e.amount]),
+    )
+  }
 
   return (
     <>
+      {attachExpense && (
+        <AttachmentsDialog
+          entityType="expense"
+          entityId={attachExpense.id}
+          label={`${formatDate(attachExpense.expense_date)} · ${attachExpense.detail || attachExpense.concept}`}
+          onClose={() => setAttachExpense(null)}
+        />
+      )}
       <Card>
         <CardHeader className="flex-row items-center justify-between py-3">
           <CardTitle className="text-sm font-medium text-muted-foreground">Total: <span className="text-red-600 font-bold text-base">{formatCurrency(total)}</span></CardTitle>
-          <Button size="sm" onClick={openNew}><Plus className="h-4 w-4" />Nuevo gasto</Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={downloadCsv}><Download className="h-4 w-4" />CSV</Button>
+            <Button size="sm" onClick={openNew}><Plus className="h-4 w-4" />Nuevo gasto</Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50"><tr>{['Fecha', 'Detalle', 'Categoría', 'Notas', 'Monto', ''].map((h) => <th key={h} className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">{h}</th>)}</tr></thead>
+            <thead className="bg-muted/50">
+              <tr>
+                <SortableTh label="Fecha" colKey="expense_date" currentKey={expKey as string} dir={expDir} onSort={expToggle as (k: string) => void} />
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Detalle</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Categoría</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Notas</th>
+                <SortableTh label="Monto" colKey="amount" currentKey={expKey as string} dir={expDir} onSort={expToggle as (k: string) => void} />
+                <th className="px-4 py-2.5"></th>
+              </tr>
+            </thead>
             <tbody>
-              {expenses.map((e) => (
+              {(sortedExp as unknown as Expense[]).map((e) => (
                 <tr key={e.id} className="border-t hover:bg-muted/30">
                   <td className="px-4 py-2.5">{formatDate(e.expense_date)}</td>
                   <td className="px-4 py-2.5 max-w-[200px] truncate">{e.detail || e.concept}</td>
@@ -202,6 +275,7 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
                   <td className="px-4 py-2.5 font-semibold text-red-600">{formatCurrency(e.amount)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Adjuntos" onClick={() => setAttachExpense(e)}><Paperclip className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(e)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="text-destructive h-7 w-7" onClick={() => { if (confirm('¿Eliminar gasto?')) remove.mutate(e.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
@@ -285,19 +359,49 @@ function CostsTab({ start, end }: { start: string; end: string }) {
 
   const total = costs.reduce((s, c) => s + c.amount, 0)
   const f = (k: keyof CostForm) => (v: string) => setForm((p) => ({ ...p, [k]: v }))
+  const { sorted: sortedCosts, sortKey: costKey, sortDir: costDir, toggle: costToggle } = useSortable(costs as unknown as Record<string, unknown>[], 'cost_date', 'desc')
+  const [attachCost, setAttachCost] = useState<Cost | null>(null)
+
+  function downloadCsv() {
+    exportCsv(`costos_${today()}.csv`,
+      ['Fecha', 'Detalle', 'Cliente', 'Caso', 'Categoría', 'Monto'],
+      (sortedCosts as unknown as Cost[]).map((c) => [c.cost_date, c.detail || c.concept, c.client_name, c.case_title, c.category_name, c.amount]),
+    )
+  }
 
   return (
     <>
+      {attachCost && (
+        <AttachmentsDialog
+          entityType="cost"
+          entityId={attachCost.id}
+          label={`${formatDate(attachCost.cost_date)} · ${attachCost.detail || attachCost.concept}`}
+          onClose={() => setAttachCost(null)}
+        />
+      )}
       <Card>
         <CardHeader className="flex-row items-center justify-between py-3">
           <CardTitle className="text-sm font-medium text-muted-foreground">Total: <span className="text-orange-600 font-bold text-base">{formatCurrency(total)}</span></CardTitle>
-          <Button size="sm" onClick={openNew}><Plus className="h-4 w-4" />Nuevo costo</Button>
+          <div className="flex gap-2">
+            <Button size="sm" variant="outline" onClick={downloadCsv}><Download className="h-4 w-4" />CSV</Button>
+            <Button size="sm" onClick={openNew}><Plus className="h-4 w-4" />Nuevo costo</Button>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50"><tr>{['Fecha', 'Detalle', 'Cliente', 'Caso', 'Categoría', 'Monto', ''].map((h) => <th key={h} className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">{h}</th>)}</tr></thead>
+            <thead className="bg-muted/50">
+              <tr>
+                <SortableTh label="Fecha" colKey="cost_date" currentKey={costKey as string} dir={costDir} onSort={costToggle as (k: string) => void} />
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Detalle</th>
+                <SortableTh label="Cliente" colKey="client_name" currentKey={costKey as string} dir={costDir} onSort={costToggle as (k: string) => void} />
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Caso</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Categoría</th>
+                <SortableTh label="Monto" colKey="amount" currentKey={costKey as string} dir={costDir} onSort={costToggle as (k: string) => void} />
+                <th className="px-4 py-2.5"></th>
+              </tr>
+            </thead>
             <tbody>
-              {costs.map((c) => (
+              {(sortedCosts as unknown as Cost[]).map((c) => (
                 <tr key={c.id} className="border-t hover:bg-muted/30">
                   <td className="px-4 py-2.5">{formatDate(c.cost_date)}</td>
                   <td className="px-4 py-2.5 max-w-[180px] truncate">{c.detail || c.concept}</td>
@@ -307,6 +411,7 @@ function CostsTab({ start, end }: { start: string; end: string }) {
                   <td className="px-4 py-2.5 font-semibold text-orange-700">{formatCurrency(c.amount)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Adjuntos" onClick={() => setAttachCost(c)}><Paperclip className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(c)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="text-destructive h-7 w-7" onClick={() => { if (confirm('¿Eliminar costo?')) remove.mutate(c.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>

@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Scale } from 'lucide-react'
 import { toast } from 'sonner'
 import { authApi } from '@/api/auth'
 import { useAuthStore } from '@/store/auth'
@@ -32,15 +31,18 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-blue-950 p-4">
+    <div className="min-h-screen flex items-center justify-center p-4" style={{ background: 'linear-gradient(135deg, #0A2342 0%, #0d2d52 60%, #0f3366 100%)' }}>
       <Card className="w-full max-w-md shadow-2xl">
         <CardHeader className="text-center space-y-3 pb-4">
           <div className="flex justify-center">
-            <div className="flex items-center justify-center w-14 h-14 rounded-2xl bg-primary/10">
-              <Scale className="h-7 w-7 text-primary" />
+            <div
+              className="flex items-center justify-center w-24 h-24 rounded-2xl"
+              style={{ background: '#0A2342', border: '1px solid hsl(43 57% 45% / 0.3)' }}
+            >
+              <img src="/AG LOGO 04.png" alt="AG Legal" className="h-16 w-auto object-contain" />
             </div>
           </div>
-          <CardTitle className="text-2xl">AGLegal</CardTitle>
+          <CardTitle className="text-2xl">AG Legal</CardTitle>
           <CardDescription>Sistema de Gestión para Bufete</CardDescription>
         </CardHeader>
         <CardContent>

@@ -6,7 +6,10 @@ import { toast } from 'sonner'
 import { casesApi } from '@/api/cases'
 import { clientsApi } from '@/api/clients'
 import { categoriesApi } from '@/api/categories'
+import { usersApi } from '@/api/users'
 import type { Case, CaseIn, CaseUpdate } from '@/types'
+import { useSortable } from '@/hooks/useSortable'
+import { SortableTh } from '@/components/ui/sortable-th'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,10 +37,16 @@ type FormData = {
   opened_at: string
   notes: string
   service_product_id: string
+  internal_ref: string
+  official_ref: string
+  opposing_party: string
+  court_entity: string
+  responsible_username: string
 }
 
 const EMPTY_FORM: FormData = {
   client_id: '', service_area: 'Otro', title: '', status: 'Abierto', priority: 'Media', opened_at: today(), notes: '', service_product_id: '',
+  internal_ref: '', official_ref: '', opposing_party: '', court_entity: '', responsible_username: '',
 }
 
 export default function Cases() {
@@ -57,8 +66,10 @@ export default function Cases() {
     queryKey: ['cases', search, statusFilter, urlClientId],
     queryFn: () => casesApi.list({ search: search || undefined, status: statusFilter !== 'Todos' ? statusFilter : undefined, client_id: urlClientId }),
   })
+  const { sorted: sortedCases, sortKey, sortDir, toggle } = useSortable(cases as unknown as Record<string, unknown>[], 'opened_at', 'desc')
   const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
   const { data: products = [] } = useQuery({ queryKey: ['product-choices'], queryFn: () => categoriesApi.productChoices() })
+  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
 
   const createCase = useMutation({
     mutationFn: (d: CaseIn) => casesApi.create(d),
@@ -78,7 +89,14 @@ export default function Cases() {
   function openNew() { setEditing(null); setForm(EMPTY_FORM); setDlg(true) }
   function openEdit(c: Case) {
     setEditing(c)
-    setForm({ client_id: String(c.client_id), service_area: c.service_area, title: c.title, status: c.status, priority: c.priority, opened_at: c.opened_at, notes: c.notes ?? '', service_product_id: c.service_product_id ? String(c.service_product_id) : '' })
+    setForm({
+      client_id: String(c.client_id), service_area: c.service_area, title: c.title, status: c.status,
+      priority: c.priority, opened_at: c.opened_at, notes: c.notes ?? '',
+      service_product_id: c.service_product_id ? String(c.service_product_id) : '',
+      internal_ref: c.internal_ref ?? '', official_ref: c.official_ref ?? '',
+      opposing_party: c.opposing_party ?? '', court_entity: c.court_entity ?? '',
+      responsible_username: c.responsible_username ?? '',
+    })
     setDlg(true)
   }
 
@@ -90,6 +108,9 @@ export default function Cases() {
       status: form.status as CaseIn['status'], priority: form.priority as CaseIn['priority'],
       opened_at: form.opened_at, notes: form.notes,
       service_product_id: form.service_product_id ? Number(form.service_product_id) : null,
+      internal_ref: form.internal_ref, official_ref: form.official_ref,
+      opposing_party: form.opposing_party, court_entity: form.court_entity,
+      responsible_username: form.responsible_username,
     }
     editing ? updateCase.mutate({ id: editing.id, data: payload }) : createCase.mutate(payload)
   }
@@ -145,13 +166,18 @@ export default function Cases() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid hsl(var(--c-table-border-h))' }}>
-                    {['Expediente', 'Cliente', 'Estado', 'Prioridad', 'Servicio', 'Apertura', 'Ir a...', 'Acciones'].map((h) => (
-                      <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">{h}</th>
-                    ))}
+                    <SortableTh label="Expediente" colKey="title" currentKey={sortKey as string} dir={sortDir} onSort={toggle as (k: string) => void} />
+                    <SortableTh label="Cliente" colKey="client_name" currentKey={sortKey as string} dir={sortDir} onSort={toggle as (k: string) => void} />
+                    <SortableTh label="Estado" colKey="status" currentKey={sortKey as string} dir={sortDir} onSort={toggle as (k: string) => void} />
+                    <SortableTh label="Prioridad" colKey="priority" currentKey={sortKey as string} dir={sortDir} onSort={toggle as (k: string) => void} />
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Servicio</th>
+                    <SortableTh label="Apertura" colKey="opened_at" currentKey={sortKey as string} dir={sortDir} onSort={toggle as (k: string) => void} />
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Ir a...</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {cases.map((c) => (
+                  {(sortedCases as unknown as Case[]).map((c) => (
                     <tr key={c.id} className="tr-hover transition-all" style={{ borderBottom: '1px solid hsl(var(--c-table-border-r))' }}>
                       <td className="px-4 py-3 max-w-[200px]">
                         <button
@@ -219,7 +245,8 @@ export default function Cases() {
       <Dialog open={dlg} onOpenChange={(o) => !o && setDlg(false)}>
         <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>{editing ? 'Editar expediente' : 'Nuevo expediente'}</DialogTitle></DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-3">
+          <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+            {/* Datos generales */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1 col-span-2"><Label>Título *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
               <div className="space-y-1">
@@ -261,8 +288,47 @@ export default function Cases() {
                 </Select>
               </div>
               <div className="space-y-1"><Label>Fecha apertura</Label><Input type="date" value={form.opened_at} onChange={(e) => setForm({ ...form, opened_at: e.target.value })} /></div>
-              <div className="space-y-1 col-span-2"><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             </div>
+
+            {/* Datos judiciales / expediente */}
+            <div className="pt-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Datos del expediente</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label>N° expediente interno</Label>
+                  <Input placeholder="EXP-2024-001" className="font-mono" value={form.internal_ref} onChange={(e) => setForm({ ...form, internal_ref: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label>N° expediente judicial/oficial</Label>
+                  <Input placeholder="2024-000123-0183" className="font-mono" value={form.official_ref} onChange={(e) => setForm({ ...form, official_ref: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Contraparte</Label>
+                  <Input placeholder="Nombre de la contraparte" value={form.opposing_party} onChange={(e) => setForm({ ...form, opposing_party: e.target.value })} />
+                </div>
+                <div className="space-y-1">
+                  <Label>Juzgado / Entidad</Label>
+                  <Input placeholder="Juzgado Civil de..." value={form.court_entity} onChange={(e) => setForm({ ...form, court_entity: e.target.value })} />
+                </div>
+                <div className="space-y-1 col-span-2">
+                  <Label>Abogado responsable</Label>
+                  <Select value={form.responsible_username} onValueChange={f('responsible_username')}>
+                    <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Sin asignar</SelectItem>
+                      {users.filter((u) => u.active).map((u) => (
+                        <SelectItem key={u.username} value={u.username}>
+                          {u.full_name ? `${u.full_name} (${u.username})` : u.username}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-1"><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDlg(false)}>Cancelar</Button>
               <Button type="submit" disabled={createCase.isPending || updateCase.isPending}>Guardar</Button>

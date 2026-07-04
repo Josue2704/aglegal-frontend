@@ -1,15 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { useSearchParams } from 'react-router-dom'
-import { CalendarCheck, Unlink, ExternalLink, Coins, RotateCcw, Sun, Moon } from 'lucide-react'
+import { CalendarCheck, Unlink, ExternalLink, Coins, RotateCcw, Sun, Moon, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { googleCalApi } from '@/api/googleCal'
 import { useSettingsStore } from '@/store/settings'
+import type { FirmInfo } from '@/store/settings'
 import { formatCurrency } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
+import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 // ─── Currencies ───────────────────────────────────────────────────────────────
@@ -283,6 +285,70 @@ function ThemePanel() {
   )
 }
 
+// ─── Firm Info Panel ──────────────────────────────────────────────────────────
+function FirmPanel() {
+  const { firm, save } = useSettingsStore()
+  const [draft, setDraft] = useState<FirmInfo>({ ...firm })
+
+  const hasChanges = JSON.stringify(draft) !== JSON.stringify(firm)
+
+  function handleSave() {
+    save({ firm: draft })
+    toast.success('Datos del despacho guardados')
+  }
+
+  function field(key: keyof FirmInfo, label: string, placeholder: string) {
+    return (
+      <div className="space-y-1.5">
+        <Label>{label}</Label>
+        <Input
+          value={draft[key]}
+          onChange={(e) => setDraft((prev) => ({ ...prev, [key]: e.target.value }))}
+          placeholder={placeholder}
+        />
+      </div>
+    )
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-violet-500/10 text-violet-500">
+            <Building2 className="h-5 w-5" />
+          </div>
+          <div>
+            <CardTitle className="text-base">Datos del Despacho</CardTitle>
+            <CardDescription>
+              Aparecen en el encabezado de las facturas generadas
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {field('name', 'Nombre del despacho', 'Ej. García & Asociados')}
+          {field('tax_id', 'RFC / Cédula jurídica', 'Ej. 3-101-123456')}
+          {field('phone', 'Teléfono', 'Ej. +506 8888-8888')}
+          {field('email', 'Correo electrónico', 'Ej. info@despacho.com')}
+        </div>
+        {field('address', 'Dirección', 'Ej. San José, Costa Rica')}
+        <div className="flex items-center gap-2 pt-1">
+          <Button size="sm" onClick={handleSave} disabled={!hasChanges}>
+            Guardar datos
+          </Button>
+          {hasChanges && (
+            <Button size="sm" variant="ghost" onClick={() => setDraft({ ...firm })}>
+              <RotateCcw className="h-3.5 w-3.5" />
+              Descartar
+            </Button>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Settings() {
   const { currency } = useSettingsStore()
@@ -300,6 +366,7 @@ export default function Settings() {
 
       <ThemePanel />
       <CurrencyPanel />
+      <FirmPanel />
       <GoogleCalendarPanel />
 
       <Card className="opacity-60">

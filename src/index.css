@@ -4,111 +4,115 @@
 
 @layer base {
   /* ── LIGHT MODE (default) ──────────────────────────────── */
+  /* Brand: Navy #0A2342 (HSL 213 74% 15%), Gold #B38C31 (HSL 43 57% 45%) */
   :root {
-    --background:      220 25% 96%;
-    --foreground:      225 35% 10%;
+    --background:      210 30% 96%;
+    --foreground:      213 60% 12%;
 
     --card:            0 0% 100%;
-    --card-foreground: 225 35% 10%;
+    --card-foreground: 213 60% 12%;
 
     --popover:         0 0% 100%;
-    --popover-foreground: 225 35% 10%;
+    --popover-foreground: 213 60% 12%;
 
-    --primary:         220 100% 48%;
+    /* Navy as primary interactive color */
+    --primary:         213 74% 22%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary:       220 20% 92%;
-    --secondary-foreground: 225 30% 20%;
+    --secondary:       210 20% 92%;
+    --secondary-foreground: 213 50% 20%;
 
-    --muted:           220 20% 93%;
-    --muted-foreground: 225 10% 48%;
+    --muted:           210 20% 93%;
+    --muted-foreground: 213 15% 48%;
 
-    --accent:          260 70% 50%;
+    /* Gold as accent */
+    --accent:          43 57% 45%;
     --accent-foreground: 0 0% 100%;
 
     --destructive:     0 70% 50%;
     --destructive-foreground: 0 0% 100%;
 
-    --border:          220 20% 88%;
-    --input:           220 20% 92%;
-    --ring:            220 100% 48%;
+    --border:          210 20% 86%;
+    --input:           210 20% 92%;
+    --ring:            213 74% 22%;
     --radius:          0.75rem;
 
-    /* Sidebar: always dark in both modes */
-    --sidebar-bg:       225 40% 4%;
-    --sidebar-border-c: 225 25% 10%;
+    /* Sidebar: always deep navy */
+    --sidebar-bg:       213 74% 8%;
+    --sidebar-border-c: 213 50% 13%;
 
     /* Content-area tokens that adapt */
     --c-header-bg:       0 0% 100%;
-    --c-header-border:   220 20% 90%;
-    --c-panel-bg:        220 20% 98%;
-    --c-panel-border:    220 20% 88%;
-    --c-surface-1:       220 20% 96%;
-    --c-inner-border:    220 20% 89%;
-    --c-table-border-h:  220 20% 87%;
-    --c-table-border-r:  220 20% 92%;
-    --c-surface-track:   220 20% 88%;
-    --c-timeline-line:   220 20% 85%;
-    --c-nav-pill-bg:     220 15% 92%;
-    --c-nav-pill-border: 220 20% 86%;
-    --c-crumb-slash:     225 10% 62%;
-    --c-crumb-text:      225 35% 12%;
-    --c-meta:            225 10% 46%;
-    --c-tab-inactive:    225 12% 46%;
-    --c-overlay:         220 25% 20% / 0.4;
-    --c-panel-shadow:    220 30% 40% / 0.12;
-    --c-scrollbar:       220 15% 75%;
+    --c-header-border:   210 20% 90%;
+    --c-panel-bg:        210 25% 98%;
+    --c-panel-border:    210 20% 88%;
+    --c-surface-1:       210 20% 96%;
+    --c-inner-border:    210 20% 89%;
+    --c-table-border-h:  210 20% 87%;
+    --c-table-border-r:  210 20% 92%;
+    --c-surface-track:   210 20% 88%;
+    --c-timeline-line:   210 20% 85%;
+    --c-nav-pill-bg:     210 15% 92%;
+    --c-nav-pill-border: 210 20% 86%;
+    --c-crumb-slash:     213 15% 62%;
+    --c-crumb-text:      213 60% 12%;
+    --c-meta:            213 15% 46%;
+    --c-tab-inactive:    213 15% 46%;
+    --c-overlay:         213 74% 8% / 0.45;
+    --c-panel-shadow:    213 50% 20% / 0.12;
+    --c-scrollbar:       210 15% 75%;
   }
 
   /* ── DARK MODE ──────────────────────────────────────────── */
   .dark {
-    --background:      225 40% 5%;
-    --foreground:      210 20% 94%;
+    --background:      213 50% 6%;
+    --foreground:      210 20% 93%;
 
-    --card:            225 35% 8%;
-    --card-foreground: 210 20% 94%;
+    --card:            213 45% 9%;
+    --card-foreground: 210 20% 93%;
 
-    --popover:         225 35% 8%;
-    --popover-foreground: 210 20% 94%;
+    --popover:         213 45% 9%;
+    --popover-foreground: 210 20% 93%;
 
-    --primary:         220 100% 63%;
-    --primary-foreground: 0 0% 100%;
+    /* Gold becomes primary in dark — readable on dark navy */
+    --primary:         43 65% 55%;
+    --primary-foreground: 213 74% 8%;
 
-    --secondary:       225 28% 14%;
-    --secondary-foreground: 210 20% 82%;
+    --secondary:       213 35% 14%;
+    --secondary-foreground: 210 20% 80%;
 
-    --muted:           225 28% 11%;
-    --muted-foreground: 225 15% 50%;
+    --muted:           213 35% 11%;
+    --muted-foreground: 213 15% 50%;
 
-    --accent:          260 70% 62%;
+    --accent:          43 57% 45%;
     --accent-foreground: 0 0% 100%;
 
     --destructive:     0 72% 55%;
     --destructive-foreground: 0 0% 100%;
 
-    --border:          225 25% 16%;
-    --input:           225 28% 14%;
-    --ring:            220 100% 63%;
+    --border:          213 30% 16%;
+    --input:           213 35% 14%;
+    --ring:            43 65% 55%;
 
-    --c-header-bg:       225 38% 5%;
-    --c-header-border:   225 25% 12%;
-    --c-panel-bg:        225 35% 7%;
-    --c-panel-border:    225 25% 14%;
-    --c-surface-1:       225 35% 9%;
-    --c-inner-border:    225 25% 13%;
-    --c-table-border-h:  225 25% 14%;
-    --c-table-border-r:  225 25% 11%;
-    --c-surface-track:   225 25% 14%;
-    --c-timeline-line:   225 25% 16%;
-    --c-nav-pill-bg:     225 25% 9%;
-    --c-nav-pill-border: 225 25% 14%;
-    --c-crumb-slash:     225 15% 30%;
-    --c-crumb-text:      210 20% 94%;
-    --c-meta:            225 15% 40%;
-    --c-tab-inactive:    225 15% 55%;
-    --c-overlay:         225 40% 5% / 0.7;
-    --c-panel-shadow:    220 100% 10% / 0.5;
-    --c-scrollbar:       225 25% 22%;
+    --c-header-bg:       213 50% 6%;
+    --c-header-border:   213 30% 13%;
+    --c-panel-bg:        213 45% 8%;
+    --c-panel-border:    213 30% 14%;
+    --c-surface-1:       213 45% 10%;
+    --c-inner-border:    213 30% 13%;
+    --c-table-border-h:  213 30% 14%;
+    --c-table-border-r:  213 30% 11%;
+    --c-surface-track:   213 30% 14%;
+    --c-timeline-line:   213 30% 16%;
+    --c-nav-pill-bg:     213 35% 9%;
+    --c-nav-pill-border: 213 30% 14%;
+    --c-crumb-slash:     213 20% 30%;
+    --c-crumb-text:      210 20% 93%;
+    --c-meta:            213 15% 42%;
+    --c-tab-inactive:    213 15% 55%;
+    --c-overlay:         213 74% 4% / 0.7;
+    --c-panel-shadow:    213 74% 4% / 0.5;
+    --c-scrollbar:       213 30% 22%;
   }
 }
 
@@ -118,15 +122,26 @@
 
   body {
     @apply bg-background text-foreground;
+    font-family: 'Poppins', 'Roboto', system-ui, sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Poppins', system-ui, sans-serif;
+    font-weight: 600;
+  }
+
+  /* Roboto for data-dense areas like tables */
+  table, .font-roboto {
+    font-family: 'Roboto', system-ui, sans-serif;
   }
 
   ::-webkit-scrollbar { width: 5px; height: 5px; }
   ::-webkit-scrollbar-track { background: hsl(var(--background)); }
   ::-webkit-scrollbar-thumb { background: hsl(var(--c-scrollbar)); border-radius: 99px; }
-  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary) / 0.6); }
+  ::-webkit-scrollbar-thumb:hover { background: hsl(var(--accent) / 0.6); }
 
-  ::selection { background: hsl(var(--primary) / 0.25); }
+  ::selection { background: hsl(var(--accent) / 0.25); }
 }
 
 /* ── Components ──────────────────────────────────────────── */
@@ -135,9 +150,9 @@
     transition: border-color 0.25s, box-shadow 0.25s;
   }
   .card-glow:hover {
-    border-color: hsl(var(--primary) / 0.35) !important;
-    box-shadow: 0 0 0 1px hsl(var(--primary) / 0.08),
-                0 8px 32px hsl(var(--primary) / 0.08);
+    border-color: hsl(var(--accent) / 0.4) !important;
+    box-shadow: 0 0 0 1px hsl(var(--accent) / 0.08),
+                0 8px 32px hsl(var(--accent) / 0.1);
   }
 
   .glass {
@@ -147,47 +162,49 @@
     border: 1px solid hsl(var(--border) / 0.8);
   }
 
+  /* Navy → Gold gradient for brand text highlights */
   .gradient-text {
-    background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    background: linear-gradient(135deg, hsl(213 74% 55%), hsl(43 70% 58%));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
 
-  /* Sidebar nav — always dark sidebar */
+  /* Sidebar nav — always deep navy sidebar */
   .nav-item-active {
-    background: linear-gradient(90deg, hsl(220 100% 63% / 0.15) 0%, transparent 100%);
-    border-left: 2px solid hsl(220 100% 63%);
+    background: linear-gradient(90deg, hsl(43 57% 45% / 0.15) 0%, transparent 100%);
+    border-left: 2px solid hsl(43 57% 45%);
     color: white;
   }
   .nav-item-inactive {
     border-left: 2px solid transparent;
-    color: hsl(225 15% 58%);
+    color: hsl(213 20% 55%);
   }
   .nav-item-inactive:hover {
-    background: hsl(220 100% 63% / 0.06);
-    border-left-color: hsl(220 100% 63% / 0.3);
+    background: hsl(43 57% 45% / 0.07);
+    border-left-color: hsl(43 57% 45% / 0.4);
     color: hsl(210 20% 85%);
   }
   .section-label {
-    font-size: 0.65rem;
+    font-size: 0.62rem;
     font-weight: 600;
-    letter-spacing: 0.12em;
+    letter-spacing: 0.13em;
     text-transform: uppercase;
-    color: hsl(225 15% 38%);
+    color: hsl(213 20% 36%);
     padding: 0.75rem 1rem 0.25rem;
+    font-family: 'Roboto', system-ui, sans-serif;
   }
 
   /* Table row hover */
   .tr-hover:hover {
-    background: hsl(var(--primary) / 0.04) !important;
-    box-shadow: inset 3px 0 0 hsl(var(--primary) / 0.5);
+    background: hsl(var(--accent) / 0.05) !important;
+    box-shadow: inset 3px 0 0 hsl(var(--accent) / 0.5);
   }
 
   /* Input focus glow */
   input:focus-visible,
   textarea:focus-visible {
-    box-shadow: 0 0 0 2px hsl(var(--primary) / 0.25) !important;
+    box-shadow: 0 0 0 2px hsl(var(--accent) / 0.3) !important;
   }
 
   /* Button glow */
@@ -205,10 +222,15 @@
   }
   .pulse-dot { animation: pulse-dot 2s ease-in-out infinite; }
 
-  /* Badge gradient */
+  /* Badge gradient — navy/gold brand */
   .badge-gradient {
-    background: linear-gradient(135deg, hsl(var(--primary) / 0.2), hsl(var(--accent) / 0.2));
-    border: 1px solid hsl(var(--primary) / 0.3);
-    color: hsl(var(--primary));
+    background: linear-gradient(135deg, hsl(213 74% 22% / 0.12), hsl(43 57% 45% / 0.15));
+    border: 1px solid hsl(43 57% 45% / 0.35);
+    color: hsl(43 57% 38%);
+  }
+  .dark .badge-gradient {
+    background: linear-gradient(135deg, hsl(213 50% 18% / 0.4), hsl(43 57% 45% / 0.2));
+    border: 1px solid hsl(43 57% 45% / 0.3);
+    color: hsl(43 65% 60%);
   }
 }

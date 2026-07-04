@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
-import { TrendingUp, TrendingDown, Users, CalendarDays, Scale, Wallet } from 'lucide-react'
+import { TrendingUp, TrendingDown, Users, CalendarDays, Scale, Wallet, AlertTriangle, Clock, ChevronRight } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts'
 import { dashboardApi } from '@/api/dashboard'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 import type { GrossProfitItem } from '@/types'
 
 const COLORS = ['#2563eb', '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444']
@@ -66,6 +67,12 @@ function GrossProfitBar({ items, label }: { items: GrossProfitItem[]; label: str
   )
 }
 
+const STATUS_DOT: Record<string, string> = {
+  'Pendiente': 'bg-yellow-400',
+  'En proceso': 'bg-blue-400',
+  'Finalizada': 'bg-green-400',
+}
+
 export default function Dashboard() {
   const { data: kpis } = useQuery({ queryKey: ['dashboard-kpis'], queryFn: dashboardApi.kpis })
   const { data: cashflow } = useQuery({ queryKey: ['dashboard-cashflow'], queryFn: () => dashboardApi.cashflow() })
@@ -74,6 +81,8 @@ export default function Dashboard() {
   const { data: topExpenses } = useQuery({ queryKey: ['dashboard-top-expenses'], queryFn: () => dashboardApi.topExpenses() })
   const { data: gpServices } = useQuery({ queryKey: ['dashboard-gp-services'], queryFn: () => dashboardApi.grossProfitServices() })
   const { data: gpClients } = useQuery({ queryKey: ['dashboard-gp-clients'], queryFn: () => dashboardApi.grossProfitClients() })
+  const { data: upcoming = [] } = useQuery({ queryKey: ['dashboard-upcoming'], queryFn: () => dashboardApi.upcomingSessions() })
+  const { data: alertsData } = useQuery({ queryKey: ['dashboard-alerts'], queryFn: dashboardApi.alerts })
 
   const monthlyChart = cashflow?.monthly_chart?.map((p) => ({
     month: p.month.slice(5), // Show MM only
@@ -85,12 +94,50 @@ export default function Dashboard() {
 
   const balance = kpis?.balance ?? 0
 
+  const overdueTasks = alertsData?.overdue_tasks ?? []
+  const staleCases = alertsData?.stale_cases ?? []
+  const totalAlerts = overdueTasks.length + staleCases.length
+
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground text-sm">Resumen del mes en curso</p>
       </div>
+
+      {/* ── Alertas ── */}
+      {totalAlerts > 0 && (
+        <div className="rounded-xl p-4 space-y-3" style={{ background: 'hsl(38 90% 50% / 0.08)', border: '1px solid hsl(38 90% 50% / 0.25)' }}>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+            <span className="text-sm font-semibold text-amber-600 dark:text-amber-400">{totalAlerts} alerta{totalAlerts > 1 ? 's' : ''} activa{totalAlerts > 1 ? 's' : ''}</span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {overdueTasks.slice(0, 3).map((t) => (
+              <Link key={t.id} to={`/cases?search=${encodeURIComponent(t.case_title)}`}
+                className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-amber-500/10 transition-colors">
+                <Clock className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-foreground truncate">{t.title}</p>
+                  <p className="text-[11px] text-muted-foreground">{t.case_title} · vencida {formatDate(t.due_date)}</p>
+                </div>
+                <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5" />
+              </Link>
+            ))}
+            {staleCases.slice(0, 3).map((c) => (
+              <Link key={c.id} to={`/cases?search=${encodeURIComponent(c.title)}`}
+                className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-amber-500/10 transition-colors">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-foreground truncate">{c.title}</p>
+                  <p className="text-[11px] text-muted-foreground">{c.client_name} · sin sesión{c.last_session ? ` desde ${formatDate(c.last_session)}` : ' registrada'}</p>
+                </div>
+                <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* KPIs mes actual */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -164,8 +211,8 @@ export default function Dashboard() {
         </Card>
       </div>
 
-      {/* Top listas */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Top listas + agenda próxima */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader><CardTitle className="text-base">Top Clientes por Ingresos</CardTitle></CardHeader>
           <CardContent>
@@ -193,6 +240,37 @@ export default function Dashboard() {
               ))}
               {!topServices?.length && <p className="text-muted-foreground text-sm">Sin datos</p>}
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Agenda próxima 7 días */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <CalendarDays className="h-4 w-4 text-primary" />
+              Próximos 7 días
+            </CardTitle>
+            <Link to="/sessions" className="text-xs text-primary hover:underline">Ver agenda →</Link>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {upcoming.length === 0 ? (
+              <div className="py-4 text-center">
+                <p className="text-sm text-muted-foreground">Sin sesiones próximas</p>
+                <Link to="/sessions" className="text-xs text-primary hover:underline mt-1 block">Agendar sesión →</Link>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {upcoming.slice(0, 7).map((s) => (
+                  <div key={s.id} className="flex items-start gap-2.5 py-1.5" style={{ borderBottom: '1px solid hsl(var(--c-inner-border))' }}>
+                    <div className={`mt-1.5 h-2 w-2 rounded-full shrink-0 ${STATUS_DOT[s.status] ?? 'bg-muted-foreground'}`} />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">{s.client_name ?? 'Sin cliente'}</p>
+                      <p className="text-xs text-muted-foreground">{formatDate(s.session_date)} · {s.consult_type}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

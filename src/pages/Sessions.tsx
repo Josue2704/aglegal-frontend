@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
-  isSameMonth, isSameDay, addMonths, subMonths, format, isToday,
+  isSameMonth, isSameDay, addMonths, subMonths, addWeeks, subWeeks,
+  format, isToday,
 } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Pencil, ChevronLeft, ChevronRight, CalendarDays, List, X } from 'lucide-react'
+import { Plus, Trash2, Pencil, ChevronLeft, ChevronRight, CalendarDays, List, X, CalendarRange, Paperclip } from 'lucide-react'
 import { toast } from 'sonner'
 import { sessionsApi } from '@/api/sessions'
 import { googleCalApi } from '@/api/googleCal'
@@ -22,6 +23,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { formatDate, today } from '@/lib/utils'
+import { AttachmentsDialog } from '@/components/AttachmentsDialog'
 
 const STATUSES: SessionStatus[] = ['Pendiente', 'En proceso', 'Finalizada']
 const STATUS_COLOR: Record<SessionStatus, string> = {
@@ -61,7 +63,7 @@ function SessionDialog({
 }) {
   const [form, setForm] = useState<FormData>(() =>
     editing ? {
-      client_id: String(editing.client_id),
+      client_id: editing.client_id ? String(editing.client_id) : '',
       case_id: editing.case_id ? String(editing.case_id) : '',
       session_date: editing.session_date,
       start_time: editing.start_time ?? '09:00',
@@ -84,7 +86,7 @@ function SessionDialog({
     if (!form.client_id || !form.consult_type.trim()) return toast.error('Cliente y tipo de consulta son requeridos')
     if (form.end_time <= form.start_time) return toast.error('La hora fin debe ser mayor que la hora inicio')
     onSave(editing, {
-      client_id: Number(form.client_id),
+      client_id: form.client_id ? Number(form.client_id) : null,
       case_id: form.case_id ? Number(form.case_id) : null,
       session_date: form.session_date,
       start_time: form.start_time,
@@ -158,12 +160,13 @@ function SessionDialog({
 
 // ─── Month Calendar ───────────────────────────────────────────────────────────
 function MonthCalendar({
-  sessions, onNewSession, onEditSession, onDeleteSession,
+  sessions, onNewSession, onEditSession, onDeleteSession, onAttachSession,
 }: {
   sessions: Session[]
   onNewSession: (date: string) => void
   onEditSession: (s: Session) => void
   onDeleteSession: (id: number) => void
+  onAttachSession: (s: Session) => void
 }) {
   const [currentMonth, setCurrentMonth] = useState(new Date())
   const [selectedDay, setSelectedDay] = useState<Date | null>(null)
@@ -278,6 +281,7 @@ function MonthCalendar({
                       </div>
                     </div>
                     <div className="flex gap-1">
+                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Adjuntos" onClick={() => onAttachSession(s)}><Paperclip className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onEditSession(s)}><Pencil className="h-3.5 w-3.5" /></Button>
                       <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => { if (confirm('¿Eliminar sesión?')) onDeleteSession(s.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
@@ -292,10 +296,174 @@ function MonthCalendar({
   )
 }
 
+// ─── Week Calendar ────────────────────────────────────────────────────────────
+const HOUR_H = 56        // px per hour
+const DAY_START = 7      // 7 am
+const DAY_END = 21       // 9 pm
+
+function timeToFrac(t: string): number {
+  const [h, m] = t.split(':').map(Number)
+  return h + m / 60
+}
+
+function WeekCalendar({
+  sessions, onNewSession, onEditSession, onDeleteSession,
+}: {
+  sessions: Session[]
+  onNewSession: (date: string) => void
+  onEditSession: (s: Session) => void
+  onDeleteSession: (id: number) => void
+}) {
+  const [weekStart, setWeekStart] = useState(() => startOfWeek(new Date(), { weekStartsOn: 1 }))
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const days = eachDayOfInterval({ start: weekStart, end: endOfWeek(weekStart, { weekStartsOn: 1 }) })
+  const totalH = (DAY_END - DAY_START) * HOUR_H
+  const hours = Array.from({ length: DAY_END - DAY_START }, (_, i) => DAY_START + i)
+
+  // Scroll to 8am on mount
+  useEffect(() => {
+    if (scrollRef.current) scrollRef.current.scrollTop = (8 - DAY_START) * HOUR_H
+  }, [])
+
+  const byDate: Record<string, Session[]> = {}
+  sessions.forEach((s) => {
+    if (!byDate[s.session_date]) byDate[s.session_date] = []
+    byDate[s.session_date].push(s)
+  })
+
+  return (
+    <div className="space-y-3">
+      {/* Header nav */}
+      <div className="flex items-center justify-between">
+        <h2 className="font-semibold text-base">
+          {format(weekStart, "d 'de' MMM", { locale: es })} — {format(endOfWeek(weekStart, { weekStartsOn: 1 }), "d 'de' MMM yyyy", { locale: es })}
+        </h2>
+        <div className="flex gap-1">
+          <button
+            className="h-8 w-8 flex items-center justify-center rounded-md border hover:bg-muted/40 transition-colors"
+            style={{ borderColor: 'hsl(var(--c-inner-border))' }}
+            onClick={() => setWeekStart(subWeeks(weekStart, 1))}
+          ><ChevronLeft className="h-4 w-4" /></button>
+          <button
+            className="px-3 h-8 rounded-md border text-xs hover:bg-muted/40 transition-colors"
+            style={{ borderColor: 'hsl(var(--c-inner-border))' }}
+            onClick={() => setWeekStart(startOfWeek(new Date(), { weekStartsOn: 1 }))}
+          >Hoy</button>
+          <button
+            className="h-8 w-8 flex items-center justify-center rounded-md border hover:bg-muted/40 transition-colors"
+            style={{ borderColor: 'hsl(var(--c-inner-border))' }}
+            onClick={() => setWeekStart(addWeeks(weekStart, 1))}
+          ><ChevronRight className="h-4 w-4" /></button>
+        </div>
+      </div>
+
+      {/* Grid */}
+      <div className="rounded-xl overflow-hidden" style={{ border: '1px solid hsl(var(--c-inner-border))' }}>
+        {/* Day headers */}
+        <div className="grid" style={{ gridTemplateColumns: '52px repeat(7, 1fr)', background: 'hsl(var(--c-surface-1))', borderBottom: '1px solid hsl(var(--c-inner-border))' }}>
+          <div className="py-2" />
+          {days.map((day) => {
+            const isT = isToday(day)
+            return (
+              <div key={day.toISOString()} className="py-2 text-center">
+                <p className="text-[10px] font-medium text-muted-foreground uppercase">
+                  {format(day, 'EEE', { locale: es })}
+                </p>
+                <div className={`mx-auto mt-0.5 h-7 w-7 flex items-center justify-center rounded-full text-sm font-semibold ${isT ? 'bg-primary text-primary-foreground' : 'text-foreground'}`}>
+                  {format(day, 'd')}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Scrollable time grid */}
+        <div ref={scrollRef} className="overflow-y-auto" style={{ maxHeight: 520 }}>
+          <div className="grid relative" style={{ gridTemplateColumns: '52px repeat(7, 1fr)', height: totalH }}>
+            {/* Hour labels */}
+            <div className="relative">
+              {hours.map((h) => (
+                <div key={h} className="absolute w-full flex items-start justify-end pr-2"
+                  style={{ top: (h - DAY_START) * HOUR_H, height: HOUR_H }}>
+                  <span className="text-[10px] text-muted-foreground -translate-y-2">{String(h).padStart(2, '0')}:00</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Day columns */}
+            {days.map((day) => {
+              const dateStr = format(day, 'yyyy-MM-dd')
+              const daySessions = byDate[dateStr] ?? []
+              const timed = daySessions.filter((s) => s.start_time)
+              const untimed = daySessions.filter((s) => !s.start_time)
+
+              return (
+                <div key={dateStr} className="relative border-l"
+                  style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
+                  {/* Hour grid lines */}
+                  {hours.map((h) => (
+                    <div key={h}
+                      className="absolute w-full cursor-pointer hover:bg-primary/5 transition-colors"
+                      style={{ top: (h - DAY_START) * HOUR_H, height: HOUR_H, borderTop: '1px solid hsl(var(--c-inner-border))' }}
+                      onClick={() => onNewSession(dateStr)}
+                    />
+                  ))}
+
+                  {/* Untimed sessions at top */}
+                  {untimed.map((s, i) => (
+                    <div key={s.id}
+                      className="absolute left-0.5 right-0.5 rounded text-[10px] px-1 py-0.5 cursor-pointer text-white truncate z-10"
+                      style={{ top: i * 18, background: STATUS_COLOR[s.status] ?? 'hsl(var(--primary))' }}
+                      onClick={() => onEditSession(s)}
+                    >
+                      {s.client_name ?? s.consult_type}
+                    </div>
+                  ))}
+
+                  {/* Timed sessions */}
+                  {timed.map((s) => {
+                    const start = timeToFrac(s.start_time!)
+                    const end = s.end_time ? timeToFrac(s.end_time) : start + 1
+                    const clampedStart = Math.max(start, DAY_START)
+                    const clampedEnd = Math.min(end, DAY_END)
+                    if (clampedEnd <= clampedStart) return null
+                    const top = (clampedStart - DAY_START) * HOUR_H
+                    const height = Math.max((clampedEnd - clampedStart) * HOUR_H - 2, 18)
+
+                    return (
+                      <div key={s.id}
+                        className="absolute left-0.5 right-0.5 rounded-md px-1.5 py-1 text-white cursor-pointer overflow-hidden z-20 group"
+                        style={{ top, height, background: STATUS_COLOR[s.status] ?? 'hsl(var(--primary))' }}
+                        onClick={(e) => { e.stopPropagation(); onEditSession(s) }}
+                      >
+                        <p className="text-[10px] font-semibold leading-tight truncate">{s.client_name}</p>
+                        {height > 30 && <p className="text-[9px] opacity-80 leading-tight truncate">{s.consult_type}</p>}
+                        {height > 46 && <p className="text-[9px] opacity-70">{s.start_time} – {s.end_time}</p>}
+                        {/* Delete on hover */}
+                        <button
+                          className="absolute top-0.5 right-0.5 opacity-0 group-hover:opacity-100 h-4 w-4 flex items-center justify-center rounded text-white/80 hover:text-white bg-black/20"
+                          onClick={(e) => { e.stopPropagation(); if (confirm('¿Eliminar sesión?')) onDeleteSession(s.id) }}
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── List View ────────────────────────────────────────────────────────────────
 function ListView({
   sessions, statusFilter, setStatusFilter, startDate, setStartDate, endDate, setEndDate,
-  onEdit, onDelete,
+  onEdit, onDelete, onAttach,
 }: {
   sessions: Session[]
   statusFilter: string; setStatusFilter: (v: string) => void
@@ -303,6 +471,7 @@ function ListView({
   endDate: string; setEndDate: (v: string) => void
   onEdit: (s: Session) => void
   onDelete: (id: number) => void
+  onAttach: (s: Session) => void
 }) {
   return (
     <div className="space-y-3">
@@ -341,6 +510,7 @@ function ListView({
                     <td className="px-4 py-3"><Badge variant={STATUS_BADGE[s.status] ?? 'outline'}>{s.status}</Badge></td>
                     <td className="px-4 py-3">
                       <div className="flex gap-1">
+                        <Button size="icon" variant="ghost" title="Adjuntos" onClick={() => onAttach(s)}><Paperclip className="h-4 w-4" /></Button>
                         <Button size="icon" variant="ghost" onClick={() => onEdit(s)}><Pencil className="h-4 w-4" /></Button>
                         <Button size="icon" variant="ghost" className="text-destructive" onClick={() => { if (confirm('¿Eliminar sesión?')) onDelete(s.id) }}><Trash2 className="h-4 w-4" /></Button>
                       </div>
@@ -357,6 +527,7 @@ function ListView({
   )
 }
 
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Sessions() {
   const qc = useQueryClient()
@@ -364,7 +535,8 @@ export default function Sessions() {
   const [dlg, setDlg] = useState(false)
   const [editing, setEditing] = useState<Session | null>(null)
   const [newDate, setNewDate] = useState<string | undefined>()
-  const [view, setView] = useState<'calendar' | 'list'>('calendar')
+  const [view, setView] = useState<'calendar' | 'week' | 'list'>('calendar')
+  const [attachmentSession, setAttachmentSession] = useState<Session | null>(null)
   const [statusFilter, setStatusFilter] = useState('')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
@@ -463,7 +635,10 @@ export default function Sessions() {
             <CalendarDays className="h-4 w-4" />Traer de Google
           </Button>
           <Button variant={view === 'calendar' ? 'default' : 'outline'} size="sm" onClick={() => setView('calendar')}>
-            <CalendarDays className="h-4 w-4" />Calendario
+            <CalendarDays className="h-4 w-4" />Mes
+          </Button>
+          <Button variant={view === 'week' ? 'default' : 'outline'} size="sm" onClick={() => setView('week')}>
+            <CalendarRange className="h-4 w-4" />Semana
           </Button>
           <Button variant={view === 'list' ? 'default' : 'outline'} size="sm" onClick={() => setView('list')}>
             <List className="h-4 w-4" />Lista
@@ -474,14 +649,24 @@ export default function Sessions() {
         </div>
       </div>
 
-      {view === 'calendar' ? (
+      {view === 'calendar' && (
         <MonthCalendar
           sessions={allSessions}
           onNewSession={openNew}
           onEditSession={openEdit}
           onDeleteSession={(id) => remove.mutate(id)}
+          onAttachSession={setAttachmentSession}
         />
-      ) : (
+      )}
+      {view === 'week' && (
+        <WeekCalendar
+          sessions={allSessions}
+          onNewSession={openNew}
+          onEditSession={openEdit}
+          onDeleteSession={(id) => remove.mutate(id)}
+        />
+      )}
+      {view === 'list' && (
         <ListView
           sessions={filteredSessions}
           statusFilter={statusFilter} setStatusFilter={setStatusFilter}
@@ -489,6 +674,7 @@ export default function Sessions() {
           endDate={endDate} setEndDate={setEndDate}
           onEdit={openEdit}
           onDelete={(id) => remove.mutate(id)}
+          onAttach={setAttachmentSession}
         />
       )}
 
@@ -500,6 +686,15 @@ export default function Sessions() {
           initialDate={newDate}
           clients={clients}
           onSave={handleSave}
+        />
+      )}
+
+      {attachmentSession && (
+        <AttachmentsDialog
+          entityType="session"
+          entityId={attachmentSession.id}
+          label={`${attachmentSession.client_name ?? 'Sin cliente'} · ${formatDate(attachmentSession.session_date)}`}
+          onClose={() => setAttachmentSession(null)}
         />
       )}
     </div>
