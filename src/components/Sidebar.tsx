@@ -5,7 +5,6 @@ import {
   ChevronRight, Receipt, ListChecks, Shield,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
-import { useHasAnyPermission } from '@/hooks/usePermission'
 import { authApi } from '@/api/auth'
 import { cn } from '@/lib/utils'
 
