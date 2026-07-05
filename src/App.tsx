@@ -5,6 +5,7 @@ import { Toaster } from 'sonner'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { useSettingsStore } from './store/settings'
+import { useAuthStore } from './store/auth'
 import Login from './pages/Login'
 import Dashboard from './pages/Dashboard'
 import Clients from './pages/Clients'
@@ -34,6 +35,20 @@ function ThemeSync() {
   return null
 }
 
+function PermissionRoute({ permission, children }: { permission: string; children: React.ReactNode }) {
+  const user = useAuthStore((s) => s.user)
+  if (!user) return <Navigate to="/login" replace />
+  if (user.is_admin || user.permissions.includes(permission)) return <>{children}</>
+  return <Navigate to="/" replace />
+}
+
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const user = useAuthStore((s) => s.user)
+  if (!user) return <Navigate to="/login" replace />
+  if (user.is_admin) return <>{children}</>
+  return <Navigate to="/" replace />
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={qc}>
@@ -50,17 +65,17 @@ export default function App() {
             }
           >
             <Route index element={<Dashboard />} />
-            <Route path="clients" element={<Clients />} />
-            <Route path="cases" element={<Cases />} />
-            <Route path="tasks" element={<Tasks />} />
-            <Route path="sessions" element={<Sessions />} />
-            <Route path="cashflow" element={<Cashflow />} />
-            <Route path="categories" element={<Categories />} />
-            <Route path="payroll" element={<Payroll />} />
-            <Route path="invoices" element={<Invoices />} />
-            <Route path="users" element={<Users />} />
-            <Route path="roles" element={<Roles />} />
-            <Route path="settings" element={<Settings />} />
+            <Route path="clients" element={<PermissionRoute permission="clientes.ver"><Clients /></PermissionRoute>} />
+            <Route path="cases" element={<PermissionRoute permission="expedientes.ver"><Cases /></PermissionRoute>} />
+            <Route path="tasks" element={<PermissionRoute permission="tareas.ver"><Tasks /></PermissionRoute>} />
+            <Route path="sessions" element={<PermissionRoute permission="agenda.ver"><Sessions /></PermissionRoute>} />
+            <Route path="cashflow" element={<PermissionRoute permission="flujo_caja.ver"><Cashflow /></PermissionRoute>} />
+            <Route path="categories" element={<PermissionRoute permission="categorias.ver"><Categories /></PermissionRoute>} />
+            <Route path="payroll" element={<PermissionRoute permission="nominas.ver"><Payroll /></PermissionRoute>} />
+            <Route path="invoices" element={<PermissionRoute permission="facturas.ver"><Invoices /></PermissionRoute>} />
+            <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />
+            <Route path="roles" element={<AdminRoute><Roles /></AdminRoute>} />
+            <Route path="settings" element={<AdminRoute><Settings /></AdminRoute>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

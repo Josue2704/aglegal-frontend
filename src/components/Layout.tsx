@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom'
-import { Sun, Moon, Search, X, User, Briefcase, CalendarDays } from 'lucide-react'
+import { Sun, Moon, Search, X, User, Briefcase, CalendarDays, Menu } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Sidebar } from './Sidebar'
 import { Toaster } from 'sonner'
@@ -69,12 +69,11 @@ function GlobalSearch() {
           color: 'hsl(var(--c-meta))',
           background: 'hsl(var(--c-nav-pill-bg))',
           border: '1px solid hsl(var(--c-nav-pill-border))',
-          minWidth: 180,
         }}
       >
         <Search className="h-3.5 w-3.5 shrink-0" />
-        <span className="flex-1 text-left">Buscar...</span>
-        <kbd className="px-1 py-0.5 rounded text-[10px]" style={{ background: 'hsl(var(--c-inner-border))', color: 'hsl(var(--c-meta))' }}>Ctrl K</kbd>
+        <span className="hidden sm:block flex-1 text-left">Buscar...</span>
+        <kbd className="hidden sm:block px-1 py-0.5 rounded text-[10px]" style={{ background: 'hsl(var(--c-inner-border))', color: 'hsl(var(--c-meta))' }}>Ctrl K</kbd>
       </button>
 
       {/* Dropdown */}
@@ -192,20 +191,30 @@ export function Layout() {
   const { pathname } = useLocation()
   const crumb = BREADCRUMB[pathname] ?? { label: pathname.slice(1) }
   const { theme, toggleTheme } = useSettingsStore()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar />
+      <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex flex-1 flex-col min-w-0 overflow-hidden">
         {/* Top bar */}
         <header
-          className="shrink-0 flex items-center px-6 py-3 gap-3"
+          className="shrink-0 flex items-center px-4 md:px-6 py-3 gap-3"
           style={{
             borderBottom: '1px solid hsl(var(--c-header-border))',
             background: 'hsl(var(--c-header-bg))',
           }}
         >
+          {/* Hamburger (mobile only) */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            className="md:hidden h-8 w-8 flex items-center justify-center rounded-md transition-colors hover:bg-accent/10"
+            style={{ color: 'hsl(var(--c-meta))' }}
+          >
+            <Menu className="h-4 w-4" />
+          </button>
+
           {/* Breadcrumb */}
           <div className="flex items-center gap-1.5 text-sm">
             {crumb.parent && (
