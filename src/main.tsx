@@ -8,3 +8,5 @@ createRoot(document.getElementById('root')!).render(
     <App />
   </StrictMode>
 )
+
+document.getElementById('app-loading')?.remove()

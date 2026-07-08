@@ -8,7 +8,7 @@ export function useAlerts() {
   const { user } = useAuthStore()
   const canView =
     user?.is_admin ||
-    user?.permissions.some((p) =>
+    user?.permissions?.some((p) =>
       ['tareas.ver', 'expedientes.ver'].includes(p)
     )
 

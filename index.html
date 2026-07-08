@@ -8,7 +8,31 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet" />
   </head>
+  <style>
+    #app-loading {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      background: hsl(213, 74%, 6%);
+      z-index: 9999;
+      transition: opacity 0.2s;
+    }
+    #app-loading img { width: 120px; opacity: .85; }
+    #app-loading .spinner {
+      width: 28px; height: 28px;
+      border: 3px solid rgba(255,255,255,.12);
+      border-top-color: hsl(43, 57%, 55%);
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
   <body>
+    <!-- Visible while JS bundle loads, React removes it on first render -->
+    <div id="app-loading">
+      <img src="/AG LOGO 04.png" alt="AG Legal" />
+      <div class="spinner"></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
