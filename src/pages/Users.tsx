@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Pencil, KeyRound, Shield } from 'lucide-react'
 import { toast } from 'sonner'
@@ -64,9 +64,12 @@ export default function Users() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.username.trim()) return toast.error('Usuario requerido')
-    if (!editing && !form.password) return toast.error('Contraseña requerida para nuevos usuarios')
+    if (!form.username.trim()) return toast.error('El nombre de usuario es requerido')
+    if (form.username.includes(' ')) return toast.error('El usuario no puede contener espacios')
+    if (form.username.length < 3) return toast.error('El usuario debe tener al menos 3 caracteres')
     if (!form.role_id) return toast.error('Selecciona un rol')
+    if (!editing && !form.password) return toast.error('La contraseña es requerida')
+    if (!editing && form.password.length < 8) return toast.error('La contraseña debe tener al menos 8 caracteres')
     const role = roles.find(r => r.id === form.role_id)
     const payload: UserIn = {
       username: form.username,
@@ -81,6 +84,7 @@ export default function Users() {
   function handlePassword(e: React.FormEvent) {
     e.preventDefault()
     if (!pwdForm.password) return toast.error('Ingrese la nueva contraseña')
+    if (pwdForm.password.length < 8) return toast.error('La contraseña debe tener al menos 8 caracteres')
     if (pwdForm.password !== pwdForm.confirm) return toast.error('Las contraseñas no coinciden')
     if (!editing) return
     changePassword.mutate({ id: editing.id, password: pwdForm.password })
@@ -138,7 +142,7 @@ export default function Users() {
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1 col-span-2">
-                <Label>Usuario *</Label>
+                <Label>Usuario <span className="text-destructive text-xs">*</span></Label>
                 <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} autoComplete="off" disabled={!!editing} />
               </div>
               <div className="space-y-1 col-span-2">
@@ -146,7 +150,7 @@ export default function Users() {
                 <Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
               </div>
               <div className="space-y-1 col-span-2">
-                <Label>Rol *</Label>
+                <Label>Rol <span className="text-destructive text-xs">*</span></Label>
                 <Select
                   value={form.role_id?.toString() ?? ''}
                   onValueChange={(v) => setForm({ ...form, role_id: parseInt(v) })}
@@ -169,7 +173,7 @@ export default function Users() {
               </div>
               {!editing && (
                 <div className="space-y-1 col-span-2">
-                  <Label>Contraseña *</Label>
+                  <Label>Contraseña <span className="text-destructive text-xs">*</span></Label>
                   <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} autoComplete="new-password" />
                 </div>
               )}
@@ -187,8 +191,8 @@ export default function Users() {
         <DialogContent>
           <DialogHeader><DialogTitle>Cambiar contraseña — {editing?.username}</DialogTitle></DialogHeader>
           <form onSubmit={handlePassword} className="space-y-3">
-            <div className="space-y-1"><Label>Nueva contraseña *</Label><Input type="password" value={pwdForm.password} onChange={(e) => setPwdForm({ ...pwdForm, password: e.target.value })} autoComplete="new-password" /></div>
-            <div className="space-y-1"><Label>Confirmar contraseña *</Label><Input type="password" value={pwdForm.confirm} onChange={(e) => setPwdForm({ ...pwdForm, confirm: e.target.value })} /></div>
+            <div className="space-y-1"><Label>Nueva contraseña <span className="text-destructive text-xs">*</span></Label><Input type="password" value={pwdForm.password} onChange={(e) => setPwdForm({ ...pwdForm, password: e.target.value })} autoComplete="new-password" /></div>
+            <div className="space-y-1"><Label>Confirmar contraseña <span className="text-destructive text-xs">*</span></Label><Input type="password" value={pwdForm.confirm} onChange={(e) => setPwdForm({ ...pwdForm, confirm: e.target.value })} /></div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setDlg(null)}>Cancelar</Button><Button type="submit" disabled={changePassword.isPending}>Cambiar</Button></DialogFooter>
           </form>
         </DialogContent>

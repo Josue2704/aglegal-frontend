@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Pencil, TrendingUp, TrendingDown, Users, ArrowUpDown, Download, Paperclip } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -83,7 +83,8 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.amount) return toast.error('Monto requerido')
+    if (!form.date) return toast.error('La fecha es requerida')
+    if (!form.amount || Number(form.amount) <= 0) return toast.error('El monto debe ser mayor a 0')
     editing ? update.mutate(editing.id) : createInc.mutate()
   }
 
@@ -169,8 +170,8 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
           <DialogHeader><DialogTitle>{editing ? 'Editar ingreso' : 'Nuevo ingreso'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Monto *</Label><Input type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
-              <div className="space-y-1"><Label>Fecha *</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Monto <span className="text-destructive text-xs">*</span></Label><Input type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Fecha <span className="text-destructive text-xs">*</span></Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
               <div className="space-y-1"><Label>Cliente</Label><Select value={form.client_id} onValueChange={f('client_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1"><Label>Caso</Label><Select value={form.case_id} onValueChange={f('case_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1 col-span-2"><Label>Categoría</Label><Select value={form.category_id} onValueChange={f('category_id')}><SelectTrigger><SelectValue placeholder="Ninguna" /></SelectTrigger><SelectContent><SelectItem value="">Ninguna</SelectItem>{cats.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
@@ -220,7 +221,9 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
 
   function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault()
-    if (!form.amount || !form.detail) return toast.error('Monto y detalle requeridos')
+    if (!form.date) return toast.error('La fecha es requerida')
+    if (!form.amount || Number(form.amount) <= 0) return toast.error('El monto debe ser mayor a 0')
+    if (!form.detail.trim()) return toast.error('El detalle es requerido')
     editing ? update.mutate(editing.id) : create.mutate()
   }
 
@@ -293,10 +296,10 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
           <DialogHeader><DialogTitle>{editing ? 'Editar gasto' : 'Nuevo gasto'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Monto *</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
-              <div className="space-y-1"><Label>Fecha *</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Monto <span className="text-destructive text-xs">*</span></Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Fecha <span className="text-destructive text-xs">*</span></Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
               <div className="space-y-1 col-span-2"><Label>Categoría</Label><Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}><SelectTrigger><SelectValue placeholder="Ninguna" /></SelectTrigger><SelectContent><SelectItem value="">Ninguna</SelectItem>{cats.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1 col-span-2"><Label>Detalle *</Label><Input value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} /></div>
+              <div className="space-y-1 col-span-2"><Label>Detalle <span className="text-destructive text-xs">*</span></Label><Input value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} /></div>
               <div className="space-y-1 col-span-2"><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             </div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setDlg(false)}>Cancelar</Button><Button type="submit" disabled={create.isPending || update.isPending}>Guardar</Button></DialogFooter>
@@ -353,7 +356,9 @@ function CostsTab({ start, end }: { start: string; end: string }) {
 
   function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault()
-    if (!form.amount || !form.detail) return toast.error('Monto y detalle requeridos')
+    if (!form.date) return toast.error('La fecha es requerida')
+    if (!form.amount || Number(form.amount) <= 0) return toast.error('El monto debe ser mayor a 0')
+    if (!form.detail.trim()) return toast.error('El detalle es requerido')
     editing ? update.mutate(editing.id) : create.mutate()
   }
 
@@ -429,12 +434,12 @@ function CostsTab({ start, end }: { start: string; end: string }) {
           <DialogHeader><DialogTitle>{editing ? 'Editar costo' : 'Nuevo costo directo'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1"><Label>Monto *</Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
-              <div className="space-y-1"><Label>Fecha *</Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Monto <span className="text-destructive text-xs">*</span></Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Fecha <span className="text-destructive text-xs">*</span></Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
               <div className="space-y-1"><Label>Cliente</Label><Select value={form.client_id} onValueChange={f('client_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1"><Label>Caso</Label><Select value={form.case_id} onValueChange={f('case_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1 col-span-2"><Label>Categoría</Label><Select value={form.category_id} onValueChange={f('category_id')}><SelectTrigger><SelectValue placeholder="Ninguna" /></SelectTrigger><SelectContent><SelectItem value="">Ninguna</SelectItem>{cats.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1 col-span-2"><Label>Detalle *</Label><Input value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} /></div>
+              <div className="space-y-1 col-span-2"><Label>Detalle <span className="text-destructive text-xs">*</span></Label><Input value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} /></div>
               <div className="space-y-1 col-span-2"><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             </div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setDlg(false)}>Cancelar</Button><Button type="submit" disabled={create.isPending || update.isPending}>Guardar</Button></DialogFooter>

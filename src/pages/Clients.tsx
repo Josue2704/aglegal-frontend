@@ -215,6 +215,16 @@ export default function Clients() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.name.trim()) return toast.error('El nombre es requerido')
+    // Duplicate detection
+    const others = (clients as Client[]).filter((c) => !editing || c.id !== editing.id)
+    if (form.id_number?.trim()) {
+      const dupId = others.find((c) => c.id_number && c.id_number.replace(/[-\s]/g, '') === form.id_number!.replace(/[-\s]/g, ''))
+      if (dupId) return toast.error(`Ya existe un cliente con esa cédula/ID: ${dupId.name}`)
+    }
+    const dupName = others.find((c) => c.name.trim().toLowerCase() === form.name.trim().toLowerCase())
+    if (dupName) {
+      if (!confirm(`Ya existe un cliente con el nombre "${dupName.name}". ¿Desea continuar de todas formas?`)) return
+    }
     editing ? update.mutate({ id: editing.id, data: form }) : create.mutate(form)
   }
 
@@ -415,7 +425,7 @@ export default function Clients() {
 
             {/* Nombre */}
             <div className="space-y-1">
-              <Label>{isJuridica ? 'Razón social *' : 'Nombre completo *'}</Label>
+              <Label>{isJuridica ? 'Razón social' : 'Nombre completo'} <span className="text-destructive text-xs">*</span></Label>
               <Input
                 value={form.name}
                 onChange={f('name')}

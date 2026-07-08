@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+﻿import { useState, useEffect, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
@@ -84,6 +84,7 @@ function SessionDialog({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!form.client_id || !form.consult_type.trim()) return toast.error('Cliente y tipo de consulta son requeridos')
+    if (!form.session_date) return toast.error('La fecha es requerida')
     if (form.end_time <= form.start_time) return toast.error('La hora fin debe ser mayor que la hora inicio')
     onSave(editing, {
       client_id: form.client_id ? Number(form.client_id) : null,
@@ -104,7 +105,7 @@ function SessionDialog({
         <form onSubmit={handleSubmit} className="space-y-3">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1 col-span-2">
-              <Label>Cliente *</Label>
+              <Label>Cliente <span className="text-destructive text-xs">*</span></Label>
               <Select value={form.client_id} onValueChange={(v) => setForm({ ...form, client_id: v, case_id: '' })}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                 <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
@@ -121,15 +122,15 @@ function SessionDialog({
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Fecha *</Label>
+              <Label>Fecha <span className="text-destructive text-xs">*</span></Label>
               <Input type="date" value={form.session_date} onChange={(e) => setForm({ ...form, session_date: e.target.value })} />
             </div>
             <div className="space-y-1">
-              <Label>Hora inicio *</Label>
+              <Label>Hora inicio <span className="text-destructive text-xs">*</span></Label>
               <Input type="time" value={form.start_time} onChange={(e) => setForm({ ...form, start_time: e.target.value })} />
             </div>
             <div className="space-y-1">
-              <Label>Hora fin *</Label>
+              <Label>Hora fin <span className="text-destructive text-xs">*</span></Label>
               <Input type="time" value={form.end_time} onChange={(e) => setForm({ ...form, end_time: e.target.value })} />
             </div>
             <div className="space-y-1">
@@ -140,7 +141,7 @@ function SessionDialog({
               </Select>
             </div>
             <div className="space-y-1 col-span-2">
-              <Label>Tipo de consulta *</Label>
+              <Label>Tipo de consulta <span className="text-destructive text-xs">*</span></Label>
               <Input value={form.consult_type} onChange={(e) => setForm({ ...form, consult_type: e.target.value })} placeholder="Ej: Consulta inicial, Revisión de contrato..." />
             </div>
             <div className="space-y-1 col-span-2">

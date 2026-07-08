@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2, Shield, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
@@ -152,7 +152,7 @@ function RoleDialog({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <Label>Nombre *</Label>
+              <Label>Nombre <span className="text-destructive text-xs">*</span></Label>
               <Input value={name} onChange={e => setName(e.target.value)} disabled={isSystem} />
             </div>
             <div className="space-y-1">

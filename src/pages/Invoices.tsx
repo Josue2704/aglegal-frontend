@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Printer, Pencil, Trash2, FileText, ChevronDown, ChevronUp,
@@ -197,7 +197,7 @@ function RegisterIncomeDialog({
 
         <div className="space-y-3 pt-1">
           <div className="space-y-1">
-            <Label className="text-xs">Monto *</Label>
+            <Label className="text-xs">Monto <span className="text-destructive text-xs">*</span></Label>
             <Input
               type="number"
               min={0}
@@ -208,7 +208,7 @@ function RegisterIncomeDialog({
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Fecha de cobro *</Label>
+            <Label className="text-xs">Fecha de cobro <span className="text-destructive text-xs">*</span></Label>
             <Input
               type="date"
               className="h-8 text-sm"
@@ -663,7 +663,7 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
-                <Label className="text-xs">Cliente *</Label>
+                <Label className="text-xs">Cliente <span className="text-destructive text-xs">*</span></Label>
                 <Select
                   value={clientId ? String(clientId) : ''}
                   onValueChange={(v) => { setClientId(parseInt(v)); setCaseId(null) }}
@@ -698,7 +698,7 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Número de factura *</Label>
+                <Label className="text-xs">Número de factura <span className="text-destructive text-xs">*</span></Label>
                 <Input className="h-8 text-sm font-mono" value={invNumber} onChange={(e) => setInvNumber(e.target.value)} />
               </div>
               <div className="space-y-1">
@@ -713,7 +713,7 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Fecha de emisión *</Label>
+                <Label className="text-xs">Fecha de emisión <span className="text-destructive text-xs">*</span></Label>
                 <Input type="date" className="h-8 text-sm" value={invDate} onChange={(e) => setInvDate(e.target.value)} />
               </div>
               <div className="space-y-1">

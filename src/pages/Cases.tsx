@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Pencil, Search, CalendarDays, X, LayoutList } from 'lucide-react'
@@ -254,9 +254,9 @@ export default function Cases() {
           <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
             {/* Datos generales */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1 col-span-2"><Label>Título *</Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
+              <div className="space-y-1 col-span-2"><Label>Título <span className="text-destructive text-xs">*</span></Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
               <div className="space-y-1">
-                <Label>Cliente *</Label>
+                <Label>Cliente <span className="text-destructive text-xs">*</span></Label>
                 <Select value={form.client_id} onValueChange={f('client_id')}>
                   <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
                   <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>

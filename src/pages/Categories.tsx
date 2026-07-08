@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Pencil } from 'lucide-react'
 import { toast } from 'sonner'
@@ -78,7 +78,7 @@ function CategoryTab({ kind, label }: { kind: CatKind; label: string }) {
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? 'Editar categoría' : `Nueva categoría — ${label}`}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
-            <div className="space-y-1"><Label>Nombre *</Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div className="space-y-1"><Label>Nombre <span className="text-destructive text-xs">*</span></Label><Input value={name} onChange={(e) => setName(e.target.value)} /></div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setDlg(false)}>Cancelar</Button><Button type="submit" disabled={create.isPending || update.isPending}>Guardar</Button></DialogFooter>
           </form>
         </DialogContent>
@@ -181,13 +181,13 @@ function ProductsTab() {
               </Select>
             </div>
             <div className="space-y-1">
-              <Label>Categoría *</Label>
+              <Label>Categoría <span className="text-destructive text-xs">*</span></Label>
               <Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}>
                 <SelectTrigger><SelectValue placeholder="Seleccionar categoría..." /></SelectTrigger>
                 <SelectContent>{serviceCategories.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
               </Select>
             </div>
-            <div className="space-y-1"><Label>Nombre *</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+            <div className="space-y-1"><Label>Nombre <span className="text-destructive text-xs">*</span></Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div className="space-y-1"><Label>Precio base</Label><Input type="number" step="0.01" value={form.base_price} onChange={(e) => setForm({ ...form, base_price: e.target.value })} /></div>
             <div className="space-y-1"><Label>Descripción</Label><Textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setDlg(false)}>Cancelar</Button><Button type="submit" disabled={create.isPending || update.isPending}>Guardar</Button></DialogFooter>
@@ -200,7 +200,7 @@ function ProductsTab() {
         <DialogContent>
           <DialogHeader><DialogTitle>Nueva categoría de servicio</DialogTitle></DialogHeader>
           <form onSubmit={(e) => { e.preventDefault(); if (!newCatName.trim()) return; createServiceCat.mutate(newCatName); setNewCatName(''); setCatDlg(false) }} className="space-y-3">
-            <div className="space-y-1"><Label>Nombre *</Label><Input value={newCatName} onChange={(e) => setNewCatName(e.target.value)} /></div>
+            <div className="space-y-1"><Label>Nombre <span className="text-destructive text-xs">*</span></Label><Input value={newCatName} onChange={(e) => setNewCatName(e.target.value)} /></div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setCatDlg(false)}>Cancelar</Button><Button type="submit">Crear</Button></DialogFooter>
           </form>
         </DialogContent>

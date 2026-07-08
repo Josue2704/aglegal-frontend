@@ -1,4 +1,4 @@
-import { useState } from 'react'
+﻿import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -46,7 +46,9 @@ export default function Payroll() {
 
   function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault()
-    if (!form.employee_name.trim() || !form.amount || !form.period) return toast.error('Nombre, período y monto son requeridos')
+    if (!form.employee_name.trim()) return toast.error('El nombre del colaborador es requerido')
+    if (!form.period) return toast.error('El período es requerido')
+    if (!form.amount || Number(form.amount) <= 0) return toast.error('El monto debe ser mayor a 0')
     create.mutate({ employee_name: form.employee_name, role: form.role, period: form.period, amount: Number(form.amount), payment_date: form.payment_date, notes: form.notes })
   }
 
@@ -104,10 +106,10 @@ export default function Payroll() {
           <DialogHeader><DialogTitle>Nuevo pago de planilla</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1 col-span-2"><Label>Nombre colaborador *</Label><Input value={form.employee_name} onChange={(e) => setForm({ ...form, employee_name: e.target.value })} /></div>
+              <div className="space-y-1 col-span-2"><Label>Nombre colaborador <span className="text-destructive text-xs">*</span></Label><Input value={form.employee_name} onChange={(e) => setForm({ ...form, employee_name: e.target.value })} /></div>
               <div className="space-y-1"><Label>Rol</Label><Select value={form.role} onValueChange={f('role')}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1"><Label>Período *</Label><Input type="month" value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })} /></div>
-              <div className="space-y-1"><Label>Monto *</Label><Input type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Período <span className="text-destructive text-xs">*</span></Label><Input type="month" value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })} /></div>
+              <div className="space-y-1"><Label>Monto <span className="text-destructive text-xs">*</span></Label><Input type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
               <div className="space-y-1"><Label>Fecha de pago</Label><Input type="date" value={form.payment_date} onChange={(e) => setForm({ ...form, payment_date: e.target.value })} /></div>
               <div className="space-y-1 col-span-2"><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             </div>
