@@ -9,6 +9,7 @@ import { toast } from 'sonner'
 import { clientsApi } from '@/api/clients'
 import { attachmentsApi } from '@/api/attachments'
 import type { Attachment, Client, ClientIn, ClientType } from '@/types'
+import { EntityAvatar } from '@/components/EntityAvatar'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -302,12 +303,13 @@ export default function Clients() {
                       style={{ borderBottom: '1px solid hsl(var(--c-table-border-r))' }}
                     >
                       <td className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <span className="shrink-0 text-muted-foreground/50">
-                            {c.client_type === 'Jurídica'
-                              ? <Building2 className="h-4 w-4" />
-                              : <User className="h-4 w-4" />}
-                          </span>
+                        <div className="flex items-center gap-2.5">
+                          <EntityAvatar
+                            entityType="client"
+                            entityId={c.id}
+                            name={c.name}
+                            size={34}
+                          />
                           <div className="min-w-0">
                             <p className="font-medium text-foreground">{c.name}</p>
                             {c.id_number && (
@@ -386,6 +388,23 @@ export default function Clients() {
             <DialogTitle>{editing ? 'Editar cliente' : 'Nuevo cliente'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* Avatar (solo en edición) */}
+            {editing && (
+              <div className="flex items-center gap-4 py-1">
+                <EntityAvatar
+                  entityType="client"
+                  entityId={editing.id}
+                  name={form.name || editing.name}
+                  size={64}
+                  editable
+                />
+                <div>
+                  <p className="text-sm font-medium text-foreground">{form.name || editing.name}</p>
+                  <p className="text-xs text-muted-foreground">Haz clic en la foto para cambiarla</p>
+                </div>
+              </div>
+            )}
 
             {/* Tipo + ID */}
             <div className="grid grid-cols-2 gap-3">

@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom'
 import { Sun, Moon, Search, X, User, Briefcase, CalendarDays, Menu } from 'lucide-react'
+import { NotificationBell } from './NotificationBell'
 import { useQuery } from '@tanstack/react-query'
 import { Sidebar } from './Sidebar'
 import { Toaster } from 'sonner'
@@ -254,6 +255,9 @@ export function Layout() {
               </Link>
             ))}
           </div>
+
+          {/* Notification bell */}
+          <NotificationBell />
 
           {/* Theme toggle */}
           <button

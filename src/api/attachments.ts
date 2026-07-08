@@ -10,7 +10,10 @@ export const attachmentsApi = {
   listForCase: (caseId: number) =>
     api.get<CaseAttachment[]>(`/cases/${caseId}/all-attachments`).then((r) => r.data),
 
-  upload: (entityType: string, entityId: number, file: File, docRole?: 'guide' | 'evidence') => {
+  getAvatar: (entityType: string, entityId: number) =>
+    api.get<Attachment>(`/attachments/avatar/${entityType}/${entityId}`).then((r) => r.data),
+
+  upload: (entityType: string, entityId: number, file: File, docRole?: 'guide' | 'evidence' | 'avatar') => {
     const fd = new FormData()
     fd.append('entity_type', entityType)
     fd.append('entity_id', String(entityId))

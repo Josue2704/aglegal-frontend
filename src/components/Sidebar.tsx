@@ -8,6 +8,7 @@ import {
 import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
 import { cn } from '@/lib/utils'
+import { EntityAvatar } from './EntityAvatar'
 
 type NavItem = { to: string; icon: React.ElementType; label: string; perm?: string }
 type NavGroup = { label: string; items: NavItem[] }
@@ -115,8 +116,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
     navigate('/login')
   }
 
-  const initials = (user?.full_name || user?.username || 'U')
-    .split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
+  const displayName = user?.full_name || user?.username || 'U'
 
   return (
     <>
@@ -181,14 +181,25 @@ export function Sidebar({ open, onClose }: SidebarProps) {
           style={{ background: 'hsl(213 60% 11%)', border: '1px solid hsl(213 45% 16%)' }}
         >
           <div className="flex items-center gap-2.5">
-            <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
-              style={{ background: 'linear-gradient(135deg, hsl(43 57% 45% / 0.3), hsl(43 57% 35% / 0.3))', border: '1px solid hsl(43 57% 45% / 0.4)', color: 'hsl(43 70% 70%)' }}
-            >
-              {initials}
-            </div>
+            {user?.id ? (
+              <EntityAvatar
+                entityType="user"
+                entityId={user.id}
+                name={displayName}
+                size={32}
+                editable
+                className="rounded-lg"
+              />
+            ) : (
+              <div
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold"
+                style={{ background: 'linear-gradient(135deg, hsl(43 57% 45% / 0.3), hsl(43 57% 35% / 0.3))', border: '1px solid hsl(43 57% 45% / 0.4)', color: 'hsl(43 70% 70%)' }}
+              >
+                {displayName[0]?.toUpperCase()}
+              </div>
+            )}
             <div className="min-w-0">
-              <p className="text-xs font-medium text-white truncate">{user?.full_name || user?.username}</p>
+              <p className="text-xs font-medium text-white truncate">{displayName}</p>
               <p className="text-[10px]" style={{ color: 'hsl(213 20% 45%)' }}>{user?.role}</p>
             </div>
           </div>
