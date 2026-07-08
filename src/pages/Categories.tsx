@@ -87,23 +87,25 @@ function CategoryTab({ kind, label }: { kind: CatKind; label: string }) {
   )
 }
 
+const SERVICE_AREAS = ['Servicios Notariales', 'Bienes Raíces e Inversiones', 'Derecho Corporativo y Empresarial', 'Derecho de Familia', 'Representación en Juicios', 'Derecho Administrativo', 'Migratorio', 'Otro']
+
 function ProductsTab() {
   const qc = useQueryClient()
   const [dlg, setDlg] = useState(false)
   const [editing, setEditing] = useState<ServiceProduct | null>(null)
-  const [form, setForm] = useState({ category_id: '', name: '', description: '', base_price: '' })
+  const [form, setForm] = useState({ category_id: '', name: '', description: '', base_price: '', service_area: '' })
 
   const { data: serviceCategories = [] } = useQuery({ queryKey: ['categories', 'service'], queryFn: () => categoriesApi.list('service') })
   const { data: products = [] } = useQuery({ queryKey: ['service-products'], queryFn: () => categoriesApi.listProducts() })
 
   const create = useMutation({
-    mutationFn: () => categoriesApi.createProduct({ category_id: Number(form.category_id), name: form.name, description: form.description, base_price: form.base_price ? Number(form.base_price) : null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['service-products'] }); toast.success('Servicio creado'); setDlg(false) },
+    mutationFn: () => categoriesApi.createProduct({ category_id: Number(form.category_id), name: form.name, description: form.description, base_price: form.base_price ? Number(form.base_price) : null, service_area: form.service_area || null }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['service-products'] }); qc.invalidateQueries({ queryKey: ['product-choices'] }); toast.success('Servicio creado'); setDlg(false) },
     onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error'),
   })
   const update = useMutation({
-    mutationFn: (id: number) => categoriesApi.updateProduct(id, { category_id: Number(form.category_id), name: form.name, description: form.description, base_price: form.base_price ? Number(form.base_price) : null }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['service-products'] }); toast.success('Actualizado'); setDlg(false) },
+    mutationFn: (id: number) => categoriesApi.updateProduct(id, { category_id: Number(form.category_id), name: form.name, description: form.description, base_price: form.base_price ? Number(form.base_price) : null, service_area: form.service_area || null }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['service-products'] }); qc.invalidateQueries({ queryKey: ['product-choices'] }); toast.success('Actualizado'); setDlg(false) },
     onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error'),
   })
   const remove = useMutation({
@@ -115,8 +117,12 @@ function ProductsTab() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['categories', 'service'] }); toast.success('Categoría de servicio creada') },
   })
 
-  function openNew() { setEditing(null); setForm({ category_id: serviceCategories[0] ? String(serviceCategories[0].id) : '', name: '', description: '', base_price: '' }); setDlg(true) }
-  function openEdit(p: ServiceProduct) { setEditing(p); setForm({ category_id: String(p.category_id), name: p.name, description: p.description ?? '', base_price: p.base_price != null ? String(p.base_price) : '' }); setDlg(true) }
+  function openNew() { setEditing(null); setForm({ category_id: serviceCategories[0] ? String(serviceCategories[0].id) : '', name: '', description: '', base_price: '', service_area: '' }); setDlg(true) }
+  function openEdit(p: ServiceProduct) {
+    setEditing(p)
+    setForm({ category_id: String(p.category_id), name: p.name, description: p.description ?? '', base_price: p.base_price != null ? String(p.base_price) : '', service_area: (p as ServiceProduct & { service_area?: string }).service_area ?? '' })
+    setDlg(true)
+  }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -136,11 +142,12 @@ function ProductsTab() {
       <Card>
         <CardContent className="p-0">
           <table className="w-full text-sm">
-            <thead className="bg-muted/50"><tr>{['Nombre', 'Categoría', 'Precio base', 'Descripción', ''].map((h) => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>)}</tr></thead>
+            <thead className="bg-muted/50"><tr>{['Nombre', 'Área de servicio', 'Categoría', 'Precio base', 'Descripción', ''].map((h) => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>)}</tr></thead>
             <tbody>
               {products.map((p) => (
                 <tr key={p.id} className="border-t hover:bg-muted/30">
                   <td className="px-4 py-3 font-medium">{p.name}</td>
+                  <td className="px-4 py-3 text-muted-foreground text-xs">{(p as ServiceProduct & { service_area?: string }).service_area ?? <span className="italic text-muted-foreground/50">Sin área</span>}</td>
                   <td className="px-4 py-3 text-muted-foreground text-xs">{p.category_name ?? '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground">{p.base_price != null ? `₡${p.base_price.toLocaleString()}` : '—'}</td>
                   <td className="px-4 py-3 text-muted-foreground text-xs max-w-[200px] truncate">{p.description || '—'}</td>
@@ -152,7 +159,7 @@ function ProductsTab() {
                   </td>
                 </tr>
               ))}
-              {!products.length && <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Sin servicios/productos</td></tr>}
+              {!products.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Sin servicios/productos</td></tr>}
             </tbody>
           </table>
         </CardContent>
@@ -163,6 +170,16 @@ function ProductsTab() {
         <DialogContent>
           <DialogHeader><DialogTitle>{editing ? 'Editar servicio' : 'Nuevo servicio/producto'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
+            <div className="space-y-1">
+              <Label>Área de servicio</Label>
+              <Select value={form.service_area} onValueChange={(v) => setForm({ ...form, service_area: v })}>
+                <SelectTrigger><SelectValue placeholder="Sin área específica" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Sin área específica</SelectItem>
+                  {SERVICE_AREAS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1">
               <Label>Categoría *</Label>
               <Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}>

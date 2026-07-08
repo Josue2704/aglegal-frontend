@@ -9,7 +9,7 @@ import { invoicesApi } from '@/api/invoices'
 import { incomesApi } from '@/api/incomes'
 import type { Category, Invoice, InvoiceItemIn, InvoiceStatus, UnbilledItems } from '@/types'
 import { useSettingsStore } from '@/store/settings'
-import { formatCurrency } from '@/lib/utils'
+import { formatCurrency, formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -102,8 +102,8 @@ function printInvoice(inv: Invoice, currency: string) {
     </div>
     <div class="info-block" style="text-align:right">
       <div class="lbl">Fecha de emisión</div>
-      <div class="val">${inv.invoice_date}</div>
-      ${inv.due_date ? `<div class="lbl" style="margin-top:10px">Fecha de vencimiento</div><div class="val">${inv.due_date}</div>` : ''}
+      <div class="val">${formatDate(inv.invoice_date)}</div>
+      ${inv.due_date ? `<div class="lbl" style="margin-top:10px">Fecha de vencimiento</div><div class="val">${formatDate(inv.due_date)}</div>` : ''}
     </div>
   </div>
   <table>
@@ -826,12 +826,9 @@ export default function Invoices() {
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string; invoice: Invoice }) =>
       invoicesApi.updateStatus(id, status),
-    onSuccess: (_, { status, invoice }) => {
+    onSuccess: (_, { status }) => {
       qc.invalidateQueries({ queryKey: ['invoices'] })
-      toast.success('Estado actualizado')
-      if (status === 'Pagada' && !invoice.has_income) {
-        setRegisterFor({ ...invoice, status: 'Pagada' })
-      }
+      toast.success(status === 'Pagada' ? 'Factura pagada — ingreso registrado automáticamente en Flujo de Caja' : 'Estado actualizado')
     },
   })
 
@@ -943,8 +940,8 @@ export default function Invoices() {
                       <span className="block text-xs text-muted-foreground font-normal">{inv.case_title}</span>
                     )}
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">{inv.invoice_date}</td>
-                  <td className="px-4 py-3 text-muted-foreground">{inv.due_date ?? '—'}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{formatDate(inv.invoice_date)}</td>
+                  <td className="px-4 py-3 text-muted-foreground">{inv.due_date ? formatDate(inv.due_date) : '—'}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <StatusBadge status={inv.status} />
@@ -964,14 +961,10 @@ export default function Invoices() {
                   <td className="px-4 py-3 text-right font-semibold">{formatCurrency(inv.total)}</td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
-                      {inv.status === 'Pagada' && !inv.has_income && (
-                        <button
-                          onClick={() => setRegisterFor(inv)}
-                          className="h-7 w-7 flex items-center justify-center rounded hover:bg-emerald-500/10 text-emerald-500 transition-colors"
-                          title="Registrar ingreso"
-                        >
-                          <DollarSign className="h-3.5 w-3.5" />
-                        </button>
+                      {inv.status === 'Pagada' && inv.has_income && (
+                        <span className="h-7 w-7 flex items-center justify-center text-emerald-500" title="Ingreso registrado en Flujo de Caja">
+                          <Check className="h-3.5 w-3.5" />
+                        </span>
                       )}
                       <button
                         onClick={() => printInvoice(inv, currency)}

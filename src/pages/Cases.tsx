@@ -68,7 +68,11 @@ export default function Cases() {
   })
   const { sorted: sortedCases, sortKey, sortDir, toggle } = useSortable(cases as unknown as Record<string, unknown>[], 'opened_at', 'desc')
   const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
-  const { data: products = [] } = useQuery({ queryKey: ['product-choices'], queryFn: () => categoriesApi.productChoices() })
+  const { data: products = [] } = useQuery({
+    queryKey: ['product-choices', form.service_area],
+    queryFn: () => categoriesApi.productChoices(form.service_area ? { service_area: form.service_area } : undefined),
+    enabled: dlg,
+  })
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
 
   const createCase = useMutation({
@@ -108,7 +112,7 @@ export default function Cases() {
       status: form.status as CaseIn['status'], priority: form.priority as CaseIn['priority'],
       opened_at: form.opened_at, notes: form.notes,
       service_product_id: form.service_product_id ? Number(form.service_product_id) : null,
-      internal_ref: form.internal_ref, official_ref: form.official_ref,
+      internal_ref: editing ? form.internal_ref : undefined, official_ref: form.official_ref,
       opposing_party: form.opposing_party, court_entity: form.court_entity,
       responsible_username: form.responsible_username,
     }
@@ -166,6 +170,7 @@ export default function Cases() {
               <table className="w-full text-sm">
                 <thead>
                   <tr style={{ borderBottom: '1px solid hsl(var(--c-table-border-h))' }}>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">N° Interno</th>
                     <SortableTh label="Expediente" colKey="title" currentKey={sortKey as string} dir={sortDir} onSort={toggle as (k: string) => void} />
                     <SortableTh label="Cliente" colKey="client_name" currentKey={sortKey as string} dir={sortDir} onSort={toggle as (k: string) => void} />
                     <SortableTh label="Estado" colKey="status" currentKey={sortKey as string} dir={sortDir} onSort={toggle as (k: string) => void} />
@@ -179,6 +184,7 @@ export default function Cases() {
                 <tbody>
                   {(sortedCases as unknown as Case[]).map((c) => (
                     <tr key={c.id} className="tr-hover transition-all" style={{ borderBottom: '1px solid hsl(var(--c-table-border-r))' }}>
+                      <td className="px-4 py-3 text-xs font-mono text-muted-foreground whitespace-nowrap">{c.internal_ref ?? '—'}</td>
                       <td className="px-4 py-3 max-w-[200px]">
                         <button
                           onClick={() => setDetailCase(c)}
@@ -228,7 +234,7 @@ export default function Cases() {
                       </td>
                     </tr>
                   ))}
-                  {!cases.length && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">No hay casos</td></tr>}
+                  {!cases.length && <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">No hay casos</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -258,7 +264,7 @@ export default function Cases() {
               </div>
               <div className="space-y-1">
                 <Label>Área de servicio</Label>
-                <Select value={form.service_area} onValueChange={f('service_area')}>
+                <Select value={form.service_area} onValueChange={(v) => setForm((p) => ({ ...p, service_area: v, service_product_id: '' }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{SERVICE_AREAS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
                 </Select>
@@ -296,7 +302,11 @@ export default function Cases() {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label>N° expediente interno</Label>
-                  <Input placeholder="EXP-2024-001" className="font-mono" value={form.internal_ref} onChange={(e) => setForm({ ...form, internal_ref: e.target.value })} />
+                  {editing ? (
+                    <Input className="font-mono bg-muted text-muted-foreground" value={form.internal_ref} readOnly />
+                  ) : (
+                    <Input className="font-mono bg-muted text-muted-foreground" value="Se genera automáticamente" readOnly />
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label>N° expediente judicial/oficial</Label>

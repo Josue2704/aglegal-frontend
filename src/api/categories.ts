@@ -9,11 +9,11 @@ export const categoriesApi = {
   // Service products
   listProducts: (params?: { category_id?: number; active_only?: boolean }) =>
     api.get<ServiceProduct[]>('/categories/service-products', { params }).then((r) => r.data),
-  productChoices: (category_id?: number) =>
-    api.get<Choice[]>('/categories/service-products/choices', { params: category_id ? { category_id } : undefined }).then((r) => r.data),
-  createProduct: (data: { category_id: number; name: string; description?: string; base_price?: number | null; active?: boolean }) =>
+  productChoices: (params?: { category_id?: number; service_area?: string }) =>
+    api.get<Choice[]>('/categories/service-products/choices', { params }).then((r) => r.data),
+  createProduct: (data: { category_id: number; name: string; description?: string; base_price?: number | null; active?: boolean; service_area?: string | null }) =>
     api.post<ServiceProduct>('/categories/service-products', data).then((r) => r.data),
-  updateProduct: (id: number, data: { category_id: number; name: string; description?: string; base_price?: number | null; active?: boolean }) =>
+  updateProduct: (id: number, data: { category_id: number; name: string; description?: string; base_price?: number | null; active?: boolean; service_area?: string | null }) =>
     api.put<ServiceProduct>(`/categories/service-products/${id}`, data).then((r) => r.data),
   deleteProduct: (id: number) => api.delete(`/categories/service-products/${id}`),
 }
