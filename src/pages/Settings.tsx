@@ -4,6 +4,7 @@ import { useSearchParams } from 'react-router-dom'
 import { CalendarCheck, Unlink, ExternalLink, Coins, RotateCcw, Sun, Moon, Building2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { googleCalApi } from '@/api/googleCal'
+import { outlookCalApi } from '@/api/outlookCal'
 import { useSettingsStore } from '@/store/settings'
 import type { FirmInfo } from '@/store/settings'
 import { formatCurrency } from '@/lib/utils'
@@ -234,6 +235,122 @@ function GoogleCalendarPanel() {
   )
 }
 
+// ─── Outlook Calendar Panel ───────────────────────────────────────────────────
+function OutlookCalendarPanel() {
+  const qc = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
+
+  const { data: status, isLoading } = useQuery({
+    queryKey: ['outlook-status'],
+    queryFn: outlookCalApi.status,
+  })
+
+  const connect = useMutation({
+    mutationFn: async () => {
+      const { url } = await outlookCalApi.authorize()
+      window.location.href = url
+    },
+    onError: (e: { response?: { data?: { detail?: string } } }) =>
+      toast.error(e.response?.data?.detail ?? 'No se pudo obtener la URL de autorización'),
+  })
+
+  const disconnect = useMutation({
+    mutationFn: outlookCalApi.disconnect,
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outlook-status'] })
+      toast.success('Outlook Calendar desconectado')
+    },
+  })
+
+  useEffect(() => {
+    const param = searchParams.get('outlook')
+    if (param === 'connected') {
+      toast.success('Outlook Calendar conectado correctamente')
+      qc.invalidateQueries({ queryKey: ['outlook-status'] })
+      setSearchParams({})
+    } else if (param === 'error') {
+      const msg = searchParams.get('msg') ?? 'Error desconocido'
+      toast.error(`Error conectando Outlook Calendar: ${msg}`)
+      setSearchParams({})
+    }
+  }, [searchParams, qc, setSearchParams])
+
+  const connected = status?.connected ?? false
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg" style={{ background: 'hsl(210 100% 56% / 0.12)', color: 'hsl(210 100% 56%)' }}>
+            {/* Microsoft Outlook icon via SVG */}
+            <svg className="h-5 w-5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M7.88 12.04q0 .45-.11.87-.1.41-.33.74-.22.33-.58.52-.37.2-.87.2t-.85-.2q-.35-.21-.57-.55-.22-.33-.33-.75-.1-.42-.1-.86t.1-.87q.1-.43.34-.76.22-.34.59-.54.36-.2.87-.2t.86.2q.35.21.57.55.22.34.31.77.1.43.1.88zM24 12v9.38q0 .46-.33.8-.33.32-.8.32H7.13q-.46 0-.8-.33-.32-.33-.32-.8V18H1q-.41 0-.7-.3-.3-.29-.3-.7V7q0-.41.3-.7Q.58 6 1 6h6.11V2.55q0-.44.3-.75.3-.3.75-.3h12.79q.44 0 .75.3.3.3.3.75V9h.01q.46 0 .8.33.33.34.33.8zm-24 0z"/>
+            </svg>
+          </div>
+          <div>
+            <CardTitle className="text-base">Outlook Calendar</CardTitle>
+            <CardDescription>
+              Sincroniza automáticamente las sesiones con Microsoft Outlook
+            </CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <p className="text-sm text-muted-foreground">Verificando conexión...</p>
+        ) : (
+          <>
+            <div className="flex items-center gap-3">
+              <Badge variant={connected ? 'success' : 'outline'}>
+                {connected ? '✓ Conectado' : 'Desconectado'}
+              </Badge>
+              {connected && (
+                <span className="text-xs text-muted-foreground">
+                  Las sesiones se sincronizan automáticamente
+                </span>
+              )}
+            </div>
+
+            {connected ? (
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive/30 hover:bg-destructive/5"
+                  onClick={() => disconnect.mutate()}
+                  disabled={disconnect.isPending}
+                >
+                  <Unlink className="h-4 w-4" />
+                  Desconectar
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => window.open('https://outlook.live.com/calendar', '_blank')}>
+                  <ExternalLink className="h-4 w-4" />
+                  Abrir Outlook Calendar
+                </Button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <Button size="sm" onClick={() => connect.mutate()} disabled={connect.isPending}>
+                  <CalendarCheck className="h-4 w-4" />
+                  Conectar Outlook Calendar
+                </Button>
+                <div className="text-xs text-muted-foreground space-y-1 border rounded-lg p-3 bg-muted/30">
+                  <p className="font-medium">¿Cómo funciona?</p>
+                  <ol className="list-decimal list-inside space-y-0.5">
+                    <li>Haz clic en "Conectar" y autoriza con tu cuenta Microsoft</li>
+                    <li>Cada sesión creada o editada se sincronizará automáticamente</li>
+                    <li>Los eventos aparecen en tu calendario de Outlook</li>
+                  </ol>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Theme Panel ─────────────────────────────────────────────────────────────
 function ThemePanel() {
   const { theme, toggleTheme } = useSettingsStore()
@@ -368,6 +485,7 @@ export default function Settings() {
       <CurrencyPanel />
       <FirmPanel />
       <GoogleCalendarPanel />
+      <OutlookCalendarPanel />
 
       <Card className="opacity-60">
         <CardHeader className="pb-2">
