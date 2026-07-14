@@ -10,4 +10,5 @@ export const clientsApi = {
   update: (id: number, data: ClientIn) => api.put<Client>(`/clients/${id}`, data).then((r) => r.data),
   delete: (id: number) => api.delete(`/clients/${id}`),
   history: (id: number) => api.get<HistoryItem[]>(`/clients/${id}/history`).then((r) => r.data),
+  statement: (id: number) => api.get(`/clients/${id}/statement`).then((r) => r.data),
 }

@@ -2,7 +2,8 @@ import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Search, Trash2, Pencil, History, CalendarDays, Briefcase,
-  Download, Paperclip, User, Building2, Upload,
+  Download, Paperclip, User, Building2, Upload, FileText,
+  TrendingUp, TrendingDown, Scale, CheckCircle2, Clock, AlertCircle,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -22,6 +23,194 @@ import { AttachmentsDialog } from '@/components/AttachmentsDialog'
 import { formatDate, exportCsv, today } from '@/lib/utils'
 import { useSortable } from '@/hooks/useSortable'
 import { SortableTh } from '@/components/ui/sortable-th'
+
+// ─── Statement Dialog ──────────────────────────────────────────────────────
+
+function fmtMoney(cents: number) {
+  return (cents / 100).toLocaleString('es-CR', { style: 'currency', currency: 'CRC', minimumFractionDigits: 0 })
+}
+
+const SESSION_STATUS_LABEL: Record<string, string> = {
+  Pendiente: 'Pendiente',
+  'En proceso': 'En proceso',
+  Finalizada: 'Finalizada',
+  Cancelada: 'Cancelada',
+}
+
+const SESSION_STATUS_COLOR: Record<string, string> = {
+  Pendiente: 'hsl(43 90% 50%)',
+  'En proceso': 'hsl(210 90% 55%)',
+  Finalizada: 'hsl(142 70% 45%)',
+  Cancelada: 'hsl(0 70% 55%)',
+}
+
+function StatementDialog({ client, onClose }: { client: Client; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['client-statement', client.id],
+    queryFn: () => clientsApi.statement(client.id),
+  })
+
+  const fin = data?.financial
+  const balance = fin ? fin.balance_cents : 0
+
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <div className="flex items-center gap-3">
+            <EntityAvatar entityType="client" entityId={client.id} name={client.name} size={40} />
+            <div>
+              <DialogTitle className="text-lg">{client.name}</DialogTitle>
+              <p className="text-xs text-muted-foreground mt-0.5">Estado de cuenta</p>
+            </div>
+          </div>
+        </DialogHeader>
+
+        {isLoading ? (
+          <div className="py-12 text-center text-muted-foreground text-sm">Cargando...</div>
+        ) : (
+          <div className="space-y-5 pt-1">
+
+            {/* ─── Financial summary ─── */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: 'Facturado', value: fin?.total_invoiced_cents ?? 0, icon: TrendingUp, color: 'hsl(210 80% 55%)' },
+                { label: 'Pagado', value: fin?.paid_invoices_cents ?? 0, icon: CheckCircle2, color: 'hsl(142 70% 45%)' },
+                { label: 'Pendiente', value: fin?.pending_invoices_cents ?? 0, icon: Clock, color: 'hsl(43 90% 50%)' },
+                { label: 'Recibido', value: fin?.total_received_cents ?? 0, icon: TrendingDown, color: 'hsl(142 60% 40%)' },
+              ].map(({ label, value, icon: Icon, color }) => (
+                <div
+                  key={label}
+                  className="rounded-xl p-3 flex flex-col gap-1"
+                  style={{ background: 'hsl(var(--muted)/0.5)', border: '1px solid hsl(var(--border))' }}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Icon className="h-3.5 w-3.5 shrink-0" style={{ color }} />
+                    <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">{label}</span>
+                  </div>
+                  <p className="text-base font-bold tabular-nums" style={{ color }}>{fmtMoney(value)}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* ─── Balance ─── */}
+            <div
+              className="flex items-center gap-3 rounded-xl px-4 py-3"
+              style={{
+                background: balance > 0 ? 'hsl(43 80% 50% / 0.1)' : 'hsl(142 70% 45% / 0.1)',
+                border: `1px solid ${balance > 0 ? 'hsl(43 80% 50% / 0.3)' : 'hsl(142 70% 45% / 0.3)'}`,
+              }}
+            >
+              <Scale className="h-5 w-5 shrink-0" style={{ color: balance > 0 ? 'hsl(43 80% 55%)' : 'hsl(142 70% 45%)' }} />
+              <div className="flex-1">
+                <p className="text-xs text-muted-foreground font-medium">Saldo pendiente por cobrar</p>
+                <p className="text-xl font-bold tabular-nums" style={{ color: balance > 0 ? 'hsl(43 80% 55%)' : 'hsl(142 70% 45%)' }}>
+                  {fmtMoney(balance)}
+                </p>
+              </div>
+              {balance <= 0 && (
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: 'hsl(142 70% 45% / 0.2)', color: 'hsl(142 70% 45%)' }}>
+                  Al día
+                </span>
+              )}
+              {balance > 0 && (
+                <AlertCircle className="h-5 w-5 shrink-0" style={{ color: 'hsl(43 80% 55%)' }} />
+              )}
+            </div>
+
+            {/* ─── Sessions ─── */}
+            {data?.sessions?.total > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  Sesiones — {data.sessions.total} total
+                </p>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {Object.entries(data.sessions.by_status as Record<string, number>).map(([status, count]) => (
+                    <span
+                      key={status}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                      style={{ background: `${SESSION_STATUS_COLOR[status] ?? 'hsl(var(--muted))'}22`, color: SESSION_STATUS_COLOR[status] ?? 'hsl(var(--muted-foreground))' }}
+                    >
+                      {SESSION_STATUS_LABEL[status] ?? status} · {count as number}
+                    </span>
+                  ))}
+                </div>
+                <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                  {(data.sessions.list as Array<Record<string, string>>).map((s) => (
+                    <div
+                      key={s.id}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs"
+                      style={{ background: 'hsl(var(--muted)/0.4)', border: '1px solid hsl(var(--border))' }}
+                    >
+                      <span className="w-2 h-2 rounded-full shrink-0" style={{ background: SESSION_STATUS_COLOR[s.status] ?? '#888' }} />
+                      <span className="text-muted-foreground shrink-0 font-mono">{s.session_date}</span>
+                      <span className="flex-1 truncate text-foreground">{s.consult_type || 'Sin tipo'}</span>
+                      <span className="shrink-0" style={{ color: SESSION_STATUS_COLOR[s.status] ?? 'inherit' }}>{s.status}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ─── Cases ─── */}
+            {data?.cases?.total > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
+                  Expedientes — {data.cases.total} total
+                </p>
+                <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
+                  {(data.cases.list as Array<Record<string, string>>).map((c) => (
+                    <div
+                      key={c.id}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs"
+                      style={{ background: 'hsl(var(--muted)/0.4)', border: '1px solid hsl(var(--border))' }}
+                    >
+                      <Briefcase className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      <span className="flex-1 truncate text-foreground">{c.title}</span>
+                      <Badge variant="secondary" className="text-[10px] h-4 px-1.5">{c.status}</Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* ─── Recent invoices ─── */}
+            {fin?.invoices?.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Facturas</p>
+                <div className="space-y-1 max-h-40 overflow-y-auto pr-1">
+                  {(fin.invoices as Array<Record<string, string | number>>).map((inv) => (
+                    <div
+                      key={inv.id}
+                      className="flex items-center gap-3 px-3 py-2 rounded-lg text-xs"
+                      style={{ background: 'hsl(var(--muted)/0.4)', border: '1px solid hsl(var(--border))' }}
+                    >
+                      <span className="text-muted-foreground font-mono shrink-0">{inv.invoice_number}</span>
+                      <span className="text-muted-foreground shrink-0">{String(inv.issued_at).slice(0, 10)}</span>
+                      <span className="flex-1" />
+                      <span className="font-medium tabular-nums">{fmtMoney(Number(inv.total_cents))}</span>
+                      <Badge
+                        variant={String(inv.status).toLowerCase() === 'pagada' ? 'success' : 'secondary'}
+                        className="text-[10px] h-4 px-1.5"
+                      >
+                        {inv.status}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+          </div>
+        )}
+
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose}>Cerrar</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -149,6 +338,7 @@ export default function Clients() {
   const [form, setForm] = useState<ClientIn>(EMPTY)
   const [historyId, setHistoryId] = useState<number | null>(null)
   const [docsClient, setDocsClient] = useState<Client | null>(null)
+  const [statementClient, setStatementClient] = useState<Client | null>(null)
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ['clients', search],
@@ -346,6 +536,9 @@ export default function Clients() {
                       <td className="px-4 py-3 text-muted-foreground">{formatDate(c.created_at.slice(0, 10))}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
+                          <Button size="icon" variant="ghost" className="h-7 w-7" title="Estado de cuenta" onClick={() => setStatementClient(c)}>
+                            <FileText className="h-3.5 w-3.5" />
+                          </Button>
                           <Button size="icon" variant="ghost" className="h-7 w-7" title="Documentos" onClick={() => setDocsClient(c)}>
                             <Paperclip className="h-3.5 w-3.5" />
                           </Button>
@@ -534,6 +727,11 @@ export default function Clients() {
           label={docsClient.name}
           onClose={() => setDocsClient(null)}
         />
+      )}
+
+      {/* Statement Dialog */}
+      {statementClient && (
+        <StatementDialog client={statementClient} onClose={() => setStatementClient(null)} />
       )}
 
       {/* History Dialog */}
