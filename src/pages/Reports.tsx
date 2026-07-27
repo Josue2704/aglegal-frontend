@@ -4,6 +4,8 @@ import { format, startOfMonth, endOfMonth, subMonths } from 'date-fns'
 import { es } from 'date-fns/locale'
 import { Printer, TrendingUp, TrendingDown, Scale, CalendarDays, Briefcase } from 'lucide-react'
 import api from '@/api/client'
+import { incomesApi } from '@/api/incomes'
+import { expensesApi } from '@/api/expenses'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -38,12 +40,12 @@ function useReportData(start: string, end: string) {
 
   const { data: incomes = [] } = useQuery({
     queryKey: ['report-incomes', start, end],
-    queryFn: () => api.get('/incomes', { params }).then(r => r.data as any[]),
+    queryFn: () => incomesApi.list(params),
     enabled: !!start && !!end,
   })
   const { data: expenses = [] } = useQuery({
     queryKey: ['report-expenses', start, end],
-    queryFn: () => api.get('/expenses', { params }).then(r => r.data as any[]),
+    queryFn: () => expensesApi.list(params),
     enabled: !!start && !!end,
   })
   const { data: sessions = [] } = useQuery({
@@ -92,24 +94,25 @@ export default function Reports() {
 
   const { incomes, expenses, sessions } = useReportData(start, end)
 
-  // Aggregates
-  const totalIncome = incomes.reduce((s: number, i: any) => s + (i.amount_cents ?? 0), 0)
-  const totalExpense = expenses.reduce((s: number, e: any) => s + (e.amount_cents ?? 0), 0)
+  // Aggregates — amount is already in dollars; ×100 keeps it in the same
+  // cents-like unit the cents() display helper below expects everywhere else.
+  const totalIncome = incomes.reduce((s, i) => s + i.amount * 100, 0)
+  const totalExpense = expenses.reduce((s, e) => s + e.amount * 100, 0)
   const balance = totalIncome - totalExpense
 
   // Income by account
   const incomeByCategory: Record<string, number> = {}
-  incomes.forEach((i: any) => {
+  incomes.forEach((i) => {
     const k = i.account_nombre ?? 'Sin cuenta'
-    incomeByCategory[k] = (incomeByCategory[k] ?? 0) + (i.amount_cents ?? 0)
+    incomeByCategory[k] = (incomeByCategory[k] ?? 0) + i.amount * 100
   })
   const incomeCategories = Object.entries(incomeByCategory).sort((a, b) => b[1] - a[1])
 
   // Expenses by account
   const expByCategory: Record<string, number> = {}
-  expenses.forEach((e: any) => {
+  expenses.forEach((e) => {
     const k = e.account_nombre ?? 'Sin cuenta'
-    expByCategory[k] = (expByCategory[k] ?? 0) + (e.amount_cents ?? 0)
+    expByCategory[k] = (expByCategory[k] ?? 0) + e.amount * 100
   })
   const expCategories = Object.entries(expByCategory).sort((a, b) => b[1] - a[1])
 
@@ -351,12 +354,12 @@ export default function Reports() {
                       </tr>
                     </thead>
                     <tbody>
-                      {incomes.map((i: any) => (
+                      {incomes.map((i) => (
                         <tr key={i.id} className="border-b" style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
                           <td className="py-2 pr-4 tabular-nums text-muted-foreground whitespace-nowrap">{fmtDate(i.income_date)}</td>
-                          <td className="py-2 pr-4">{i.description || '—'}</td>
+                          <td className="py-2 pr-4">{i.detail || i.concept || '—'}</td>
                           <td className="py-2 pr-4 text-muted-foreground">{i.account_nombre || '—'}</td>
-                          <td className="py-2 text-right tabular-nums font-medium text-green-600">{cents(i.amount_cents)}</td>
+                          <td className="py-2 text-right tabular-nums font-medium text-green-600">{cents(i.amount * 100)}</td>
                         </tr>
                       ))}
                       <tr>
@@ -388,12 +391,12 @@ export default function Reports() {
                       </tr>
                     </thead>
                     <tbody>
-                      {expenses.map((e: any) => (
+                      {expenses.map((e) => (
                         <tr key={e.id} className="border-b" style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
                           <td className="py-2 pr-4 tabular-nums text-muted-foreground whitespace-nowrap">{fmtDate(e.expense_date)}</td>
-                          <td className="py-2 pr-4">{e.description || '—'}</td>
+                          <td className="py-2 pr-4">{e.detail || e.concept || '—'}</td>
                           <td className="py-2 pr-4 text-muted-foreground">{e.account_nombre || '—'}</td>
-                          <td className="py-2 text-right tabular-nums font-medium text-red-600">{cents(e.amount_cents)}</td>
+                          <td className="py-2 text-right tabular-nums font-medium text-red-600">{cents(e.amount * 100)}</td>
                         </tr>
                       ))}
                       <tr>

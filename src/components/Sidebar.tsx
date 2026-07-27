@@ -10,7 +10,7 @@ import { authApi } from '@/api/auth'
 import { cn } from '@/lib/utils'
 import { EntityAvatar } from './EntityAvatar'
 
-type NavItem = { to: string; icon: React.ElementType; label: string; perm?: string }
+type NavItem = { to: string; icon: React.ElementType; label: string; perm?: string; adminOnly?: boolean }
 type NavGroup = { label: string; items: NavItem[] }
 
 const NAV_GROUPS: NavGroup[] = [
@@ -46,9 +46,12 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: 'Sistema',
     items: [
-      { to: '/users',    icon: UserCog, label: 'Usuarios',      perm: 'usuarios.ver' },
-      { to: '/roles',    icon: Shield,  label: 'Roles',          perm: 'roles.ver' },
-      { to: '/settings', icon: Settings, label: 'Configuración', perm: 'configuracion.ver' },
+      // Las 3 rutas de este grupo están protegidas en App.tsx con AdminRoute (exige
+      // is_admin, ignora el arreglo de permisos) — adminOnly evita que el menú muestre
+      // un enlace que un rol no-admin con estos permisos igual no puede abrir de verdad.
+      { to: '/users',    icon: UserCog, label: 'Usuarios',      perm: 'usuarios.ver', adminOnly: true },
+      { to: '/roles',    icon: Shield,  label: 'Roles',          perm: 'roles.ver', adminOnly: true },
+      { to: '/settings', icon: Settings, label: 'Configuración', perm: 'configuracion.ver', adminOnly: true },
     ],
   },
 ]
@@ -57,7 +60,7 @@ function NavGroupSection({ group, userPerms, isAdmin, onNav }: {
   group: NavGroup; userPerms: string[]; isAdmin: boolean; onNav: () => void
 }) {
   const visibleItems = group.items.filter(item =>
-    !item.perm || isAdmin || userPerms.includes(item.perm)
+    item.adminOnly ? isAdmin : (!item.perm || isAdmin || userPerms.includes(item.perm))
   )
   if (!visibleItems.length) return null
 
