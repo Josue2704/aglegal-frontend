@@ -26,7 +26,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, onPointerDownOutside, ...props }, ref) => (
+>(({ className, children, onPointerDownOutside, onInteractOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -45,6 +45,17 @@ const DialogContent = React.forwardRef<
           return
         }
         onPointerDownOutside?.(e)
+      }}
+      onInteractOutside={(e) => {
+        // Belt-and-suspenders: onInteractOutside fires for both pointer AND focus-outside
+        // interactions. Same guard as onPointerDownOutside above, kept independent in case
+        // a focus shift (not just a click) is what's reaching this handler.
+        const target = e.target as HTMLElement
+        if (target.closest('[data-radix-popper-content-wrapper]')) {
+          e.preventDefault()
+          return
+        }
+        onInteractOutside?.(e)
       }}
       {...props}
     >
