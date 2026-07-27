@@ -1,4 +1,4 @@
-﻿import { useState } from 'react'
+﻿import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Pencil, Search, CalendarDays, X, LayoutList } from 'lucide-react'
@@ -6,8 +6,12 @@ import { toast } from 'sonner'
 import { casesApi } from '@/api/cases'
 import { clientsApi } from '@/api/clients'
 import { categoriesApi } from '@/api/categories'
+import { catalogoApi } from '@/api/catalogo'
 import { usersApi } from '@/api/users'
-import type { Case, CaseIn, CaseUpdate } from '@/types'
+import { finanzasApi } from '@/api/finanzas'
+import { comisionesApi } from '@/api/comisiones'
+import type { Case, CaseIn, CaseUpdate, CaseEstadoCobro, TipoOrigen } from '@/types'
+import { TIPO_ORIGEN_VALUES } from '@/types'
 import { useSortable } from '@/hooks/useSortable'
 import { SortableTh } from '@/components/ui/sortable-th'
 import { Button } from '@/components/ui/button'
@@ -24,9 +28,14 @@ import CaseDetailPanel from '@/components/CaseDetailPanel'
 const STATUSES = ['Abierto', 'En trámite', 'En pausa', 'Cerrado'] as const
 const PRIORITIES = ['Baja', 'Media', 'Alta'] as const
 const SERVICE_AREAS = ['Servicios Notariales', 'Bienes Raíces e Inversiones', 'Derecho Corporativo y Empresarial', 'Derecho de Familia', 'Representación en Juicios', 'Derecho Administrativo', 'Migratorio', 'Otro']
+const ESTADOS_COBRO: CaseEstadoCobro[] = ['En ejecución', 'Finalizado pendiente de facturar', 'Facturado pendiente de cobro', 'Cobrado', 'Suspendido']
 
 const PRIORITY_COLOR: Record<string, 'success' | 'warning' | 'destructive'> = { Baja: 'success', Media: 'warning', Alta: 'destructive' }
 const STATUS_COLOR: Record<string, 'info' | 'warning' | 'secondary' | 'outline'> = { Abierto: 'info', 'En trámite': 'warning', 'En pausa': 'secondary', Cerrado: 'outline' }
+const ESTADO_COBRO_COLOR: Record<string, 'secondary' | 'warning' | 'info' | 'success' | 'outline'> = {
+  'En ejecución': 'secondary', 'Finalizado pendiente de facturar': 'warning', 'Facturado pendiente de cobro': 'info', 'Cobrado': 'success', 'Suspendido': 'outline',
+}
+const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 type FormData = {
   client_id: string
@@ -42,11 +51,83 @@ type FormData = {
   opposing_party: string
   court_entity: string
   responsible_username: string
+  service_id: string
+  honorarios_contratados: string
+  costos_directos_estimados: string
+  mes_cobro_esperado: string
+  estado_cobro: CaseEstadoCobro
+  fecha_cierre_estimada: string
+  fecha_cierre_real: string
+  proxima_accion: string
 }
 
 const EMPTY_FORM: FormData = {
   client_id: '', service_area: 'Otro', title: '', status: 'Abierto', priority: 'Media', opened_at: today(), notes: '', service_product_id: '',
   internal_ref: '', official_ref: '', opposing_party: '', court_entity: '', responsible_username: '',
+  service_id: '', honorarios_contratados: '', costos_directos_estimados: '', mes_cobro_esperado: '',
+  estado_cobro: 'En ejecución', fecha_cierre_estimada: '', fecha_cierre_real: '', proxima_accion: '',
+}
+
+// ─── Originadores del negocio (comisión, Fase 8) ────────────────────────────
+type OriginadorRow = { personal_id: string; porcentaje_participacion: string; tipo_origen: TipoOrigen }
+
+function OriginadoresEditor({ caseId }: { caseId: number }) {
+  const qc = useQueryClient()
+  const { data: personal = [] } = useQuery({ queryKey: ['finanzas-personal', 'Activo'], queryFn: () => finanzasApi.listPersonal('Activo') })
+  const { data: originadores = [] } = useQuery({ queryKey: ['comisiones-originadores', caseId], queryFn: () => comisionesApi.listOriginadores(caseId) })
+  const [rows, setRows] = useState<OriginadorRow[]>([])
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    setRows(originadores.map((o) => ({ personal_id: String(o.personal_id), porcentaje_participacion: String(o.porcentaje_participacion), tipo_origen: o.tipo_origen })))
+    setDirty(false)
+  }, [originadores])
+
+  const save = useMutation({
+    mutationFn: () => comisionesApi.setOriginadores(
+      caseId,
+      rows.map((r) => ({ personal_id: Number(r.personal_id), porcentaje_participacion: Number(r.porcentaje_participacion), tipo_origen: r.tipo_origen })),
+    ),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['comisiones-originadores', caseId] }); toast.success('Originadores guardados') },
+    onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error'),
+  })
+
+  const total = rows.reduce((s, r) => s + (Number(r.porcentaje_participacion) || 0), 0)
+  const totalOk = rows.length === 0 || Math.abs(total - 100) < 0.01
+
+  function addRow() { setRows([...rows, { personal_id: '', porcentaje_participacion: '', tipo_origen: 'Cliente nuevo' }]); setDirty(true) }
+  function removeRow(i: number) { setRows(rows.filter((_, idx) => idx !== i)); setDirty(true) }
+  function updateRow(i: number, patch: Partial<OriginadorRow>) { setRows(rows.map((r, idx) => (idx === i ? { ...r, ...patch } : r))); setDirty(true) }
+
+  return (
+    <div className="pt-1">
+      <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Originadores del negocio (comisión)</p>
+      <div className="space-y-2">
+        {rows.map((r, i) => (
+          <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: '1fr 90px 150px auto' }}>
+            <Select value={r.personal_id} onValueChange={(v) => updateRow(i, { personal_id: v })}>
+              <SelectTrigger><SelectValue placeholder="Persona..." /></SelectTrigger>
+              <SelectContent>{personal.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.persona}</SelectItem>)}</SelectContent>
+            </Select>
+            <Input type="number" min="0" max="100" step="0.01" value={r.porcentaje_participacion} onChange={(e) => updateRow(i, { porcentaje_participacion: e.target.value })} placeholder="%" />
+            <Select value={r.tipo_origen} onValueChange={(v) => updateRow(i, { tipo_origen: v as TipoOrigen })}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>{TIPO_ORIGEN_VALUES.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}</SelectContent>
+            </Select>
+            <Button type="button" size="icon" variant="ghost" className="h-8 w-8 text-destructive" onClick={() => removeRow(i)}><Trash2 className="h-3.5 w-3.5" /></Button>
+          </div>
+        ))}
+        {!rows.length && <p className="text-xs text-muted-foreground">Sin originadores configurados — este expediente no generará comisión al cobrarse.</p>}
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        <Button type="button" size="sm" variant="outline" onClick={addRow}><Plus className="h-3.5 w-3.5" />Agregar originador</Button>
+        <div className="flex items-center gap-2">
+          {rows.length > 0 && <span className={`text-xs font-mono ${totalOk ? 'text-muted-foreground' : 'text-destructive'}`}>Total: {total.toFixed(2)}%</span>}
+          <Button type="button" size="sm" disabled={!dirty || save.isPending || !totalOk} onClick={() => save.mutate()}>Guardar originadores</Button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function Cases() {
@@ -61,6 +142,8 @@ export default function Cases() {
   const [editing, setEditing] = useState<Case | null>(null)
   const [form, setForm] = useState<FormData>(EMPTY_FORM)
   const [detailCase, setDetailCase] = useState<Case | null>(null)
+  const [serviceSearch, setServiceSearch] = useState('')
+  const [selectedService, setSelectedService] = useState<{ id: number; service_code: string; nombre: string } | null>(null)
 
   const { data: cases = [], isLoading } = useQuery({
     queryKey: ['cases', search, statusFilter, urlClientId],
@@ -74,6 +157,11 @@ export default function Cases() {
     enabled: dlg,
   })
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
+  const { data: serviceMatches = [] } = useQuery({
+    queryKey: ['servicio-choices', serviceSearch],
+    queryFn: () => catalogoApi.servicioChoices({ q: serviceSearch || undefined, limit: 15 }),
+    enabled: dlg && serviceSearch.length > 0,
+  })
 
   const createCase = useMutation({
     mutationFn: (d: CaseIn) => casesApi.create(d),
@@ -90,7 +178,7 @@ export default function Cases() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['cases'] }); toast.success('Caso eliminado') },
   })
 
-  function openNew() { setEditing(null); setForm(EMPTY_FORM); setDlg(true) }
+  function openNew() { setEditing(null); setForm(EMPTY_FORM); setSelectedService(null); setServiceSearch(''); setDlg(true) }
   function openEdit(c: Case) {
     setEditing(c)
     setForm({
@@ -100,7 +188,17 @@ export default function Cases() {
       internal_ref: c.internal_ref ?? '', official_ref: c.official_ref ?? '',
       opposing_party: c.opposing_party ?? '', court_entity: c.court_entity ?? '',
       responsible_username: c.responsible_username ?? '',
+      service_id: c.service_id ? String(c.service_id) : '',
+      honorarios_contratados: c.honorarios_contratados ? String(c.honorarios_contratados) : '',
+      costos_directos_estimados: c.costos_directos_estimados ? String(c.costos_directos_estimados) : '',
+      mes_cobro_esperado: c.mes_cobro_esperado ?? '',
+      estado_cobro: c.estado_cobro ?? 'En ejecución',
+      fecha_cierre_estimada: c.fecha_cierre_estimada ?? '',
+      fecha_cierre_real: c.fecha_cierre_real ?? '',
+      proxima_accion: c.proxima_accion ?? '',
     })
+    setSelectedService(c.service_id && c.service_code && c.service_nombre ? { id: c.service_id, service_code: c.service_code, nombre: c.service_nombre } : null)
+    setServiceSearch('')
     setDlg(true)
   }
 
@@ -115,6 +213,14 @@ export default function Cases() {
       internal_ref: editing ? form.internal_ref : undefined, official_ref: form.official_ref,
       opposing_party: form.opposing_party, court_entity: form.court_entity,
       responsible_username: form.responsible_username,
+      service_id: form.service_id ? Number(form.service_id) : null,
+      honorarios_contratados: form.honorarios_contratados ? Number(form.honorarios_contratados) : null,
+      costos_directos_estimados: form.costos_directos_estimados ? Number(form.costos_directos_estimados) : null,
+      mes_cobro_esperado: form.mes_cobro_esperado || null,
+      estado_cobro: form.estado_cobro,
+      fecha_cierre_estimada: form.fecha_cierre_estimada || null,
+      fecha_cierre_real: form.fecha_cierre_real || null,
+      proxima_accion: form.proxima_accion,
     }
     editing ? updateCase.mutate({ id: editing.id, data: payload }) : createCase.mutate(payload)
   }
@@ -176,6 +282,8 @@ export default function Cases() {
                     <SortableTh label="Estado" colKey="status" currentKey={sortKey as string} dir={sortDir} onSort={toggle as (k: string) => void} />
                     <SortableTh label="Prioridad" colKey="priority" currentKey={sortKey as string} dir={sortDir} onSort={toggle as (k: string) => void} />
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Servicio</th>
+                    <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Cobro</th>
+                    <th className="text-right px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Saldo</th>
                     <SortableTh label="Apertura" colKey="opened_at" currentKey={sortKey as string} dir={sortDir} onSort={toggle as (k: string) => void} />
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Ir a...</th>
                     <th className="text-left px-4 py-3 font-medium text-muted-foreground text-xs uppercase tracking-wider">Acciones</th>
@@ -204,7 +312,11 @@ export default function Cases() {
                       </td>
                       <td className="px-4 py-3"><Badge variant={STATUS_COLOR[c.status] ?? 'outline'}>{c.status}</Badge></td>
                       <td className="px-4 py-3"><Badge variant={PRIORITY_COLOR[c.priority] ?? 'outline'}>{c.priority}</Badge></td>
-                      <td className="px-4 py-3 text-muted-foreground text-xs">{c.product_name ?? c.service_area}</td>
+                      <td className="px-4 py-3 text-muted-foreground text-xs">
+                        {c.service_code ? <><span className="font-mono">{c.service_code}</span><br />{c.service_nombre}</> : (c.product_name ?? c.service_area)}
+                      </td>
+                      <td className="px-4 py-3"><Badge variant={ESTADO_COBRO_COLOR[c.estado_cobro] ?? 'outline'} className="text-[10px] whitespace-nowrap">{c.estado_cobro}</Badge></td>
+                      <td className="px-4 py-3 text-right font-mono text-xs">{money(c.saldo_pendiente)}</td>
                       <td className="px-4 py-3 text-muted-foreground">{formatDate(c.opened_at)}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1.5">
@@ -234,7 +346,7 @@ export default function Cases() {
                       </td>
                     </tr>
                   ))}
-                  {!cases.length && <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">No hay casos</td></tr>}
+                  {!cases.length && <tr><td colSpan={11} className="px-4 py-8 text-center text-muted-foreground">No hay casos</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -249,7 +361,7 @@ export default function Cases() {
 
       {/* Form Dialog */}
       <Dialog open={dlg} onOpenChange={(o) => !o && setDlg(false)}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader><DialogTitle>{editing ? 'Editar expediente' : 'Nuevo expediente'}</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
             {/* Datos generales */}
@@ -295,6 +407,69 @@ export default function Cases() {
               </div>
               <div className="space-y-1"><Label>Fecha apertura</Label><Input type="date" value={form.opened_at} onChange={(e) => setForm({ ...form, opened_at: e.target.value })} /></div>
             </div>
+
+            {/* Clasificación y finanzas (Catálogo Maestro) */}
+            <div className="pt-1">
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Clasificación y finanzas</p>
+              <div className="space-y-1 mb-3">
+                <Label>Servicio del catálogo</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input value={serviceSearch} onChange={(e) => setServiceSearch(e.target.value)} placeholder="Buscar por código o nombre..." className="pl-8" />
+                </div>
+                {selectedService && (
+                  <div className="text-xs px-2 py-1 rounded bg-muted inline-flex items-center gap-1 mt-1">
+                    <span className="font-mono">{selectedService.service_code}</span> — {selectedService.nombre}
+                    <button type="button" className="text-muted-foreground hover:text-foreground ml-1" onClick={() => { setSelectedService(null); setForm({ ...form, service_id: '' }) }}>×</button>
+                  </div>
+                )}
+                {serviceSearch && (
+                  <div className="border rounded-md max-h-32 overflow-y-auto mt-1" style={{ borderColor: 'hsl(var(--border))' }}>
+                    {serviceMatches.slice(0, 8).map((s) => (
+                      <button type="button" key={s.id} className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-muted/50 flex gap-2"
+                        onClick={() => { setSelectedService({ id: s.id, service_code: s.service_code, nombre: s.nombre }); setForm({ ...form, service_id: String(s.id) }); setServiceSearch('') }}>
+                        <span className="font-mono text-muted-foreground">{s.service_code}</span><span>{s.nombre}</span>
+                      </button>
+                    ))}
+                    {serviceMatches.length === 0 && <div className="px-2.5 py-2 text-xs text-muted-foreground">Sin resultados</div>}
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">Categoría, subcategoría y familia se completan solas a partir del servicio.</p>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1"><Label>Honorarios contratados ($)</Label><Input type="number" step="0.01" min="0" value={form.honorarios_contratados} onChange={(e) => setForm({ ...form, honorarios_contratados: e.target.value })} placeholder="0.00" /></div>
+                <div className="space-y-1"><Label>Costos directos estimados ($)</Label><Input type="number" step="0.01" min="0" value={form.costos_directos_estimados} onChange={(e) => setForm({ ...form, costos_directos_estimados: e.target.value })} placeholder="0.00" /></div>
+                <div className="space-y-1"><Label>Mes de cobro esperado</Label><Input type="month" value={form.mes_cobro_esperado} onChange={(e) => setForm({ ...form, mes_cobro_esperado: e.target.value })} /></div>
+                <div className="space-y-1">
+                  <Label>Estado de cobro</Label>
+                  <Select value={form.estado_cobro} onValueChange={(v) => setForm({ ...form, estado_cobro: v as CaseEstadoCobro })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{ESTADOS_COBRO.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                {editing && (
+                  <div className="space-y-1">
+                    <Label>Saldo pendiente</Label>
+                    <Input className="font-mono bg-muted text-muted-foreground" value={money(editing.saldo_pendiente)} readOnly />
+                  </div>
+                )}
+                {editing && (
+                  <div className="space-y-1">
+                    <Label>Días de duración</Label>
+                    <Input className="font-mono bg-muted text-muted-foreground" value={editing.dias_duracion != null ? `${editing.dias_duracion} días` : '—'} readOnly />
+                  </div>
+                )}
+                <div className="space-y-1"><Label>Fecha de cierre estimada</Label><Input type="date" value={form.fecha_cierre_estimada} onChange={(e) => setForm({ ...form, fecha_cierre_estimada: e.target.value })} /></div>
+                <div className="space-y-1">
+                  <Label>Fecha de cierre real</Label>
+                  <Input type="date" value={form.fecha_cierre_real} onChange={(e) => setForm({ ...form, fecha_cierre_real: e.target.value })} />
+                  <p className="text-[11px] text-muted-foreground">Se completa sola al marcar el expediente como Cerrado.</p>
+                </div>
+                <div className="space-y-1 col-span-2"><Label>Próxima acción</Label><Input value={form.proxima_accion} onChange={(e) => setForm({ ...form, proxima_accion: e.target.value })} placeholder="Ej: enviar minuta al cliente para revisión" /></div>
+              </div>
+            </div>
+
+            {editing && <OriginadoresEditor caseId={editing.id} />}
 
             {/* Datos judiciales / expediente */}
             <div className="pt-1">

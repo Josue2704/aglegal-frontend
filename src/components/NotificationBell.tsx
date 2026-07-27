@@ -1,8 +1,10 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bell, AlertTriangle, FolderOpen } from 'lucide-react'
+import { Bell, AlertTriangle, FolderOpen, CircleDollarSign, TrendingDown } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { useAlerts } from '@/hooks/useAlerts'
 import { formatDate } from '@/lib/utils'
+
+const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 export function NotificationBell() {
   const [open, setOpen] = useState(false)
@@ -132,6 +134,62 @@ export function NotificationBell() {
                       <p className="text-xs text-muted-foreground truncate">
                         {c.client_name} · Última sesión:{' '}
                         {c.last_session ? formatDate(c.last_session) : 'ninguna'}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Overdue billing */}
+            {(data?.overdue_billing.length ?? 0) > 0 && (
+              <div>
+                <p
+                  className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sticky top-0"
+                  style={{ background: 'hsl(var(--c-panel-bg))' }}
+                >
+                  Cuentas por cobrar vencidas
+                </p>
+                {data!.overdue_billing.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => go(`/cases?search=${encodeURIComponent(c.title)}`)}
+                    className="w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-destructive/5"
+                  >
+                    <CircleDollarSign className="h-4 w-4 shrink-0 mt-0.5 text-red-500" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{c.title}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {c.client_name ?? 'Sin cliente'} · {money(c.saldo_pendiente_cents / 100)} pendiente desde {c.mes_cobro_esperado}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Budget deviation */}
+            {(data?.budget_deviation.length ?? 0) > 0 && (
+              <div>
+                <p
+                  className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sticky top-0"
+                  style={{ background: 'hsl(var(--c-panel-bg))' }}
+                >
+                  Desviación de presupuesto
+                </p>
+                {data!.budget_deviation.map((d) => (
+                  <button
+                    key={d.mes}
+                    onClick={() => go('/finanzas')}
+                    className="w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-destructive/5"
+                  >
+                    <TrendingDown className="h-4 w-4 shrink-0 mt-0.5 text-red-500" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">
+                        Cumplimiento proyectado {((d.cumplimiento_proyectado_pct ?? 0) * 100).toFixed(0)}%
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {d.mes} · proyectas {money(d.proyeccion_cierre_cents / 100)} de una meta de {money(d.meta_ingresos_cents / 100)}
                       </p>
                     </div>
                   </button>

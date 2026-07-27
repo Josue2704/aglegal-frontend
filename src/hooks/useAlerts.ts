@@ -14,14 +14,18 @@ export function useAlerts() {
 
   const query = useQuery({
     queryKey: ['dashboard-alerts'],
-    queryFn: dashboardApi.alerts,
+    queryFn: () => dashboardApi.alerts({ stale_days: 15 }),
     enabled: !!user && canView,
     refetchInterval: 60_000,
     staleTime: 30_000,
   })
 
   const data = query.data
-  const totalCount = (data?.overdue_tasks.length ?? 0) + (data?.stale_cases.length ?? 0)
+  const totalCount =
+    (data?.overdue_tasks.length ?? 0) +
+    (data?.stale_cases.length ?? 0) +
+    (data?.overdue_billing.length ?? 0) +
+    (data?.budget_deviation.length ?? 0)
 
   return { ...query, totalCount }
 }

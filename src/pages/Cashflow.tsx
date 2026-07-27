@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Pencil, TrendingUp, TrendingDown, Users, ArrowUpDown, Download, Paperclip } from 'lucide-react'
+import { Plus, Trash2, Pencil, TrendingUp, TrendingDown, Users, ArrowUpDown, Download, Paperclip, Search } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { incomesApi } from '@/api/incomes'
@@ -9,8 +9,10 @@ import { costsApi } from '@/api/costs'
 import { clientsApi } from '@/api/clients'
 import { casesApi } from '@/api/cases'
 import { categoriesApi } from '@/api/categories'
+import { catalogoApi } from '@/api/catalogo'
+import { finanzasApi } from '@/api/finanzas'
 import { dashboardApi } from '@/api/dashboard'
-import type { Income, IncomeIn, Expense, ExpenseIn, Cost, CostIn, ClientCashflowItem } from '@/types'
+import type { Income, IncomeIn, Expense, ExpenseIn, Cost, CostIn, ClientCashflowItem, ServicioChoice } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -34,15 +36,74 @@ function DateRange({ start, end, onStart, onEnd }: { start: string; end: string;
   )
 }
 
+// ─── Clasificación contable (compartida por las 3 pestañas) ────────────────────
+
+function CuentaSelect({ tipo, value, onChange }: { tipo: 'Ingreso' | 'Egreso'; value: string; onChange: (v: string) => void }) {
+  const { data: cuentas = [] } = useQuery({ queryKey: ['finanzas-cuentas', tipo], queryFn: () => finanzasApi.listCuentas({ tipo }) })
+  return (
+    <div className="space-y-1">
+      <Label>Cuenta contable</Label>
+      <Select value={value} onValueChange={onChange}>
+        <SelectTrigger><SelectValue placeholder="Seleccionar cuenta..." /></SelectTrigger>
+        <SelectContent>
+          {cuentas.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.account_code} — {c.nombre}</SelectItem>)}
+        </SelectContent>
+      </Select>
+      <p className="text-[11px] text-muted-foreground">Todo movimiento debe llevar un código de cuenta.</p>
+    </div>
+  )
+}
+
+function ServicioPicker({ selected, onSelect, onClear }: { selected: { service_code: string; nombre: string } | null; onSelect: (s: ServicioChoice) => void; onClear: () => void }) {
+  const [q, setQ] = useState('')
+  const { data: matches = [] } = useQuery({ queryKey: ['servicio-choices', q], queryFn: () => catalogoApi.servicioChoices({ q: q || undefined, limit: 10 }), enabled: q.length > 0 })
+  return (
+    <div className="space-y-1">
+      <Label>Servicio (si aplica)</Label>
+      <div className="relative">
+        <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por código o nombre..." className="pl-8" />
+      </div>
+      {selected && (
+        <div className="text-xs px-2 py-1 rounded bg-muted inline-flex items-center gap-1 mt-1">
+          <span className="font-mono">{selected.service_code}</span> — {selected.nombre}
+          <button type="button" className="text-muted-foreground hover:text-foreground ml-1" onClick={onClear}>×</button>
+        </div>
+      )}
+      {q && (
+        <div className="border rounded-md max-h-32 overflow-y-auto mt-1" style={{ borderColor: 'hsl(var(--border))' }}>
+          {matches.slice(0, 8).map((s) => (
+            <button type="button" key={s.id} className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-muted/50 flex gap-2"
+              onClick={() => { onSelect(s); setQ('') }}>
+              <span className="font-mono text-muted-foreground">{s.service_code}</span><span>{s.nombre}</span>
+            </button>
+          ))}
+          {matches.length === 0 && <div className="px-2.5 py-2 text-xs text-muted-foreground">Sin resultados</div>}
+        </div>
+      )}
+      <p className="text-[11px] text-muted-foreground">Obligatorio para ingresos jurídicos y costos directos de expediente.</p>
+    </div>
+  )
+}
+
+function NetoPreview({ bruto, iva, reembolsable }: { bruto: string; iva: string; reembolsable: string }) {
+  const neto = (Number(bruto) || 0) - (Number(iva) || 0) - (Number(reembolsable) || 0)
+  return <p className="text-xs text-muted-foreground">Monto neto operativo (calculado): <span className="font-mono font-medium text-foreground">{formatCurrency(neto)}</span></p>
+}
+
 // ─── Income Tab ───────────────────────────────────────────────────────────────
-type IncomeForm = { amount: string; date: string; client_id: string; case_id: string; category_id: string; detail: string }
-const EMPTY_INC: IncomeForm = { amount: '', date: today(), client_id: '', case_id: '', category_id: '', detail: '' }
+type IncomeForm = {
+  amount: string; date: string; client_id: string; case_id: string; category_id: string; detail: string
+  account_id: string; service_id: string; monto_iva: string; monto_reembolsable: string
+}
+const EMPTY_INC: IncomeForm = { amount: '', date: today(), client_id: '', case_id: '', category_id: '', detail: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '' }
 
 function IncomesTab({ start, end }: { start: string; end: string }) {
   const qc = useQueryClient()
   const [dlg, setDlg] = useState(false)
   const [editing, setEditing] = useState<Income | null>(null)
   const [form, setForm] = useState<IncomeForm>(EMPTY_INC)
+  const [selectedService, setSelectedService] = useState<{ service_code: string; nombre: string } | null>(null)
 
   const params = { start_date: start || undefined, end_date: end || undefined }
   const { data: incomes = [] } = useQuery({ queryKey: ['incomes', params], queryFn: () => incomesApi.list(params) })
@@ -57,6 +118,10 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
     case_id: form.case_id ? Number(form.case_id) : null,
     category_id: form.category_id ? Number(form.category_id) : null,
     detail: form.detail,
+    account_id: form.account_id ? Number(form.account_id) : null,
+    service_id: form.service_id ? Number(form.service_id) : null,
+    monto_iva: form.monto_iva ? Number(form.monto_iva) : null,
+    monto_reembolsable: form.monto_reembolsable ? Number(form.monto_reembolsable) : null,
   })
 
   const createInc = useMutation({
@@ -74,10 +139,15 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['incomes'] }); toast.success('Eliminado') },
   })
 
-  function openNew() { setEditing(null); setForm(EMPTY_INC); setDlg(true) }
+  function openNew() { setEditing(null); setForm(EMPTY_INC); setSelectedService(null); setDlg(true) }
   function openEdit(i: Income) {
     setEditing(i)
-    setForm({ amount: String(i.amount), date: i.income_date, client_id: i.client_id ? String(i.client_id) : '', case_id: i.case_id ? String(i.case_id) : '', category_id: i.category_id ? String(i.category_id) : '', detail: i.detail ?? '' })
+    setForm({
+      amount: String(i.amount), date: i.income_date, client_id: i.client_id ? String(i.client_id) : '', case_id: i.case_id ? String(i.case_id) : '', category_id: i.category_id ? String(i.category_id) : '', detail: i.detail ?? '',
+      account_id: i.account_id ? String(i.account_id) : '', service_id: i.service_id ? String(i.service_id) : '',
+      monto_iva: i.monto_iva ? String(i.monto_iva) : '', monto_reembolsable: i.monto_reembolsable ? String(i.monto_reembolsable) : '',
+    })
+    setSelectedService(i.service_id && i.service_code && i.service_nombre ? { service_code: i.service_code, nombre: i.service_nombre } : null)
     setDlg(true)
   }
 
@@ -127,8 +197,10 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Detalle</th>
                 <SortableTh label="Cliente" colKey="client_name" currentKey={incKey as string} dir={incDir} onSort={incToggle as (k: string) => void} />
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Caso</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Cuenta</th>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Categoría</th>
                 <SortableTh label="Monto" colKey="amount" currentKey={incKey as string} dir={incDir} onSort={incToggle as (k: string) => void} />
+                <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Neto</th>
                 <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
@@ -148,8 +220,10 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{i.client_name ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs truncate max-w-[120px]">{i.case_title ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground text-[11px] font-mono">{i.account_code ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{i.category_name ?? '—'}</td>
                   <td className="px-4 py-2.5 font-semibold text-green-700">{formatCurrency(i.amount)}</td>
+                  <td className="px-4 py-2.5 text-right text-xs font-mono text-muted-foreground">{formatCurrency(i.monto_neto_operativo)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7" title="Adjuntos" onClick={() => setAttachIncome(i)}><Paperclip className="h-3.5 w-3.5" /></Button>
@@ -159,7 +233,7 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
                   </td>
                 </tr>
               ))}
-              {!incomes.length && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Sin ingresos en el período</td></tr>}
+              {!incomes.length && <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">Sin ingresos en el período</td></tr>}
             </tbody>
           </table>
         </CardContent>
@@ -176,6 +250,17 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
               <div className="space-y-1"><Label>Caso</Label><Select value={form.case_id} onValueChange={f('case_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1 col-span-2"><Label>Categoría</Label><Select value={form.category_id} onValueChange={f('category_id')}><SelectTrigger><SelectValue placeholder="Ninguna" /></SelectTrigger><SelectContent><SelectItem value="">Ninguna</SelectItem>{cats.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1 col-span-2"><Label>Detalle</Label><Input value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} placeholder="Descripción del ingreso" /></div>
+              <div className="col-span-2"><CuentaSelect tipo="Ingreso" value={form.account_id} onChange={f('account_id')} /></div>
+              <div className="col-span-2">
+                <ServicioPicker
+                  selected={selectedService}
+                  onSelect={(s) => { setSelectedService({ service_code: s.service_code, nombre: s.nombre }); setForm({ ...form, service_id: String(s.id) }) }}
+                  onClear={() => { setSelectedService(null); setForm({ ...form, service_id: '' }) }}
+                />
+              </div>
+              <div className="space-y-1"><Label>IVA</Label><Input type="number" step="0.01" min="0" value={form.monto_iva} onChange={(e) => setForm({ ...form, monto_iva: e.target.value })} placeholder="0.00" /></div>
+              <div className="space-y-1"><Label>Reembolsable</Label><Input type="number" step="0.01" min="0" value={form.monto_reembolsable} onChange={(e) => setForm({ ...form, monto_reembolsable: e.target.value })} placeholder="0.00" /></div>
+              <div className="col-span-2"><NetoPreview bruto={form.amount} iva={form.monto_iva} reembolsable={form.monto_reembolsable} /></div>
             </div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setDlg(false)}>Cancelar</Button><Button type="submit">Guardar</Button></DialogFooter>
           </form>
@@ -186,8 +271,8 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
 }
 
 // ─── Expenses Tab ─────────────────────────────────────────────────────────────
-type ExpForm = { amount: string; date: string; category_id: string; detail: string; notes: string }
-const EMPTY_EXP: ExpForm = { amount: '', date: today(), category_id: '', detail: '', notes: '' }
+type ExpForm = { amount: string; date: string; category_id: string; detail: string; notes: string; account_id: string; monto_iva: string; monto_reembolsable: string }
+const EMPTY_EXP: ExpForm = { amount: '', date: today(), category_id: '', detail: '', notes: '', account_id: '', monto_iva: '', monto_reembolsable: '' }
 
 function ExpensesTab({ start, end }: { start: string; end: string }) {
   const qc = useQueryClient()
@@ -199,7 +284,12 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
   const { data: expenses = [] } = useQuery({ queryKey: ['expenses', params], queryFn: () => expensesApi.list(params) })
   const { data: cats = [] } = useQuery({ queryKey: ['categories', 'expense'], queryFn: () => categoriesApi.list('expense') })
 
-  const toPayload = (): ExpenseIn => ({ amount: Number(form.amount), expense_date: form.date, category_id: form.category_id ? Number(form.category_id) : null, detail: form.detail, notes: form.notes })
+  const toPayload = (): ExpenseIn => ({
+    amount: Number(form.amount), expense_date: form.date, category_id: form.category_id ? Number(form.category_id) : null, detail: form.detail, notes: form.notes,
+    account_id: form.account_id ? Number(form.account_id) : null,
+    monto_iva: form.monto_iva ? Number(form.monto_iva) : null,
+    monto_reembolsable: form.monto_reembolsable ? Number(form.monto_reembolsable) : null,
+  })
 
   const create = useMutation({
     mutationFn: () => expensesApi.create(toPayload()),
@@ -217,7 +307,16 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
   })
 
   function openNew() { setEditing(null); setForm(EMPTY_EXP); setDlg(true) }
-  function openEdit(e: Expense) { setEditing(e); setForm({ amount: String(e.amount), date: e.expense_date, category_id: e.category_id ? String(e.category_id) : '', detail: e.detail ?? '', notes: e.notes ?? '' }); setDlg(true) }
+  function openEdit(e: Expense) {
+    setEditing(e)
+    setForm({
+      amount: String(e.amount), date: e.expense_date, category_id: e.category_id ? String(e.category_id) : '', detail: e.detail ?? '', notes: e.notes ?? '',
+      account_id: e.account_id ? String(e.account_id) : '',
+      monto_iva: e.monto_iva ? String(e.monto_iva) : '',
+      monto_reembolsable: e.monto_reembolsable ? String(e.monto_reembolsable) : '',
+    })
+    setDlg(true)
+  }
 
   function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault()
@@ -263,8 +362,10 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
                 <SortableTh label="Fecha" colKey="expense_date" currentKey={expKey as string} dir={expDir} onSort={expToggle as (k: string) => void} />
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Detalle</th>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Categoría</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Cuenta</th>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Notas</th>
                 <SortableTh label="Monto" colKey="amount" currentKey={expKey as string} dir={expDir} onSort={expToggle as (k: string) => void} />
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Neto</th>
                 <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
@@ -274,8 +375,10 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
                   <td className="px-4 py-2.5">{formatDate(e.expense_date)}</td>
                   <td className="px-4 py-2.5 max-w-[200px] truncate">{e.detail || e.concept}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{e.category_name ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground text-xs">{e.account_code ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs max-w-[150px] truncate">{e.notes ?? '—'}</td>
                   <td className="px-4 py-2.5 font-semibold text-red-600">{formatCurrency(e.amount)}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground text-xs">{formatCurrency(e.monto_neto_operativo)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7" title="Adjuntos" onClick={() => setAttachExpense(e)}><Paperclip className="h-3.5 w-3.5" /></Button>
@@ -285,7 +388,7 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
                   </td>
                 </tr>
               ))}
-              {!expenses.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Sin gastos en el período</td></tr>}
+              {!expenses.length && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Sin gastos en el período</td></tr>}
             </tbody>
           </table>
         </CardContent>
@@ -299,6 +402,10 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
               <div className="space-y-1"><Label>Monto <span className="text-destructive text-xs">*</span></Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
               <div className="space-y-1"><Label>Fecha <span className="text-destructive text-xs">*</span></Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
               <div className="space-y-1 col-span-2"><Label>Categoría</Label><Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}><SelectTrigger><SelectValue placeholder="Ninguna" /></SelectTrigger><SelectContent><SelectItem value="">Ninguna</SelectItem>{cats.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="col-span-2"><CuentaSelect tipo="Egreso" value={form.account_id} onChange={(v) => setForm({ ...form, account_id: v })} /></div>
+              <div className="space-y-1"><Label>IVA</Label><Input type="number" step="0.01" min="0" value={form.monto_iva} onChange={(e) => setForm({ ...form, monto_iva: e.target.value })} placeholder="0.00" /></div>
+              <div className="space-y-1"><Label>Reembolsable</Label><Input type="number" step="0.01" min="0" value={form.monto_reembolsable} onChange={(e) => setForm({ ...form, monto_reembolsable: e.target.value })} placeholder="0.00" /></div>
+              <div className="col-span-2"><NetoPreview bruto={form.amount} iva={form.monto_iva} reembolsable={form.monto_reembolsable} /></div>
               <div className="space-y-1 col-span-2"><Label>Detalle <span className="text-destructive text-xs">*</span></Label><Input value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} /></div>
               <div className="space-y-1 col-span-2"><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             </div>
@@ -311,14 +418,15 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
 }
 
 // ─── Costs Tab ────────────────────────────────────────────────────────────────
-type CostForm = { amount: string; date: string; client_id: string; case_id: string; category_id: string; detail: string; notes: string }
-const EMPTY_COST: CostForm = { amount: '', date: today(), client_id: '', case_id: '', category_id: '', detail: '', notes: '' }
+type CostForm = { amount: string; date: string; client_id: string; case_id: string; category_id: string; detail: string; notes: string; account_id: string; service_id: string; monto_iva: string; monto_reembolsable: string }
+const EMPTY_COST: CostForm = { amount: '', date: today(), client_id: '', case_id: '', category_id: '', detail: '', notes: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '' }
 
 function CostsTab({ start, end }: { start: string; end: string }) {
   const qc = useQueryClient()
   const [dlg, setDlg] = useState(false)
   const [editing, setEditing] = useState<Cost | null>(null)
   const [form, setForm] = useState<CostForm>(EMPTY_COST)
+  const [selectedService, setSelectedService] = useState<{ service_code: string; nombre: string } | null>(null)
 
   const params = { start_date: start || undefined, end_date: end || undefined }
   const { data: costs = [] } = useQuery({ queryKey: ['costs', params], queryFn: () => costsApi.list(params) })
@@ -334,6 +442,10 @@ function CostsTab({ start, end }: { start: string; end: string }) {
     category_id: form.category_id ? Number(form.category_id) : null,
     detail: form.detail,
     notes: form.notes,
+    account_id: form.account_id ? Number(form.account_id) : null,
+    service_id: form.service_id ? Number(form.service_id) : null,
+    monto_iva: form.monto_iva ? Number(form.monto_iva) : null,
+    monto_reembolsable: form.monto_reembolsable ? Number(form.monto_reembolsable) : null,
   })
 
   const create = useMutation({
@@ -351,8 +463,19 @@ function CostsTab({ start, end }: { start: string; end: string }) {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['costs'] }); toast.success('Eliminado') },
   })
 
-  function openNew() { setEditing(null); setForm(EMPTY_COST); setDlg(true) }
-  function openEdit(c: Cost) { setEditing(c); setForm({ amount: String(c.amount), date: c.cost_date, client_id: c.client_id ? String(c.client_id) : '', case_id: c.case_id ? String(c.case_id) : '', category_id: c.category_id ? String(c.category_id) : '', detail: c.detail ?? '', notes: c.notes ?? '' }); setDlg(true) }
+  function openNew() { setEditing(null); setForm(EMPTY_COST); setSelectedService(null); setDlg(true) }
+  function openEdit(c: Cost) {
+    setEditing(c)
+    setForm({
+      amount: String(c.amount), date: c.cost_date, client_id: c.client_id ? String(c.client_id) : '', case_id: c.case_id ? String(c.case_id) : '', category_id: c.category_id ? String(c.category_id) : '', detail: c.detail ?? '', notes: c.notes ?? '',
+      account_id: c.account_id ? String(c.account_id) : '',
+      service_id: c.service_id ? String(c.service_id) : '',
+      monto_iva: c.monto_iva ? String(c.monto_iva) : '',
+      monto_reembolsable: c.monto_reembolsable ? String(c.monto_reembolsable) : '',
+    })
+    setSelectedService(c.service_id ? { service_code: c.service_code ?? '', nombre: c.service_nombre ?? '' } : null)
+    setDlg(true)
+  }
 
   function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault()
@@ -401,7 +524,10 @@ function CostsTab({ start, end }: { start: string; end: string }) {
                 <SortableTh label="Cliente" colKey="client_name" currentKey={costKey as string} dir={costDir} onSort={costToggle as (k: string) => void} />
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Caso</th>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Categoría</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Cuenta</th>
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Servicio</th>
                 <SortableTh label="Monto" colKey="amount" currentKey={costKey as string} dir={costDir} onSort={costToggle as (k: string) => void} />
+                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Neto</th>
                 <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
@@ -413,7 +539,10 @@ function CostsTab({ start, end }: { start: string; end: string }) {
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{c.client_name ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs truncate max-w-[120px]">{c.case_title ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{c.category_name ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground text-xs">{c.account_code ?? '—'}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground text-xs truncate max-w-[120px]">{c.service_code ?? '—'}</td>
                   <td className="px-4 py-2.5 font-semibold text-orange-700">{formatCurrency(c.amount)}</td>
+                  <td className="px-4 py-2.5 text-muted-foreground text-xs">{formatCurrency(c.monto_neto_operativo)}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7" title="Adjuntos" onClick={() => setAttachCost(c)}><Paperclip className="h-3.5 w-3.5" /></Button>
@@ -423,7 +552,7 @@ function CostsTab({ start, end }: { start: string; end: string }) {
                   </td>
                 </tr>
               ))}
-              {!costs.length && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Sin costos en el período</td></tr>}
+              {!costs.length && <tr><td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">Sin costos en el período</td></tr>}
             </tbody>
           </table>
         </CardContent>
@@ -439,6 +568,17 @@ function CostsTab({ start, end }: { start: string; end: string }) {
               <div className="space-y-1"><Label>Cliente</Label><Select value={form.client_id} onValueChange={f('client_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1"><Label>Caso</Label><Select value={form.case_id} onValueChange={f('case_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1 col-span-2"><Label>Categoría</Label><Select value={form.category_id} onValueChange={f('category_id')}><SelectTrigger><SelectValue placeholder="Ninguna" /></SelectTrigger><SelectContent><SelectItem value="">Ninguna</SelectItem>{cats.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
+              <div className="col-span-2"><CuentaSelect tipo="Egreso" value={form.account_id} onChange={f('account_id')} /></div>
+              <div className="col-span-2">
+                <ServicioPicker
+                  selected={selectedService}
+                  onSelect={(s) => { setSelectedService({ service_code: s.service_code, nombre: s.nombre }); setForm({ ...form, service_id: String(s.id) }) }}
+                  onClear={() => { setSelectedService(null); setForm({ ...form, service_id: '' }) }}
+                />
+              </div>
+              <div className="space-y-1"><Label>IVA</Label><Input type="number" step="0.01" min="0" value={form.monto_iva} onChange={(e) => setForm({ ...form, monto_iva: e.target.value })} placeholder="0.00" /></div>
+              <div className="space-y-1"><Label>Reembolsable</Label><Input type="number" step="0.01" min="0" value={form.monto_reembolsable} onChange={(e) => setForm({ ...form, monto_reembolsable: e.target.value })} placeholder="0.00" /></div>
+              <div className="col-span-2"><NetoPreview bruto={form.amount} iva={form.monto_iva} reembolsable={form.monto_reembolsable} /></div>
               <div className="space-y-1 col-span-2"><Label>Detalle <span className="text-destructive text-xs">*</span></Label><Input value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} /></div>
               <div className="space-y-1 col-span-2"><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             </div>

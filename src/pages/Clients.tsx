@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Search, Trash2, Pencil, History, CalendarDays, Briefcase,
   Download, Paperclip, User, Building2, Upload, FileText,
-  TrendingUp, TrendingDown, Scale, CheckCircle2, Clock, AlertCircle,
+  TrendingUp, TrendingDown, Scale, CheckCircle2, Clock, AlertCircle, Repeat,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -70,6 +70,33 @@ function StatementDialog({ client, onClose }: { client: Client; onClose: () => v
           <div className="py-12 text-center text-muted-foreground text-sm">Cargando...</div>
         ) : (
           <div className="space-y-5 pt-1">
+
+            {/* ─── Indicadores de cliente ─── */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: 'Servicios contratados', value: data?.indicadores?.servicios_contratados ?? 0, icon: Briefcase, color: 'hsl(262 70% 60%)' },
+                { label: 'Facturación acumulada', value: fmtMoney(data?.indicadores?.facturacion_acumulada_cents ?? 0), icon: TrendingUp, color: 'hsl(210 80% 55%)' },
+                { label: 'Último servicio', value: data?.indicadores?.ultimo_servicio ? formatDate(data.indicadores.ultimo_servicio) : '—', icon: CalendarDays, color: 'hsl(43 90% 50%)' },
+                {
+                  label: 'Recurrencia',
+                  value: data?.indicadores?.cliente_recurrente ? 'Recurrente' : 'Nuevo',
+                  icon: Repeat,
+                  color: data?.indicadores?.cliente_recurrente ? 'hsl(142 70% 45%)' : 'hsl(var(--muted-foreground))',
+                },
+              ].map(({ label, value, icon: Icon, color }) => (
+                <div
+                  key={label}
+                  className="rounded-xl p-3 flex flex-col gap-1"
+                  style={{ background: 'hsl(var(--muted)/0.5)', border: '1px solid hsl(var(--border))' }}
+                >
+                  <div className="flex items-center gap-1.5">
+                    <Icon className="h-3.5 w-3.5 shrink-0" style={{ color }} />
+                    <span className="text-[11px] text-muted-foreground font-medium uppercase tracking-wide">{label}</span>
+                  </div>
+                  <p className="text-base font-bold tabular-nums" style={{ color }}>{value}</p>
+                </div>
+              ))}
+            </div>
 
             {/* ─── Financial summary ─── */}
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">

@@ -1,9 +1,11 @@
-import type { Case, CaseIn, CaseUpdate, CaseTask, CaseTaskIn, GlobalCaseTask, Choice, Session } from '@/types'
+import type { Case, CaseIn, CaseUpdate, CaseTask, CaseTaskIn, GlobalCaseTask, Choice, Session, TiempoAtencion } from '@/types'
 import api from './client'
 
 export const casesApi = {
-  list: (params?: { search?: string; status?: string; client_id?: number }) =>
+  list: (params?: { search?: string; status?: string; estado_cobro?: string; client_id?: number; category_id?: number; subcategory_id?: number; service_id?: number }) =>
     api.get<Case[]>('/cases', { params }).then((r) => r.data),
+  tiemposAtencion: (params?: { category_id?: number; subcategory_id?: number; service_id?: number }) =>
+    api.get<TiempoAtencion[]>('/cases/tiempos-atencion', { params }).then((r) => r.data),
   choices: (client_id?: number) =>
     api.get<Choice[]>('/cases/choices', { params: client_id ? { client_id } : undefined }).then((r) => r.data),
   create: (data: CaseIn) => api.post<Case>('/cases', data).then((r) => r.data),
