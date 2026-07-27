@@ -78,7 +78,6 @@ export interface Case {
   id: number
   client_id: number
   client_name: string | null
-  service_area: string
   title: string
   status: CaseStatus
   priority: CasePriority
@@ -116,7 +115,6 @@ export interface Case {
 }
 export interface CaseIn {
   client_id: number
-  service_area: string
   title: string
   status: CaseStatus
   priority: CasePriority

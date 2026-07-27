@@ -26,7 +26,6 @@ import CaseDetailPanel from '@/components/CaseDetailPanel'
 
 const STATUSES = ['Abierto', 'En trámite', 'En pausa', 'Cerrado'] as const
 const PRIORITIES = ['Baja', 'Media', 'Alta'] as const
-const SERVICE_AREAS = ['Servicios Notariales', 'Bienes Raíces e Inversiones', 'Derecho Corporativo y Empresarial', 'Derecho de Familia', 'Representación en Juicios', 'Derecho Administrativo', 'Migratorio', 'Otro']
 const ESTADOS_COBRO: CaseEstadoCobro[] = ['En ejecución', 'Finalizado pendiente de facturar', 'Facturado pendiente de cobro', 'Cobrado', 'Suspendido']
 
 const PRIORITY_COLOR: Record<string, 'success' | 'warning' | 'destructive'> = { Baja: 'success', Media: 'warning', Alta: 'destructive' }
@@ -38,7 +37,6 @@ const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDi
 
 type FormData = {
   client_id: string
-  service_area: string
   title: string
   status: string
   priority: string
@@ -60,7 +58,7 @@ type FormData = {
 }
 
 const EMPTY_FORM: FormData = {
-  client_id: '', service_area: 'Otro', title: '', status: 'Abierto', priority: 'Media', opened_at: today(), notes: '',
+  client_id: '', title: '', status: 'Abierto', priority: 'Media', opened_at: today(), notes: '',
   internal_ref: '', official_ref: '', opposing_party: '', court_entity: '', responsible_username: '',
   service_id: '', honorarios_contratados: '', costos_directos_estimados: '', mes_cobro_esperado: '',
   estado_cobro: 'En ejecución', fecha_cierre_estimada: '', fecha_cierre_real: '', proxima_accion: '',
@@ -141,7 +139,7 @@ export default function Cases() {
   const [form, setForm] = useState<FormData>(EMPTY_FORM)
   const [detailCase, setDetailCase] = useState<Case | null>(null)
   const [serviceSearch, setServiceSearch] = useState('')
-  const [selectedService, setSelectedService] = useState<{ id: number; service_code: string; nombre: string } | null>(null)
+  const [selectedService, setSelectedService] = useState<{ id: number; service_code: string; nombre: string; category_code?: string; subcategory_code?: string } | null>(null)
 
   const { data: cases = [], isLoading } = useQuery({
     queryKey: ['cases', search, statusFilter, urlClientId],
@@ -175,7 +173,7 @@ export default function Cases() {
   function openEdit(c: Case) {
     setEditing(c)
     setForm({
-      client_id: String(c.client_id), service_area: c.service_area, title: c.title, status: c.status,
+      client_id: String(c.client_id), title: c.title, status: c.status,
       priority: c.priority, opened_at: c.opened_at, notes: c.notes ?? '',
       internal_ref: c.internal_ref ?? '', official_ref: c.official_ref ?? '',
       opposing_party: c.opposing_party ?? '', court_entity: c.court_entity ?? '',
@@ -189,7 +187,7 @@ export default function Cases() {
       fecha_cierre_real: c.fecha_cierre_real ?? '',
       proxima_accion: c.proxima_accion ?? '',
     })
-    setSelectedService(c.service_id && c.service_code && c.service_nombre ? { id: c.service_id, service_code: c.service_code, nombre: c.service_nombre } : null)
+    setSelectedService(c.service_id && c.service_code && c.service_nombre ? { id: c.service_id, service_code: c.service_code, nombre: c.service_nombre, category_code: c.category_code ?? undefined, subcategory_code: c.subcategory_code ?? undefined } : null)
     setServiceSearch('')
     setDlg(true)
   }
@@ -198,7 +196,7 @@ export default function Cases() {
     e.preventDefault()
     if (!form.client_id || !form.title.trim()) return toast.error('Cliente y título son requeridos')
     const payload = {
-      client_id: Number(form.client_id), service_area: form.service_area, title: form.title,
+      client_id: Number(form.client_id), title: form.title,
       status: form.status as CaseIn['status'], priority: form.priority as CaseIn['priority'],
       opened_at: form.opened_at, notes: form.notes,
       internal_ref: editing ? form.internal_ref : undefined, official_ref: form.official_ref,
@@ -304,7 +302,7 @@ export default function Cases() {
                       <td className="px-4 py-3"><Badge variant={STATUS_COLOR[c.status] ?? 'outline'}>{c.status}</Badge></td>
                       <td className="px-4 py-3"><Badge variant={PRIORITY_COLOR[c.priority] ?? 'outline'}>{c.priority}</Badge></td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {c.service_code ? <><span className="font-mono">{c.service_code}</span><br />{c.service_nombre}</> : c.service_area}
+                        {c.service_code ? <><span className="font-mono">{c.service_code}</span><br />{c.service_nombre}</> : '—'}
                       </td>
                       <td className="px-4 py-3"><Badge variant={ESTADO_COBRO_COLOR[c.estado_cobro] ?? 'outline'} className="text-[10px] whitespace-nowrap">{c.estado_cobro}</Badge></td>
                       <td className="px-4 py-3 text-right font-mono text-xs">{money(c.saldo_pendiente)}</td>
@@ -366,13 +364,6 @@ export default function Cases() {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label>Área de servicio</Label>
-                <Select value={form.service_area} onValueChange={(v) => setForm((p) => ({ ...p, service_area: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{SERVICE_AREAS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
                 <Label>Estado</Label>
                 <Select value={form.status} onValueChange={f('status')}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -400,6 +391,9 @@ export default function Cases() {
                 </div>
                 {selectedService && (
                   <div className="text-xs px-2 py-1 rounded bg-muted inline-flex items-center gap-1 mt-1">
+                    {selectedService.category_code && (
+                      <span className="text-muted-foreground">{selectedService.category_code}{selectedService.subcategory_code ? `/${selectedService.subcategory_code}` : ''} ›</span>
+                    )}
                     <span className="font-mono">{selectedService.service_code}</span> — {selectedService.nombre}
                     <button type="button" className="text-muted-foreground hover:text-foreground ml-1" onClick={() => { setSelectedService(null); setForm({ ...form, service_id: '' }) }}>×</button>
                   </div>
@@ -407,9 +401,10 @@ export default function Cases() {
                 {serviceSearch && (
                   <div className="border rounded-md max-h-32 overflow-y-auto mt-1" style={{ borderColor: 'hsl(var(--border))' }}>
                     {serviceMatches.slice(0, 8).map((s) => (
-                      <button type="button" key={s.id} className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-muted/50 flex gap-2"
-                        onClick={() => { setSelectedService({ id: s.id, service_code: s.service_code, nombre: s.nombre }); setForm({ ...form, service_id: String(s.id) }); setServiceSearch('') }}>
-                        <span className="font-mono text-muted-foreground">{s.service_code}</span><span>{s.nombre}</span>
+                      <button type="button" key={s.id} className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-muted/50 flex flex-col gap-0.5"
+                        onClick={() => { setSelectedService({ id: s.id, service_code: s.service_code, nombre: s.nombre, category_code: s.category_code, subcategory_code: s.subcategory_code }); setForm({ ...form, service_id: String(s.id) }); setServiceSearch('') }}>
+                        <span className="flex gap-2"><span className="font-mono text-muted-foreground">{s.service_code}</span><span>{s.nombre}</span></span>
+                        <span className="text-[10px] text-muted-foreground/70">{s.category_code} › {s.subcategory_code}</span>
                       </button>
                     ))}
                     {serviceMatches.length === 0 && <div className="px-2.5 py-2 text-xs text-muted-foreground">Sin resultados</div>}

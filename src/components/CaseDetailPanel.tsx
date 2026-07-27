@@ -925,9 +925,6 @@ export default function CaseDetailPanel({ kase, onClose }: CaseDetailPanelProps)
           <div className="flex flex-wrap gap-2 text-xs">
             <span className={`px-2 py-0.5 rounded border font-medium ${CASE_STATUS_BADGE[kase.status] ?? ''}`}>{kase.status}</span>
             <span className={`px-2 py-0.5 rounded border font-medium ${PRIORITY_BADGE[kase.priority] ?? ''}`}>{kase.priority}</span>
-            {kase.service_area && (
-              <span className="px-2 py-0.5 rounded border text-muted-foreground border-border/50 bg-muted/20">{kase.service_area}</span>
-            )}
             {kase.service_nombre && (
               <span className="px-2 py-0.5 rounded border text-purple-300 border-purple-500/30 bg-purple-500/10">{kase.service_nombre}</span>
             )}
