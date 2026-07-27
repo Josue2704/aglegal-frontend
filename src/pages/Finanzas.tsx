@@ -204,7 +204,12 @@ function PlanCuentasTab() {
 
   return (
     <div className="space-y-4">
-      <InfoBanner>Toda cuenta clasifica un movimiento financiero. Las de naturaleza <strong>Inversión</strong> no afectan la utilidad operativa.</InfoBanner>
+      <InfoBanner>
+        Aquí se crean <strong>todas</strong> las categorías de ingresos y gastos — no solo las de servicios legales.
+        Para un gasto genérico (papelería, marketing, alquiler, salarios) deja "Categoría relacionada" y "Familia relacionada" en <strong>Ninguna</strong>;
+        esos dos campos son solo para cuentas que sí corresponden a un servicio del Catálogo Maestro.
+        Las de naturaleza <strong>Inversión</strong> no afectan la utilidad operativa.
+      </InfoBanner>
       <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
         <div className="flex gap-2 items-center flex-1">
           <div className="relative w-full sm:max-w-xs">
@@ -779,7 +784,7 @@ export default function Finanzas() {
       </div>
       <Tabs defaultValue="cuentas">
         <TabsList className="flex-wrap h-auto gap-1">
-          <TabsTrigger value="cuentas" className="gap-1.5"><Wallet className="h-3.5 w-3.5" />Plan de Cuentas</TabsTrigger>
+          <TabsTrigger value="cuentas" className="gap-1.5"><Wallet className="h-3.5 w-3.5" />Plan de Cuentas (Categorías)</TabsTrigger>
           <TabsTrigger value="personal" className="gap-1.5"><Users className="h-3.5 w-3.5" />Personal</TabsTrigger>
           <TabsTrigger value="gastos" className="gap-1.5"><Receipt className="h-3.5 w-3.5" />Gastos Fijos</TabsTrigger>
           <TabsTrigger value="equilibrio" className="gap-1.5"><Gauge className="h-3.5 w-3.5" />Punto de Equilibrio</TabsTrigger>

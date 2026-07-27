@@ -48,7 +48,10 @@ function CuentaSelect({ tipo, value, onChange }: { tipo: 'Ingreso' | 'Egreso'; v
           {cuentas.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.account_code} — {c.nombre}</SelectItem>)}
         </SelectContent>
       </Select>
-      <p className="text-[11px] text-muted-foreground">Todo movimiento debe llevar un código de cuenta.</p>
+      <p className="text-[11px] text-muted-foreground">
+        Todo movimiento debe llevar un código de cuenta. ¿No encuentras la categoría que buscas?{' '}
+        <Link to="/finanzas" target="_blank" className="underline hover:text-foreground">Créala en Finanzas → Plan de Cuentas</Link>.
+      </p>
     </div>
   )
 }
