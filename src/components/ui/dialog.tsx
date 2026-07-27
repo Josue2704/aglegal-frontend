@@ -36,11 +36,16 @@ const DialogContent = React.forwardRef<
         className
       )}
       onPointerDownOutside={(e) => {
-        // Radix portals (Select, DropdownMenu, Popover, Tooltip...) render outside this
-        // dialog's DOM subtree, so a click on one of their items looks like an "outside"
-        // click to the dialog and would otherwise close it unintentionally.
+        // While a Radix popper (Select, DropdownMenu, Popover...) is open, Radix sets
+        // pointer-events:none on this dialog's own content (the popper is a higher,
+        // more-recently-opened layer) — so a click that lands anywhere other than
+        // exactly on the popper's own content passes straight through this dialog and
+        // reaches whatever's behind everything, which looks like a genuine "outside"
+        // click to us even though the user is just dismissing the popper's dropdown.
+        // Checking the whole document (not just e.target) catches that pass-through
+        // case too, not just clicks that literally land on a popper item.
         const target = e.target as HTMLElement
-        if (target.closest('[data-radix-popper-content-wrapper]')) {
+        if (target.closest('[data-radix-popper-content-wrapper]') || document.querySelector('[data-radix-popper-content-wrapper]')) {
           e.preventDefault()
           return
         }
@@ -48,10 +53,9 @@ const DialogContent = React.forwardRef<
       }}
       onInteractOutside={(e) => {
         // Belt-and-suspenders: onInteractOutside fires for both pointer AND focus-outside
-        // interactions. Same guard as onPointerDownOutside above, kept independent in case
-        // a focus shift (not just a click) is what's reaching this handler.
+        // interactions. Same guard as onPointerDownOutside above.
         const target = e.target as HTMLElement
-        if (target.closest('[data-radix-popper-content-wrapper]')) {
+        if (target.closest('[data-radix-popper-content-wrapper]') || document.querySelector('[data-radix-popper-content-wrapper]')) {
           e.preventDefault()
           return
         }

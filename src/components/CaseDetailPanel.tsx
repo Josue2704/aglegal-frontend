@@ -892,7 +892,7 @@ export default function CaseDetailPanel({ kase, onClose }: CaseDetailPanelProps)
       style={{ background: 'hsl(var(--c-overlay))', backdropFilter: 'blur(4px)' }}
       onClick={(e) => {
         const target = e.target as HTMLElement
-        if (target.closest('[data-radix-popper-content-wrapper]')) return
+        if (target.closest('[data-radix-popper-content-wrapper]') || document.querySelector('[data-radix-popper-content-wrapper]')) return
         onClose()
       }}
     >
