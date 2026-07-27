@@ -887,7 +887,15 @@ export default function CaseDetailPanel({ kase, onClose }: CaseDetailPanelProps)
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex" style={{ background: 'hsl(var(--c-overlay))', backdropFilter: 'blur(4px)' }} onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex"
+      style={{ background: 'hsl(var(--c-overlay))', backdropFilter: 'blur(4px)' }}
+      onClick={(e) => {
+        const target = e.target as HTMLElement
+        if (target.closest('[data-radix-popper-content-wrapper]')) return
+        onClose()
+      }}
+    >
       <div
         className="ml-auto h-full flex flex-col overflow-hidden"
         style={{
