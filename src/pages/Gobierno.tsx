@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Search, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { gobiernoApi } from '@/api/gobierno'
+import { catalogoApi } from '@/api/catalogo'
 import type { Solicitud, SolicitudEstado, TipoRegistroSolicitud, TipoSolicitud } from '@/types'
 import { TIPO_SOLICITUD_VALUES, TIPO_REGISTRO_VALUES, SOLICITUD_ESTADOS } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -27,12 +28,13 @@ const ESTADO_COLOR: Record<SolicitudEstado, 'secondary' | 'info' | 'success' | '
   'Inactivo': 'outline',
 }
 
-// Próximos estados alcanzables desde cada estado actual, y si requieren aprobador
+// Próximos estados alcanzables desde cada estado actual. Aprobar salta directo a Activo:
+// el sistema crea el registro real en el Catálogo Maestro en el mismo paso (ver TransitionDialog).
 const NEXT_STEPS: Record<SolicitudEstado, { estado: SolicitudEstado; label: string }[]> = {
   'Solicitado': [{ estado: 'En revisión', label: 'Enviar a revisión' }, { estado: 'Rechazado', label: 'Rechazar' }],
-  'En revisión': [{ estado: 'Aprobado', label: 'Aprobar' }, { estado: 'Rechazado', label: 'Rechazar' }, { estado: 'Solicitado', label: 'Devolver' }],
+  'En revisión': [{ estado: 'Aprobado', label: 'Aprobar y activar' }, { estado: 'Rechazado', label: 'Rechazar' }, { estado: 'Solicitado', label: 'Devolver' }],
   'Rechazado': [{ estado: 'Solicitado', label: 'Reabrir' }],
-  'Aprobado': [{ estado: 'Activo', label: 'Activar' }],
+  'Aprobado': [],
   'Activo': [{ estado: 'Inactivo', label: 'Inactivar' }],
   'Inactivo': [],
 }
@@ -45,6 +47,14 @@ function SolicitudDialog({ open, onClose, editing }: { open: boolean; onClose: (
     tipo_solicitud: 'Alta' as TipoSolicitud, tipo_registro: 'Servicio' as TipoRegistroSolicitud,
     nombre_propuesto: '', categoria_padre: '', subcategoria_padre: '', codigo_propuesto: '',
     descripcion: '', motivo: '', etiquetas: '',
+  })
+
+  const { data: categorias = [] } = useQuery({ queryKey: ['catalogo-categorias', 'Activo'], queryFn: () => catalogoApi.listCategorias('Activo') })
+  const categoriaSeleccionada = categorias.find((c) => c.category_code === form.categoria_padre)
+  const { data: subcategorias = [] } = useQuery({
+    queryKey: ['catalogo-subcategorias', categoriaSeleccionada?.id],
+    queryFn: () => catalogoApi.listSubcategorias({ category_id: categoriaSeleccionada!.id, estado: 'Activo' }),
+    enabled: !!categoriaSeleccionada,
   })
 
   useEffect(() => {
@@ -82,7 +92,7 @@ function SolicitudDialog({ open, onClose, editing }: { open: boolean; onClose: (
     e.preventDefault()
     if (!form.nombre_propuesto.trim()) return toast.error('El nombre propuesto es requerido')
     if (!form.codigo_propuesto.trim()) return toast.error('El código propuesto es requerido')
-    if ((form.tipo_registro === 'Subcategoria' || form.tipo_registro === 'Servicio') && !form.categoria_padre.trim()) return toast.error('La categoría padre es requerida para este tipo de registro')
+    if ((form.tipo_registro === 'Subcategoria' || form.tipo_registro === 'Servicio' || form.tipo_registro === 'Familia') && !form.categoria_padre.trim()) return toast.error('La categoría padre es requerida para este tipo de registro')
     if (form.tipo_registro === 'Servicio' && !form.subcategoria_padre.trim()) return toast.error('La subcategoría padre es requerida para un servicio')
     editing ? update.mutate() : create.mutate()
   }
@@ -108,13 +118,38 @@ function SolicitudDialog({ open, onClose, editing }: { open: boolean; onClose: (
               </Select>
             </div>
             <div className="space-y-1 col-span-2"><Label>Nombre propuesto <span className="text-destructive text-xs">*</span></Label><Input value={form.nombre_propuesto} onChange={(e) => setForm({ ...form, nombre_propuesto: e.target.value })} /></div>
-            {(form.tipo_registro === 'Subcategoria' || form.tipo_registro === 'Servicio') && (
-              <div className="space-y-1"><Label>Categoría padre <span className="text-destructive text-xs">*</span></Label><Input value={form.categoria_padre} onChange={(e) => setForm({ ...form, categoria_padre: e.target.value })} placeholder="Código, ej. RAI" /></div>
+            {(form.tipo_registro === 'Subcategoria' || form.tipo_registro === 'Servicio' || form.tipo_registro === 'Familia') && (
+              <div className="space-y-1">
+                <Label>Categoría padre <span className="text-destructive text-xs">*</span></Label>
+                <Select
+                  value={form.categoria_padre}
+                  onValueChange={(v) => setForm({ ...form, categoria_padre: v, subcategoria_padre: '' })}
+                >
+                  <SelectTrigger><SelectValue placeholder="Seleccionar categoría..." /></SelectTrigger>
+                  <SelectContent>{categorias.map((c) => <SelectItem key={c.id} value={c.category_code}>{c.category_code} — {c.nombre}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             )}
             {form.tipo_registro === 'Servicio' && (
-              <div className="space-y-1"><Label>Subcategoría padre <span className="text-destructive text-xs">*</span></Label><Input value={form.subcategoria_padre} onChange={(e) => setForm({ ...form, subcategoria_padre: e.target.value })} placeholder="Código de subcategoría" /></div>
+              <div className="space-y-1">
+                <Label>Subcategoría padre <span className="text-destructive text-xs">*</span></Label>
+                <Select
+                  value={form.subcategoria_padre}
+                  onValueChange={(v) => setForm({ ...form, subcategoria_padre: v })}
+                  disabled={!categoriaSeleccionada}
+                >
+                  <SelectTrigger><SelectValue placeholder={categoriaSeleccionada ? 'Seleccionar subcategoría...' : 'Elige primero la categoría'} /></SelectTrigger>
+                  <SelectContent>{subcategorias.map((s) => <SelectItem key={s.id} value={s.subcategory_code}>{s.subcategory_code} — {s.nombre}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
             )}
-            <div className="space-y-1"><Label>Código propuesto <span className="text-destructive text-xs">*</span></Label><Input className="font-mono" value={form.codigo_propuesto} onChange={(e) => setForm({ ...form, codigo_propuesto: e.target.value })} /></div>
+            <div className="space-y-1">
+              <Label>Código propuesto <span className="text-destructive text-xs">*</span></Label>
+              <Input className="font-mono" value={form.codigo_propuesto} onChange={(e) => setForm({ ...form, codigo_propuesto: e.target.value })} placeholder={form.tipo_registro === 'Servicio' || form.tipo_registro === 'Familia' ? 'N/A — el sistema lo asigna' : undefined} />
+              {(form.tipo_registro === 'Servicio' || form.tipo_registro === 'Familia') && (
+                <p className="text-[11px] text-muted-foreground">Para {form.tipo_registro === 'Servicio' ? 'servicios' : 'familias'} el código real lo asigna el sistema al aprobar — este campo es solo referencial.</p>
+              )}
+            </div>
             <div className="space-y-1 col-span-2"><Label>Etiquetas</Label><Input value={form.etiquetas} onChange={(e) => setForm({ ...form, etiquetas: e.target.value })} placeholder="separadas,por,coma" /></div>
             <div className="space-y-1 col-span-2"><Label>Descripción / alcance</Label><Textarea rows={2} value={form.descripcion} onChange={(e) => setForm({ ...form, descripcion: e.target.value })} /></div>
             <div className="space-y-1 col-span-2"><Label>Motivo de la solicitud</Label><Textarea rows={2} value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })} /></div>
@@ -155,7 +190,7 @@ function TransitionDialog({ open, onClose, solicitud, targetEstado }: { open: bo
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
-        <DialogHeader><DialogTitle>{targetEstado} — {solicitud.solicitud_code}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{needsAprobador ? 'Aprobar y activar' : targetEstado} — {solicitud.solicitud_code}</DialogTitle></DialogHeader>
         <div className="space-y-3">
           {needsResultado && (
             <div className="space-y-1">
@@ -167,7 +202,13 @@ function TransitionDialog({ open, onClose, solicitud, targetEstado }: { open: bo
             <div className="space-y-1">
               <Label>Aprobador <span className="text-destructive text-xs">*</span></Label>
               <Input value={aprobador} onChange={(e) => setAprobador(e.target.value)} placeholder="Nombre del socio administrador" />
-              <p className="text-[11px] text-muted-foreground">Al aprobar, el código propuesto ({solicitud.codigo_propuesto}) queda como código definitivo y permanente.</p>
+              <p className="text-[11px] text-muted-foreground">
+                Al aprobar, el sistema crea de una vez el registro real en Catálogo Maestro
+                {solicitud.tipo_registro === 'Servicio' || solicitud.tipo_registro === 'Familia'
+                  ? ' con un código asignado automáticamente'
+                  : ` con el código ${solicitud.codigo_propuesto}`}
+                , y la solicitud queda en estado Activo.
+              </p>
             </div>
           )}
           <div className="space-y-1">
@@ -249,7 +290,12 @@ export default function Gobierno() {
                     <div className="text-[10px] text-muted-foreground">{formatDate(s.fecha_solicitud)} · {s.tipo_solicitud}</div>
                   </td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{s.tipo_registro}</td>
-                  <td className="px-4 py-2.5 max-w-[220px] truncate">{s.nombre_propuesto}</td>
+                  <td className="px-4 py-2.5 max-w-[220px]">
+                    <p className="truncate">{s.nombre_propuesto}</p>
+                    {s.estado === 'Activo' && s.observaciones && (
+                      <p className="text-[10px] text-muted-foreground truncate" title={s.observaciones}>{s.observaciones.split('\n').pop()}</p>
+                    )}
+                  </td>
                   <td className="px-4 py-2.5 font-mono text-xs">
                     {s.codigo_definitivo ? (
                       <span className="text-green-600 font-semibold">{s.codigo_definitivo}</span>
