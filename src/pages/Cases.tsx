@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+﻿import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Pencil, Search, CalendarDays, X, LayoutList } from 'lucide-react'
@@ -148,11 +148,16 @@ export default function Cases() {
   const { sorted: sortedCases, sortKey, sortDir, toggle } = useSortable(cases as unknown as Record<string, unknown>[], 'opened_at', 'desc')
   const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
-  const { data: serviceMatches = [] } = useQuery({
-    queryKey: ['servicio-choices', serviceSearch],
-    queryFn: () => catalogoApi.servicioChoices({ q: serviceSearch || undefined, limit: 15 }),
-    enabled: dlg && serviceSearch.length > 0,
+  const { data: allServicios = [] } = useQuery({
+    queryKey: ['catalogo-servicios', 'Activo'],
+    queryFn: () => catalogoApi.listServicios({ estado: 'Activo' }),
+    enabled: dlg,
   })
+  const serviceMatches = useMemo(() => {
+    const term = serviceSearch.trim().toLowerCase()
+    if (!term) return allServicios
+    return allServicios.filter((s) => s.service_code.toLowerCase().includes(term) || s.nombre.toLowerCase().includes(term))
+  }, [allServicios, serviceSearch])
 
   const createCase = useMutation({
     mutationFn: (d: CaseIn) => casesApi.create(d),
@@ -398,9 +403,9 @@ export default function Cases() {
                     <button type="button" className="text-muted-foreground hover:text-foreground ml-1" onClick={() => { setSelectedService(null); setForm({ ...form, service_id: '' }) }}>×</button>
                   </div>
                 )}
-                {serviceSearch && (
-                  <div className="border rounded-md max-h-32 overflow-y-auto mt-1" style={{ borderColor: 'hsl(var(--border))' }}>
-                    {serviceMatches.slice(0, 8).map((s) => (
+                {!selectedService && (
+                  <div className="border rounded-md max-h-48 overflow-y-auto mt-1" style={{ borderColor: 'hsl(var(--border))' }}>
+                    {serviceMatches.map((s) => (
                       <button type="button" key={s.id} className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-muted/50 flex flex-col gap-0.5"
                         onClick={() => { setSelectedService({ id: s.id, service_code: s.service_code, nombre: s.nombre, category_code: s.category_code, subcategory_code: s.subcategory_code }); setForm({ ...form, service_id: String(s.id) }); setServiceSearch('') }}>
                         <span className="flex gap-2"><span className="font-mono text-muted-foreground">{s.service_code}</span><span>{s.nombre}</span></span>

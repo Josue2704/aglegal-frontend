@@ -11,7 +11,7 @@ import { casesApi } from '@/api/cases'
 import { catalogoApi } from '@/api/catalogo'
 import { finanzasApi } from '@/api/finanzas'
 import { dashboardApi } from '@/api/dashboard'
-import type { Income, IncomeIn, Expense, ExpenseIn, Cost, CostIn, ClientCashflowItem, ServicioChoice } from '@/types'
+import type { Income, IncomeIn, Expense, ExpenseIn, Cost, CostIn, ClientCashflowItem, Servicio } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -56,9 +56,12 @@ function CuentaSelect({ tipo, value, onChange }: { tipo: 'Ingreso' | 'Egreso'; v
   )
 }
 
-function ServicioPicker({ selected, onSelect, onClear }: { selected: { service_code: string; nombre: string } | null; onSelect: (s: ServicioChoice) => void; onClear: () => void }) {
+function ServicioPicker({ selected, onSelect, onClear }: { selected: { service_code: string; nombre: string } | null; onSelect: (s: Servicio) => void; onClear: () => void }) {
   const [q, setQ] = useState('')
-  const { data: matches = [] } = useQuery({ queryKey: ['servicio-choices', q], queryFn: () => catalogoApi.servicioChoices({ q: q || undefined, limit: 10 }), enabled: q.length > 0 })
+  const { data: allServicios = [] } = useQuery({ queryKey: ['catalogo-servicios', 'Activo'], queryFn: () => catalogoApi.listServicios({ estado: 'Activo' }) })
+  const matches = q.trim()
+    ? allServicios.filter((s) => s.service_code.toLowerCase().includes(q.trim().toLowerCase()) || s.nombre.toLowerCase().includes(q.trim().toLowerCase()))
+    : allServicios
   return (
     <div className="space-y-1">
       <Label>Servicio (si aplica)</Label>
@@ -72,12 +75,13 @@ function ServicioPicker({ selected, onSelect, onClear }: { selected: { service_c
           <button type="button" className="text-muted-foreground hover:text-foreground ml-1" onClick={onClear}>×</button>
         </div>
       )}
-      {q && (
-        <div className="border rounded-md max-h-32 overflow-y-auto mt-1" style={{ borderColor: 'hsl(var(--border))' }}>
-          {matches.slice(0, 8).map((s) => (
-            <button type="button" key={s.id} className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-muted/50 flex gap-2"
+      {!selected && (
+        <div className="border rounded-md max-h-48 overflow-y-auto mt-1" style={{ borderColor: 'hsl(var(--border))' }}>
+          {matches.map((s) => (
+            <button type="button" key={s.id} className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-muted/50 flex flex-col gap-0.5"
               onClick={() => { onSelect(s); setQ('') }}>
-              <span className="font-mono text-muted-foreground">{s.service_code}</span><span>{s.nombre}</span>
+              <span className="flex gap-2"><span className="font-mono text-muted-foreground">{s.service_code}</span><span>{s.nombre}</span></span>
+              <span className="text-[10px] text-muted-foreground/70">{s.category_code} › {s.subcategory_code}</span>
             </button>
           ))}
           {matches.length === 0 && <div className="px-2.5 py-2 text-xs text-muted-foreground">Sin resultados</div>}

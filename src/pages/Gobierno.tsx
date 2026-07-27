@@ -81,8 +81,8 @@ function EntityPicker({ tipoRegistro, selected, onSelect }: {
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
             <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar por código o nombre..." className="pl-8" />
           </div>
-          <div className="border rounded-md max-h-40 overflow-y-auto mt-1" style={{ borderColor: 'hsl(var(--border))' }}>
-            {matches.slice(0, 30).map((r) => (
+          <div className="border rounded-md max-h-48 overflow-y-auto mt-1" style={{ borderColor: 'hsl(var(--border))' }}>
+            {matches.map((r) => (
               <button type="button" key={r.id} className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-muted/50 flex flex-col"
                 onClick={() => onSelect(r)}>
                 <span><span className="font-mono text-muted-foreground">{r.code}</span> {r.nombre}</span>
