@@ -1,24 +1,18 @@
-import { useMemo, useState, useEffect } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
 import {
-  Plus, Pencil, ChevronDown, ChevronRight, Search, History,
-  Info, Folders, FolderTree, Briefcase, Layers,
+  ChevronDown, ChevronRight, Search, History,
+  Info, ShieldCheck, FolderTree, Briefcase, Layers,
 } from 'lucide-react'
-import { toast } from 'sonner'
+import { Link } from 'react-router-dom'
 import { catalogoApi } from '@/api/catalogo'
-import type { Categoria, Subcategoria, Servicio, Familia, CatalogoEstado, ServicioEstado } from '@/types'
-import { UNIDADES_COBRO, RESPONSABLES_SUGERIDOS } from '@/types'
+import type { Categoria, Subcategoria, Servicio } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-
-type ApiErr = { response?: { data?: { detail?: string } } }
-const errMsg = (e: ApiErr) => e.response?.data?.detail ?? 'Ocurrió un error'
 
 function InfoBanner({ children }: { children: React.ReactNode }) {
   return (
@@ -28,6 +22,24 @@ function InfoBanner({ children }: { children: React.ReactNode }) {
     >
       <Info className="h-4 w-4 shrink-0 mt-0.5" />
       <span>{children}</span>
+    </div>
+  )
+}
+
+function GobiernoBanner() {
+  return (
+    <div
+      className="flex items-center justify-between gap-3 rounded-xl px-4 py-3"
+      style={{ background: 'hsl(43 70% 55% / 0.08)', border: '1px solid hsl(43 70% 55% / 0.25)' }}
+    >
+      <div className="flex items-start gap-2.5">
+        <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" style={{ color: 'hsl(43 70% 55%)' }} />
+        <span className="text-sm">
+          El Catálogo Maestro es de solo lectura. Toda alta, cambio o baja de categorías, subcategorías, servicios o familias
+          se hace mediante una solicitud en <strong>Gobierno del Catálogo</strong>.
+        </span>
+      </div>
+      <Button size="sm" asChild><Link to="/gobierno-catalogo">Ir a solicitudes</Link></Button>
     </div>
   )
 }
@@ -79,379 +91,10 @@ function HistorialDialog({ open, onClose, tipo, entityId, label }: {
   )
 }
 
-// ─── Categoría dialog ──────────────────────────────────────────────────────────
-
-function CategoriaDialog({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: Categoria | null }) {
-  const qc = useQueryClient()
-  const [code, setCode] = useState('')
-  const [nombre, setNombre] = useState('')
-  const [estado, setEstado] = useState<CatalogoEstado>('Activo')
-
-  useEffect(() => {
-    if (!open) return
-    setCode(editing?.category_code ?? '')
-    setNombre(editing?.nombre ?? '')
-    setEstado(editing?.estado ?? 'Activo')
-  }, [open, editing])
-
-  const create = useMutation({
-    mutationFn: () => catalogoApi.createCategoria({ category_code: code, nombre }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['catalogo-categorias'] }); toast.success('Categoría creada'); onClose() },
-    onError: (e: ApiErr) => toast.error(errMsg(e)),
-  })
-  const update = useMutation({
-    mutationFn: () => catalogoApi.updateCategoria(editing!.id, { nombre, estado }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['catalogo-categorias'] }); toast.success('Categoría actualizada'); onClose() },
-    onError: (e: ApiErr) => toast.error(errMsg(e)),
-  })
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!nombre.trim()) return toast.error('Nombre requerido')
-    if (!editing && !/^[A-Za-z]{2,4}$/.test(code.trim())) return toast.error('El código debe ser de 2 a 4 letras (ej. PEN, NOT)')
-    editing ? update.mutate() : create.mutate()
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>{editing ? 'Editar categoría' : 'Nueva categoría'}</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1">
-            <Label>Código {!editing && <span className="text-destructive text-xs">*</span>}</Label>
-            {editing ? (
-              <Input value={code} disabled className="font-mono opacity-60" />
-            ) : (
-              <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="Ej: PEN" maxLength={4} className="font-mono" autoFocus />
-            )}
-            <p className="text-[11px] text-muted-foreground">El código es permanente — una vez creado no se puede editar ni reutilizar.</p>
-          </div>
-          <div className="space-y-1">
-            <Label>Nombre <span className="text-destructive text-xs">*</span></Label>
-            <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: Derecho Penal" autoFocus={!!editing} />
-          </div>
-          {editing && (
-            <div className="space-y-1">
-              <Label>Estado</Label>
-              <Select value={estado} onValueChange={(v) => setEstado(v as CatalogoEstado)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Activo">Activo</SelectItem>
-                  <SelectItem value="Inactivo">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={create.isPending || update.isPending}>Guardar</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ─── Subcategoría dialog ───────────────────────────────────────────────────────
-
-function SubcategoriaDialog({ open, onClose, editing, defaultCategoryId, categorias }: {
-  open: boolean; onClose: () => void; editing: Subcategoria | null; defaultCategoryId?: number; categorias: Categoria[]
-}) {
-  const qc = useQueryClient()
-  const [categoryId, setCategoryId] = useState('')
-  const [code, setCode] = useState('')
-  const [nombre, setNombre] = useState('')
-  const [estado, setEstado] = useState<CatalogoEstado>('Activo')
-
-  useEffect(() => {
-    if (!open) return
-    setCategoryId(editing ? String(editing.category_id) : defaultCategoryId ? String(defaultCategoryId) : '')
-    setCode(editing?.subcategory_code ?? '')
-    setNombre(editing?.nombre ?? '')
-    setEstado(editing?.estado ?? 'Activo')
-  }, [open, editing, defaultCategoryId])
-
-  const create = useMutation({
-    mutationFn: () => catalogoApi.createSubcategoria({ category_id: Number(categoryId), subcategory_code: code, nombre }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['catalogo-subcategorias'] }); toast.success('Subcategoría creada'); onClose() },
-    onError: (e: ApiErr) => toast.error(errMsg(e)),
-  })
-  const update = useMutation({
-    mutationFn: () => catalogoApi.updateSubcategoria(editing!.id, { nombre, estado }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['catalogo-subcategorias'] }); toast.success('Subcategoría actualizada'); onClose() },
-    onError: (e: ApiErr) => toast.error(errMsg(e)),
-  })
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!categoryId) return toast.error('Selecciona una categoría')
-    if (!nombre.trim()) return toast.error('Nombre requerido')
-    if (!editing && !/^[A-Za-z]{2,4}$/.test(code.trim())) return toast.error('El código debe ser de 2 a 4 letras (ej. DEF)')
-    editing ? update.mutate() : create.mutate()
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>{editing ? 'Editar subcategoría' : 'Nueva subcategoría'}</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1">
-            <Label>Categoría <span className="text-destructive text-xs">*</span></Label>
-            <Select value={categoryId} onValueChange={setCategoryId} disabled={!!editing}>
-              <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-              <SelectContent>
-                {categorias.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.category_code} — {c.nombre}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label>Código {!editing && <span className="text-destructive text-xs">*</span>}</Label>
-            {editing ? (
-              <Input value={code} disabled className="font-mono opacity-60" />
-            ) : (
-              <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="Ej: DEF" maxLength={4} className="font-mono" />
-            )}
-            <p className="text-[11px] text-muted-foreground">Permanente dentro de esta categoría — nunca se edita ni se reutiliza.</p>
-          </div>
-          <div className="space-y-1">
-            <Label>Nombre <span className="text-destructive text-xs">*</span></Label>
-            <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: Defensa técnica penal" autoFocus />
-          </div>
-          {editing && (
-            <div className="space-y-1">
-              <Label>Estado</Label>
-              <Select value={estado} onValueChange={(v) => setEstado(v as CatalogoEstado)}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Activo">Activo</SelectItem>
-                  <SelectItem value="Inactivo">Inactivo</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          )}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={create.isPending || update.isPending}>Guardar</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
-// ─── Servicio dialog ───────────────────────────────────────────────────────────
-
-function ServicioDialog({ open, onClose, editing, defaultSubcategoryId, subcategorias }: {
-  open: boolean; onClose: () => void; editing: Servicio | null; defaultSubcategoryId?: number; subcategorias: Subcategoria[]
-}) {
-  const qc = useQueryClient()
-  const [form, setForm] = useState({
-    subcategory_id: '', nombre: '', etiquetas: '', unidad_cobro: 'Por definir', responsable_sugerido: 'Por definir',
-    tarifa_referencia: '', costo_referencia: '', horas_estandar: '', estado: 'Activo' as ServicioEstado,
-  })
-
-  useEffect(() => {
-    if (!open) return
-    if (editing) {
-      setForm({
-        subcategory_id: String(editing.subcategory_id),
-        nombre: editing.nombre,
-        etiquetas: editing.etiquetas,
-        unidad_cobro: editing.unidad_cobro,
-        responsable_sugerido: editing.responsable_sugerido,
-        tarifa_referencia: editing.tarifa_referencia ? String(editing.tarifa_referencia) : '',
-        costo_referencia: editing.costo_referencia ? String(editing.costo_referencia) : '',
-        horas_estandar: editing.horas_estandar ? String(editing.horas_estandar) : '',
-        estado: editing.estado,
-      })
-    } else {
-      setForm({
-        subcategory_id: defaultSubcategoryId ? String(defaultSubcategoryId) : '',
-        nombre: '', etiquetas: '', unidad_cobro: 'Por definir', responsable_sugerido: 'Por definir',
-        tarifa_referencia: '', costo_referencia: '', horas_estandar: '', estado: 'Activo',
-      })
-    }
-  }, [open, editing, defaultSubcategoryId])
-
-  const create = useMutation({
-    mutationFn: () => catalogoApi.createServicio({
-      subcategory_id: Number(form.subcategory_id), nombre: form.nombre, etiquetas: form.etiquetas,
-      unidad_cobro: form.unidad_cobro, responsable_sugerido: form.responsable_sugerido,
-      tarifa_referencia: form.tarifa_referencia ? Number(form.tarifa_referencia) : null,
-      costo_referencia: form.costo_referencia ? Number(form.costo_referencia) : null,
-      horas_estandar: form.horas_estandar ? Number(form.horas_estandar) : 0,
-      estado: form.estado,
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['catalogo-servicios'] }); toast.success('Servicio creado'); onClose() },
-    onError: (e: ApiErr) => toast.error(errMsg(e)),
-  })
-  const update = useMutation({
-    mutationFn: () => catalogoApi.updateServicio(editing!.id, {
-      nombre: form.nombre, etiquetas: form.etiquetas, unidad_cobro: form.unidad_cobro, responsable_sugerido: form.responsable_sugerido,
-      tarifa_referencia: form.tarifa_referencia ? Number(form.tarifa_referencia) : null,
-      costo_referencia: form.costo_referencia ? Number(form.costo_referencia) : null,
-      horas_estandar: form.horas_estandar ? Number(form.horas_estandar) : 0,
-      estado: form.estado,
-    }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['catalogo-servicios'] }); toast.success('Servicio actualizado'); onClose() },
-    onError: (e: ApiErr) => toast.error(errMsg(e)),
-  })
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!form.subcategory_id) return toast.error('Selecciona una subcategoría')
-    if (!form.nombre.trim()) return toast.error('Nombre requerido')
-    editing ? update.mutate() : create.mutate()
-  }
-
-  const margen = (Number(form.tarifa_referencia) || 0) - (Number(form.costo_referencia) || 0)
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-        <DialogHeader><DialogTitle>{editing ? `Editar servicio — ${editing.service_code}` : 'Nuevo servicio'}</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          {!editing && (
-            <div className="space-y-1">
-              <Label>Subcategoría <span className="text-destructive text-xs">*</span></Label>
-              <Select value={form.subcategory_id} onValueChange={(v) => setForm({ ...form, subcategory_id: v })}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                <SelectContent>
-                  {subcategorias.map((s) => (
-                    <SelectItem key={s.id} value={String(s.id)}>{s.category_code}-{s.subcategory_code} — {s.nombre}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-[11px] text-muted-foreground">El código del servicio se genera automáticamente (AGL-CAT-SUB-000) y nunca cambia.</p>
-            </div>
-          )}
-          <div className="space-y-1">
-            <Label>Nombre del servicio <span className="text-destructive text-xs">*</span></Label>
-            <Input value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} placeholder="Ej: Escritura de compraventa de inmueble" autoFocus />
-          </div>
-          <div className="space-y-1">
-            <Label>Etiquetas</Label>
-            <Input value={form.etiquetas} onChange={(e) => setForm({ ...form, etiquetas: e.target.value })} placeholder="separadas,por,coma" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label>Unidad de cobro</Label>
-              <Select value={form.unidad_cobro} onValueChange={(v) => setForm({ ...form, unidad_cobro: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{UNIDADES_COBRO.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1">
-              <Label>Responsable sugerido</Label>
-              <Select value={form.responsable_sugerido} onValueChange={(v) => setForm({ ...form, responsable_sugerido: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{RESPONSABLES_SUGERIDOS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label>Tarifa referencia ($)</Label>
-              <Input type="number" step="0.01" min="0" value={form.tarifa_referencia} onChange={(e) => setForm({ ...form, tarifa_referencia: e.target.value })} placeholder="0.00" />
-            </div>
-            <div className="space-y-1">
-              <Label>Costo referencia ($)</Label>
-              <Input type="number" step="0.01" min="0" value={form.costo_referencia} onChange={(e) => setForm({ ...form, costo_referencia: e.target.value })} placeholder="0.00" />
-            </div>
-            <div className="space-y-1">
-              <Label>Horas estándar</Label>
-              <Input type="number" step="0.5" min="0" value={form.horas_estandar} onChange={(e) => setForm({ ...form, horas_estandar: e.target.value })} placeholder="0" />
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground">Margen de referencia (calculado): <span className="font-mono font-medium text-foreground">{money(margen)}</span></p>
-          <div className="space-y-1">
-            <Label>Estado</Label>
-            <Select value={form.estado} onValueChange={(v) => setForm({ ...form, estado: v as ServicioEstado })}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Activo">Activo</SelectItem>
-                <SelectItem value="En diseño">En diseño (no disponible aún en expedientes)</SelectItem>
-                <SelectItem value="Inactivo">Inactivo</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={create.isPending || update.isPending}>Guardar</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 // ─── Familias tab ──────────────────────────────────────────────────────────────
 
-function FamiliaDialog({ open, onClose, editing, categorias }: {
-  open: boolean; onClose: () => void; editing: Familia | null; categorias: Categoria[]
-}) {
-  const qc = useQueryClient()
-  const [categoryId, setCategoryId] = useState('')
-  const [nombre, setNombre] = useState('')
-
-  useEffect(() => {
-    if (!open) return
-    setCategoryId(editing ? String(editing.category_id) : '')
-    setNombre(editing?.nombre ?? '')
-  }, [open, editing])
-
-  const create = useMutation({
-    mutationFn: () => catalogoApi.createFamilia({ category_id: Number(categoryId), nombre }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['catalogo-familias'] }); toast.success('Familia creada'); onClose() },
-    onError: (e: ApiErr) => toast.error(errMsg(e)),
-  })
-  const update = useMutation({
-    mutationFn: () => catalogoApi.updateFamilia(editing!.id, { nombre }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['catalogo-familias'] }); toast.success('Familia actualizada'); onClose() },
-    onError: (e: ApiErr) => toast.error(errMsg(e)),
-  })
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!editing && !categoryId) return toast.error('Selecciona una categoría')
-    if (!nombre.trim()) return toast.error('Nombre requerido')
-    editing ? update.mutate() : create.mutate()
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>{editing ? 'Editar familia' : 'Nueva familia'}</DialogTitle></DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-3">
-          <div className="space-y-1">
-            <Label>Categoría <span className="text-destructive text-xs">*</span></Label>
-            <Select value={categoryId} onValueChange={setCategoryId} disabled={!!editing}>
-              <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-              <SelectContent>
-                {categorias.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.category_code} — {c.nombre}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <p className="text-[11px] text-muted-foreground">Cada categoría tiene como máximo una familia. El código (FAM-01…) se asigna solo.</p>
-          </div>
-          <div className="space-y-1">
-            <Label>Nombre <span className="text-destructive text-xs">*</span></Label>
-            <Input value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: Notariales rápidos" autoFocus />
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={create.isPending || update.isPending}>Guardar</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
-}
-
 function FamiliasTab() {
-  const [dlg, setDlg] = useState(false)
-  const [editing, setEditing] = useState<Familia | null>(null)
   const { data: familias = [] } = useQuery({ queryKey: ['catalogo-familias'], queryFn: catalogoApi.listFamilias })
-  const { data: categorias = [] } = useQuery({ queryKey: ['catalogo-categorias'], queryFn: () => catalogoApi.listCategorias() })
 
   return (
     <div className="space-y-4">
@@ -459,9 +102,6 @@ function FamiliasTab() {
         Las <strong>familias</strong> agrupan las categorías para presupuesto, plan de cuentas y cumplimiento mensual.
         No son lo mismo que las subcategorías.
       </InfoBanner>
-      <div className="flex justify-end">
-        <Button size="sm" onClick={() => { setEditing(null); setDlg(true) }}><Plus className="h-4 w-4" />Nueva familia</Button>
-      </div>
       <Card>
         <CardContent className="p-0">
           <table className="w-full text-sm">
@@ -470,7 +110,6 @@ function FamiliasTab() {
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Código</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Nombre</th>
                 <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground uppercase tracking-wider">Categoría</th>
-                <th className="w-16" />
               </tr>
             </thead>
             <tbody>
@@ -479,18 +118,12 @@ function FamiliasTab() {
                   <td className="px-4 py-2.5 font-mono text-xs">{f.family_code}</td>
                   <td className="px-4 py-2.5 font-medium">{f.nombre}</td>
                   <td className="px-4 py-2.5 text-muted-foreground">{f.category_code} — {f.category_nombre}</td>
-                  <td className="px-4 py-2.5">
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(f); setDlg(true) }}>
-                      <Pencil className="h-3.5 w-3.5" />
-                    </Button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </CardContent>
       </Card>
-      <FamiliaDialog open={dlg} onClose={() => setDlg(false)} editing={editing} categorias={categorias} />
     </div>
   )
 }
@@ -501,15 +134,6 @@ function CatalogoTab() {
   const [search, setSearch] = useState('')
   const [expandedCat, setExpandedCat] = useState<Record<number, boolean>>({})
   const [expandedSub, setExpandedSub] = useState<Record<number, boolean>>({})
-
-  const [catDlg, setCatDlg] = useState(false)
-  const [editingCat, setEditingCat] = useState<Categoria | null>(null)
-  const [subDlg, setSubDlg] = useState(false)
-  const [editingSub, setEditingSub] = useState<Subcategoria | null>(null)
-  const [defaultCatForSub, setDefaultCatForSub] = useState<number | undefined>()
-  const [svcDlg, setSvcDlg] = useState(false)
-  const [editingSvc, setEditingSvc] = useState<Servicio | null>(null)
-  const [defaultSubForSvc, setDefaultSubForSvc] = useState<number | undefined>()
   const [historial, setHistorial] = useState<{ tipo: 'Categoria' | 'Subcategoria' | 'Servicio'; id: number; label: string } | null>(null)
 
   const { data: categorias = [] } = useQuery({ queryKey: ['catalogo-categorias'], queryFn: () => catalogoApi.listCategorias() })
@@ -560,16 +184,9 @@ function CatalogoTab() {
         Los códigos nunca se editan; inactivar no borra histórico.
       </InfoBanner>
 
-      <div className="flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-        <div className="relative w-full sm:max-w-xs">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código o nombre..." className="pl-8" />
-        </div>
-        <div className="flex gap-2 justify-end">
-          <Button size="sm" variant="outline" onClick={() => { setEditingCat(null); setCatDlg(true) }}>
-            <Folders className="h-4 w-4" />Nueva categoría
-          </Button>
-        </div>
+      <div className="relative w-full sm:max-w-xs">
+        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+        <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por código o nombre..." className="pl-8" />
       </div>
 
       <div className="space-y-2">
@@ -587,13 +204,7 @@ function CatalogoTab() {
                 <span className="font-semibold flex-1">{cat.nombre}</span>
                 <EstadoBadge estado={cat.estado} />
                 <Badge variant="secondary" className="text-xs">{subs.length} subcat.</Badge>
-                <div className="flex gap-1">
-                  <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1" onClick={() => { setDefaultCatForSub(cat.id); setEditingSub(null); setSubDlg(true) }}>
-                    <Plus className="h-3 w-3" />Subcategoría
-                  </Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditingCat(cat); setCatDlg(true) }}><Pencil className="h-3.5 w-3.5" /></Button>
-                  <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setHistorial({ tipo: 'Categoria', id: cat.id, label: `${cat.category_code} — ${cat.nombre}` })}><History className="h-3.5 w-3.5" /></Button>
-                </div>
+                <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setHistorial({ tipo: 'Categoria', id: cat.id, label: `${cat.category_code} — ${cat.nombre}` })}><History className="h-3.5 w-3.5" /></Button>
               </div>
 
               {open && (
@@ -615,13 +226,7 @@ function CatalogoTab() {
                           <span className="font-medium text-sm flex-1">{sc.nombre}</span>
                           <EstadoBadge estado={sc.estado} />
                           <Badge variant="secondary" className="text-xs">{svcs.length} servicio{svcs.length !== 1 ? 's' : ''}</Badge>
-                          <div className="flex gap-1">
-                            <Button size="sm" variant="ghost" className="h-7 px-2 text-xs gap-1" onClick={() => { setDefaultSubForSvc(sc.id); setEditingSvc(null); setSvcDlg(true) }}>
-                              <Plus className="h-3 w-3" />Servicio
-                            </Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditingSub(sc); setSubDlg(true) }}><Pencil className="h-3.5 w-3.5" /></Button>
-                            <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setHistorial({ tipo: 'Subcategoria', id: sc.id, label: `${cat.category_code}-${sc.subcategory_code} — ${sc.nombre}` })}><History className="h-3.5 w-3.5" /></Button>
-                          </div>
+                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setHistorial({ tipo: 'Subcategoria', id: sc.id, label: `${cat.category_code}-${sc.subcategory_code} — ${sc.nombre}` })}><History className="h-3.5 w-3.5" /></Button>
                         </div>
                         {scOpen && (
                           svcs.length === 0 ? (
@@ -635,7 +240,7 @@ function CatalogoTab() {
                                   <th className="text-left px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden md:table-cell">Unidad de cobro</th>
                                   <th className="text-right px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider hidden lg:table-cell">Tarifa / Margen</th>
                                   <th className="text-left px-3 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Estado</th>
-                                  <th className="w-16" />
+                                  <th className="w-10" />
                                 </tr>
                               </thead>
                               <tbody>
@@ -649,10 +254,7 @@ function CatalogoTab() {
                                     </td>
                                     <td className="px-3 py-2"><EstadoBadge estado={sv.estado} /></td>
                                     <td className="px-3 py-2">
-                                      <div className="flex gap-1 justify-end">
-                                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditingSvc(sv); setSvcDlg(true) }}><Pencil className="h-3.5 w-3.5" /></Button>
-                                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setHistorial({ tipo: 'Servicio', id: sv.id, label: `${sv.service_code} — ${sv.nombre}` })}><History className="h-3.5 w-3.5" /></Button>
-                                      </div>
+                                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setHistorial({ tipo: 'Servicio', id: sv.id, label: `${sv.service_code} — ${sv.nombre}` })}><History className="h-3.5 w-3.5" /></Button>
                                     </td>
                                   </tr>
                                 ))}
@@ -676,9 +278,6 @@ function CatalogoTab() {
         )}
       </div>
 
-      <CategoriaDialog open={catDlg} onClose={() => setCatDlg(false)} editing={editingCat} />
-      <SubcategoriaDialog open={subDlg} onClose={() => setSubDlg(false)} editing={editingSub} defaultCategoryId={defaultCatForSub} categorias={categorias} />
-      <ServicioDialog open={svcDlg} onClose={() => setSvcDlg(false)} editing={editingSvc} defaultSubcategoryId={defaultSubForSvc} subcategorias={subcategorias} />
       <HistorialDialog open={!!historial} onClose={() => setHistorial(null)} tipo={historial?.tipo ?? 'Categoria'} entityId={historial?.id ?? null} label={historial?.label ?? ''} />
     </div>
   )
@@ -693,6 +292,8 @@ export default function Catalogo() {
         <h1 className="text-2xl font-bold">Catálogo Maestro</h1>
         <p className="text-muted-foreground text-sm">Categorías, subcategorías, servicios y familias comerciales — con códigos permanentes e historial de cambios</p>
       </div>
+
+      <GobiernoBanner />
 
       <Tabs defaultValue="catalogo">
         <TabsList className="flex-wrap h-auto gap-1">

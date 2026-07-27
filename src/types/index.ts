@@ -570,6 +570,13 @@ export interface Solicitud {
   observaciones: string | null
   created_at: string
   updated_at: string
+  entity_id: number | null
+  unidad_cobro_propuesta: string | null
+  responsable_sugerido_propuesto: string | null
+  tarifa_referencia_propuesta: number | null
+  costo_referencia_propuesta: number | null
+  horas_estandar_propuesta: number | null
+  estado_propuesto: string | null
 }
 export interface SolicitudIn {
   tipo_solicitud: TipoSolicitud
@@ -577,19 +584,32 @@ export interface SolicitudIn {
   nombre_propuesto: string
   categoria_padre?: string | null
   subcategoria_padre?: string | null
-  codigo_propuesto: string
+  codigo_propuesto?: string
   descripcion?: string
   motivo?: string
   etiquetas?: string
+  entity_id?: number | null
+  unidad_cobro_propuesta?: string | null
+  responsable_sugerido_propuesto?: string | null
+  tarifa_referencia_propuesta?: number | null
+  costo_referencia_propuesta?: number | null
+  horas_estandar_propuesta?: number | null
+  estado_propuesto?: string | null
 }
 export interface SolicitudUpdate {
   nombre_propuesto: string
   categoria_padre?: string | null
   subcategoria_padre?: string | null
-  codigo_propuesto: string
+  codigo_propuesto?: string
   descripcion?: string
   motivo?: string
   etiquetas?: string
+  unidad_cobro_propuesta?: string | null
+  responsable_sugerido_propuesto?: string | null
+  tarifa_referencia_propuesta?: number | null
+  costo_referencia_propuesta?: number | null
+  horas_estandar_propuesta?: number | null
+  estado_propuesto?: string | null
 }
 export interface SolicitudTransicion {
   estado: SolicitudEstado
