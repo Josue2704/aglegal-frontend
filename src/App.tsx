@@ -94,14 +94,14 @@ export default function App() {
               <Route index element={<Dashboard />} />
               <Route path="clients" element={<PermissionRoute permission="clientes.ver"><Clients /></PermissionRoute>} />
               <Route path="cases" element={<PermissionRoute permission="expedientes.ver"><Cases /></PermissionRoute>} />
-              <Route path="pipeline" element={<PermissionRoute permission="expedientes.ver"><Pipeline /></PermissionRoute>} />
+              <Route path="pipeline" element={<PermissionRoute permission="pipeline.ver"><Pipeline /></PermissionRoute>} />
               <Route path="tasks" element={<PermissionRoute permission="tareas.ver"><Tasks /></PermissionRoute>} />
               <Route path="sessions" element={<PermissionRoute permission="agenda.ver"><Sessions /></PermissionRoute>} />
               <Route path="cashflow" element={<PermissionRoute permission="flujo_caja.ver"><Cashflow /></PermissionRoute>} />
-              <Route path="catalogo" element={<PermissionRoute permission="categorias.ver"><Catalogo /></PermissionRoute>} />
-              <Route path="finanzas" element={<PermissionRoute permission="categorias.ver"><Finanzas /></PermissionRoute>} />
-              <Route path="comisiones" element={<PermissionRoute permission="expedientes.ver"><Comisiones /></PermissionRoute>} />
-              <Route path="gobierno-catalogo" element={<PermissionRoute permission="categorias.ver"><Gobierno /></PermissionRoute>} />
+              <Route path="catalogo" element={<PermissionRoute permission="catalogo.ver"><Catalogo /></PermissionRoute>} />
+              <Route path="finanzas" element={<PermissionRoute permission="finanzas.ver"><Finanzas /></PermissionRoute>} />
+              <Route path="comisiones" element={<PermissionRoute permission="comisiones.ver"><Comisiones /></PermissionRoute>} />
+              <Route path="gobierno-catalogo" element={<PermissionRoute permission="gobierno_catalogo.ver"><Gobierno /></PermissionRoute>} />
               <Route path="payroll" element={<PermissionRoute permission="nominas.ver"><Payroll /></PermissionRoute>} />
               <Route path="invoices" element={<PermissionRoute permission="facturas.ver"><Invoices /></PermissionRoute>} />
               <Route path="users" element={<AdminRoute><Users /></AdminRoute>} />

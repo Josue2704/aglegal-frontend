@@ -16,13 +16,15 @@ import { Checkbox } from '@/components/ui/checkbox'
 const MODULE_LABELS: Record<string, string> = {
   dashboard: 'Dashboard', clientes: 'Clientes', expedientes: 'Expedientes',
   tareas: 'Tareas', agenda: 'Agenda', flujo_caja: 'Flujo de Caja',
-  facturas: 'Facturas', nominas: 'Nóminas', categorias: 'Categorías y Servicios',
+  facturas: 'Facturas', nominas: 'Nóminas',
+  catalogo: 'Catálogo Maestro', finanzas: 'Finanzas', pipeline: 'Pipeline Comercial',
+  comisiones: 'Comisiones', gobierno_catalogo: 'Gobierno del Catálogo',
   usuarios: 'Usuarios', roles: 'Roles y Permisos', configuracion: 'Configuración',
 }
 const ACTION_LABELS: Record<string, string> = {
-  ver: 'Ver', crear: 'Crear', editar: 'Editar', eliminar: 'Eliminar',
+  ver: 'Ver', crear: 'Crear', editar: 'Editar', eliminar: 'Eliminar', aprobar: 'Aprobar',
 }
-const ACTION_ORDER = ['ver', 'crear', 'editar', 'eliminar']
+const ACTION_ORDER = ['ver', 'crear', 'editar', 'eliminar', 'aprobar']
 
 function groupPermissions(perms: Permission[]) {
   const map: Record<string, Record<string, Permission>> = {}

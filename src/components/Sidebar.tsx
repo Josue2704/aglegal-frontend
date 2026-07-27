@@ -24,7 +24,7 @@ const NAV_GROUPS: NavGroup[] = [
     label: 'Gestión',
     items: [
       { to: '/clients',  icon: Users,        label: 'Clientes',     perm: 'clientes.ver' },
-      { to: '/pipeline', icon: Target,       label: 'Pipeline Comercial', perm: 'expedientes.ver' },
+      { to: '/pipeline', icon: Target,       label: 'Pipeline Comercial', perm: 'pipeline.ver' },
       { to: '/cases',    icon: Briefcase,    label: 'Expedientes',  perm: 'expedientes.ver' },
       { to: '/tasks',    icon: ListChecks,   label: 'Tareas',       perm: 'tareas.ver' },
       { to: '/sessions', icon: CalendarDays, label: 'Agenda',       perm: 'agenda.ver' },
@@ -37,10 +37,10 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/invoices',   icon: Receipt,    label: 'Facturas',       perm: 'facturas.ver' },
       { to: '/payroll',    icon: Wallet,     label: 'Nóminas',        perm: 'nominas.ver' },
       { to: '/reports',    icon: BarChart2,  label: 'Reportes',       perm: 'flujo_caja.ver' },
-      { to: '/catalogo',   icon: FolderTree, label: 'Catálogo Maestro', perm: 'categorias.ver' },
-      { to: '/finanzas',   icon: Landmark,   label: 'Finanzas',         perm: 'categorias.ver' },
-      { to: '/comisiones', icon: Percent,    label: 'Comisiones',       perm: 'expedientes.ver' },
-      { to: '/gobierno-catalogo', icon: ShieldCheck, label: 'Gobierno del Catálogo', perm: 'categorias.ver' },
+      { to: '/catalogo',   icon: FolderTree, label: 'Catálogo Maestro', perm: 'catalogo.ver' },
+      { to: '/finanzas',   icon: Landmark,   label: 'Finanzas',         perm: 'finanzas.ver' },
+      { to: '/comisiones', icon: Percent,    label: 'Comisiones',       perm: 'comisiones.ver' },
+      { to: '/gobierno-catalogo', icon: ShieldCheck, label: 'Gobierno del Catálogo', perm: 'gobierno_catalogo.ver' },
     ],
   },
   {
