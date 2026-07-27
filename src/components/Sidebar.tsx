@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, Users, Briefcase, CalendarDays,
-  TrendingUp, Tag, Wallet, UserCog, LogOut, Settings,
+  TrendingUp, Wallet, UserCog, LogOut, Settings,
   ChevronRight, Receipt, ListChecks, Shield, X, BarChart2, FolderTree, Landmark, Target, Percent, ShieldCheck,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
@@ -37,7 +37,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: '/invoices',   icon: Receipt,    label: 'Facturas',       perm: 'facturas.ver' },
       { to: '/payroll',    icon: Wallet,     label: 'Nóminas',        perm: 'nominas.ver' },
       { to: '/reports',    icon: BarChart2,  label: 'Reportes',       perm: 'flujo_caja.ver' },
-      { to: '/categories', icon: Tag,        label: 'Categorías',     perm: 'categorias.ver' },
       { to: '/catalogo',   icon: FolderTree, label: 'Catálogo Maestro', perm: 'categorias.ver' },
       { to: '/finanzas',   icon: Landmark,   label: 'Finanzas',         perm: 'categorias.ver' },
       { to: '/comisiones', icon: Percent,    label: 'Comisiones',       perm: 'expedientes.ver' },

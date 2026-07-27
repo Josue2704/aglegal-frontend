@@ -8,7 +8,6 @@ import { expensesApi } from '@/api/expenses'
 import { costsApi } from '@/api/costs'
 import { clientsApi } from '@/api/clients'
 import { casesApi } from '@/api/cases'
-import { categoriesApi } from '@/api/categories'
 import { catalogoApi } from '@/api/catalogo'
 import { finanzasApi } from '@/api/finanzas'
 import { dashboardApi } from '@/api/dashboard'
@@ -93,10 +92,10 @@ function NetoPreview({ bruto, iva, reembolsable }: { bruto: string; iva: string;
 
 // ─── Income Tab ───────────────────────────────────────────────────────────────
 type IncomeForm = {
-  amount: string; date: string; client_id: string; case_id: string; category_id: string; detail: string
+  amount: string; date: string; client_id: string; case_id: string; detail: string
   account_id: string; service_id: string; monto_iva: string; monto_reembolsable: string
 }
-const EMPTY_INC: IncomeForm = { amount: '', date: today(), client_id: '', case_id: '', category_id: '', detail: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '' }
+const EMPTY_INC: IncomeForm = { amount: '', date: today(), client_id: '', case_id: '', detail: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '' }
 
 function IncomesTab({ start, end }: { start: string; end: string }) {
   const qc = useQueryClient()
@@ -109,14 +108,12 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
   const { data: incomes = [] } = useQuery({ queryKey: ['incomes', params], queryFn: () => incomesApi.list(params) })
   const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
   const { data: caseChoices = [] } = useQuery({ queryKey: ['case-choices'], queryFn: () => casesApi.choices() })
-  const { data: cats = [] } = useQuery({ queryKey: ['categories', 'income'], queryFn: () => categoriesApi.list('income') })
 
   const toPayload = (): IncomeIn => ({
     amount: Number(form.amount),
     income_date: form.date,
     client_id: form.client_id ? Number(form.client_id) : null,
     case_id: form.case_id ? Number(form.case_id) : null,
-    category_id: form.category_id ? Number(form.category_id) : null,
     detail: form.detail,
     account_id: form.account_id ? Number(form.account_id) : null,
     service_id: form.service_id ? Number(form.service_id) : null,
@@ -143,7 +140,7 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
   function openEdit(i: Income) {
     setEditing(i)
     setForm({
-      amount: String(i.amount), date: i.income_date, client_id: i.client_id ? String(i.client_id) : '', case_id: i.case_id ? String(i.case_id) : '', category_id: i.category_id ? String(i.category_id) : '', detail: i.detail ?? '',
+      amount: String(i.amount), date: i.income_date, client_id: i.client_id ? String(i.client_id) : '', case_id: i.case_id ? String(i.case_id) : '', detail: i.detail ?? '',
       account_id: i.account_id ? String(i.account_id) : '', service_id: i.service_id ? String(i.service_id) : '',
       monto_iva: i.monto_iva ? String(i.monto_iva) : '', monto_reembolsable: i.monto_reembolsable ? String(i.monto_reembolsable) : '',
     })
@@ -166,8 +163,8 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
 
   function downloadCsv() {
     exportCsv(`ingresos_${today()}.csv`,
-      ['Fecha', 'Detalle', 'Cliente', 'Caso', 'Categoría', 'Monto'],
-      (sortedInc as unknown as Income[]).map((i) => [i.income_date, i.detail || i.concept, i.client_name, i.case_title, i.category_name, i.amount]),
+      ['Fecha', 'Detalle', 'Cliente', 'Caso', 'Cuenta', 'Monto'],
+      (sortedInc as unknown as Income[]).map((i) => [i.income_date, i.detail || i.concept, i.client_name, i.case_title, i.account_code, i.amount]),
     )
   }
 
@@ -198,7 +195,6 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
                 <SortableTh label="Cliente" colKey="client_name" currentKey={incKey as string} dir={incDir} onSort={incToggle as (k: string) => void} />
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Caso</th>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Cuenta</th>
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Categoría</th>
                 <SortableTh label="Monto" colKey="amount" currentKey={incKey as string} dir={incDir} onSort={incToggle as (k: string) => void} />
                 <th className="text-right px-4 py-2.5 font-medium text-muted-foreground text-xs">Neto</th>
                 <th className="px-4 py-2.5"></th>
@@ -221,7 +217,6 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{i.client_name ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs truncate max-w-[120px]">{i.case_title ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-[11px] font-mono">{i.account_code ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground text-xs">{i.category_name ?? '—'}</td>
                   <td className="px-4 py-2.5 font-semibold text-green-700">{formatCurrency(i.amount)}</td>
                   <td className="px-4 py-2.5 text-right text-xs font-mono text-muted-foreground">{formatCurrency(i.monto_neto_operativo)}</td>
                   <td className="px-4 py-2.5">
@@ -233,7 +228,7 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
                   </td>
                 </tr>
               ))}
-              {!incomes.length && <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">Sin ingresos en el período</td></tr>}
+              {!incomes.length && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Sin ingresos en el período</td></tr>}
             </tbody>
           </table>
         </CardContent>
@@ -248,7 +243,6 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
               <div className="space-y-1"><Label>Fecha <span className="text-destructive text-xs">*</span></Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
               <div className="space-y-1"><Label>Cliente</Label><Select value={form.client_id} onValueChange={f('client_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1"><Label>Caso</Label><Select value={form.case_id} onValueChange={f('case_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1 col-span-2"><Label>Categoría</Label><Select value={form.category_id} onValueChange={f('category_id')}><SelectTrigger><SelectValue placeholder="Ninguna" /></SelectTrigger><SelectContent><SelectItem value="">Ninguna</SelectItem>{cats.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1 col-span-2"><Label>Detalle</Label><Input value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} placeholder="Descripción del ingreso" /></div>
               <div className="col-span-2"><CuentaSelect tipo="Ingreso" value={form.account_id} onChange={f('account_id')} /></div>
               <div className="col-span-2">
@@ -271,8 +265,8 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
 }
 
 // ─── Expenses Tab ─────────────────────────────────────────────────────────────
-type ExpForm = { amount: string; date: string; category_id: string; detail: string; notes: string; account_id: string; monto_iva: string; monto_reembolsable: string }
-const EMPTY_EXP: ExpForm = { amount: '', date: today(), category_id: '', detail: '', notes: '', account_id: '', monto_iva: '', monto_reembolsable: '' }
+type ExpForm = { amount: string; date: string; detail: string; notes: string; account_id: string; monto_iva: string; monto_reembolsable: string }
+const EMPTY_EXP: ExpForm = { amount: '', date: today(), detail: '', notes: '', account_id: '', monto_iva: '', monto_reembolsable: '' }
 
 function ExpensesTab({ start, end }: { start: string; end: string }) {
   const qc = useQueryClient()
@@ -282,10 +276,9 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
 
   const params = { start_date: start || undefined, end_date: end || undefined }
   const { data: expenses = [] } = useQuery({ queryKey: ['expenses', params], queryFn: () => expensesApi.list(params) })
-  const { data: cats = [] } = useQuery({ queryKey: ['categories', 'expense'], queryFn: () => categoriesApi.list('expense') })
 
   const toPayload = (): ExpenseIn => ({
-    amount: Number(form.amount), expense_date: form.date, category_id: form.category_id ? Number(form.category_id) : null, detail: form.detail, notes: form.notes,
+    amount: Number(form.amount), expense_date: form.date, detail: form.detail, notes: form.notes,
     account_id: form.account_id ? Number(form.account_id) : null,
     monto_iva: form.monto_iva ? Number(form.monto_iva) : null,
     monto_reembolsable: form.monto_reembolsable ? Number(form.monto_reembolsable) : null,
@@ -310,7 +303,7 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
   function openEdit(e: Expense) {
     setEditing(e)
     setForm({
-      amount: String(e.amount), date: e.expense_date, category_id: e.category_id ? String(e.category_id) : '', detail: e.detail ?? '', notes: e.notes ?? '',
+      amount: String(e.amount), date: e.expense_date, detail: e.detail ?? '', notes: e.notes ?? '',
       account_id: e.account_id ? String(e.account_id) : '',
       monto_iva: e.monto_iva ? String(e.monto_iva) : '',
       monto_reembolsable: e.monto_reembolsable ? String(e.monto_reembolsable) : '',
@@ -332,8 +325,8 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
 
   function downloadCsv() {
     exportCsv(`gastos_${today()}.csv`,
-      ['Fecha', 'Detalle', 'Categoría', 'Notas', 'Monto'],
-      (sortedExp as unknown as Expense[]).map((e) => [e.expense_date, e.detail || e.concept, e.category_name, e.notes, e.amount]),
+      ['Fecha', 'Detalle', 'Cuenta', 'Notas', 'Monto'],
+      (sortedExp as unknown as Expense[]).map((e) => [e.expense_date, e.detail || e.concept, e.account_code, e.notes, e.amount]),
     )
   }
 
@@ -361,7 +354,6 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
               <tr>
                 <SortableTh label="Fecha" colKey="expense_date" currentKey={expKey as string} dir={expDir} onSort={expToggle as (k: string) => void} />
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Detalle</th>
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Categoría</th>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Cuenta</th>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Notas</th>
                 <SortableTh label="Monto" colKey="amount" currentKey={expKey as string} dir={expDir} onSort={expToggle as (k: string) => void} />
@@ -374,7 +366,6 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
                 <tr key={e.id} className="border-t hover:bg-muted/30">
                   <td className="px-4 py-2.5">{formatDate(e.expense_date)}</td>
                   <td className="px-4 py-2.5 max-w-[200px] truncate">{e.detail || e.concept}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground text-xs">{e.category_name ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{e.account_code ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs max-w-[150px] truncate">{e.notes ?? '—'}</td>
                   <td className="px-4 py-2.5 font-semibold text-red-600">{formatCurrency(e.amount)}</td>
@@ -388,7 +379,7 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
                   </td>
                 </tr>
               ))}
-              {!expenses.length && <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Sin gastos en el período</td></tr>}
+              {!expenses.length && <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Sin gastos en el período</td></tr>}
             </tbody>
           </table>
         </CardContent>
@@ -401,7 +392,6 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1"><Label>Monto <span className="text-destructive text-xs">*</span></Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
               <div className="space-y-1"><Label>Fecha <span className="text-destructive text-xs">*</span></Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
-              <div className="space-y-1 col-span-2"><Label>Categoría</Label><Select value={form.category_id} onValueChange={(v) => setForm({ ...form, category_id: v })}><SelectTrigger><SelectValue placeholder="Ninguna" /></SelectTrigger><SelectContent><SelectItem value="">Ninguna</SelectItem>{cats.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="col-span-2"><CuentaSelect tipo="Egreso" value={form.account_id} onChange={(v) => setForm({ ...form, account_id: v })} /></div>
               <div className="space-y-1"><Label>IVA</Label><Input type="number" step="0.01" min="0" value={form.monto_iva} onChange={(e) => setForm({ ...form, monto_iva: e.target.value })} placeholder="0.00" /></div>
               <div className="space-y-1"><Label>Reembolsable</Label><Input type="number" step="0.01" min="0" value={form.monto_reembolsable} onChange={(e) => setForm({ ...form, monto_reembolsable: e.target.value })} placeholder="0.00" /></div>
@@ -418,8 +408,8 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
 }
 
 // ─── Costs Tab ────────────────────────────────────────────────────────────────
-type CostForm = { amount: string; date: string; client_id: string; case_id: string; category_id: string; detail: string; notes: string; account_id: string; service_id: string; monto_iva: string; monto_reembolsable: string }
-const EMPTY_COST: CostForm = { amount: '', date: today(), client_id: '', case_id: '', category_id: '', detail: '', notes: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '' }
+type CostForm = { amount: string; date: string; client_id: string; case_id: string; detail: string; notes: string; account_id: string; service_id: string; monto_iva: string; monto_reembolsable: string }
+const EMPTY_COST: CostForm = { amount: '', date: today(), client_id: '', case_id: '', detail: '', notes: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '' }
 
 function CostsTab({ start, end }: { start: string; end: string }) {
   const qc = useQueryClient()
@@ -432,14 +422,12 @@ function CostsTab({ start, end }: { start: string; end: string }) {
   const { data: costs = [] } = useQuery({ queryKey: ['costs', params], queryFn: () => costsApi.list(params) })
   const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
   const { data: caseChoices = [] } = useQuery({ queryKey: ['case-choices'], queryFn: () => casesApi.choices() })
-  const { data: cats = [] } = useQuery({ queryKey: ['categories', 'cost'], queryFn: () => categoriesApi.list('cost') })
 
   const toPayload = (): CostIn => ({
     amount: Number(form.amount),
     cost_date: form.date,
     client_id: form.client_id ? Number(form.client_id) : null,
     case_id: form.case_id ? Number(form.case_id) : null,
-    category_id: form.category_id ? Number(form.category_id) : null,
     detail: form.detail,
     notes: form.notes,
     account_id: form.account_id ? Number(form.account_id) : null,
@@ -467,7 +455,7 @@ function CostsTab({ start, end }: { start: string; end: string }) {
   function openEdit(c: Cost) {
     setEditing(c)
     setForm({
-      amount: String(c.amount), date: c.cost_date, client_id: c.client_id ? String(c.client_id) : '', case_id: c.case_id ? String(c.case_id) : '', category_id: c.category_id ? String(c.category_id) : '', detail: c.detail ?? '', notes: c.notes ?? '',
+      amount: String(c.amount), date: c.cost_date, client_id: c.client_id ? String(c.client_id) : '', case_id: c.case_id ? String(c.case_id) : '', detail: c.detail ?? '', notes: c.notes ?? '',
       account_id: c.account_id ? String(c.account_id) : '',
       service_id: c.service_id ? String(c.service_id) : '',
       monto_iva: c.monto_iva ? String(c.monto_iva) : '',
@@ -492,8 +480,8 @@ function CostsTab({ start, end }: { start: string; end: string }) {
 
   function downloadCsv() {
     exportCsv(`costos_${today()}.csv`,
-      ['Fecha', 'Detalle', 'Cliente', 'Caso', 'Categoría', 'Monto'],
-      (sortedCosts as unknown as Cost[]).map((c) => [c.cost_date, c.detail || c.concept, c.client_name, c.case_title, c.category_name, c.amount]),
+      ['Fecha', 'Detalle', 'Cliente', 'Caso', 'Cuenta', 'Monto'],
+      (sortedCosts as unknown as Cost[]).map((c) => [c.cost_date, c.detail || c.concept, c.client_name, c.case_title, c.account_code, c.amount]),
     )
   }
 
@@ -523,7 +511,6 @@ function CostsTab({ start, end }: { start: string; end: string }) {
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Detalle</th>
                 <SortableTh label="Cliente" colKey="client_name" currentKey={costKey as string} dir={costDir} onSort={costToggle as (k: string) => void} />
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Caso</th>
-                <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Categoría</th>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Cuenta</th>
                 <th className="text-left px-4 py-2.5 font-medium text-muted-foreground text-xs">Servicio</th>
                 <SortableTh label="Monto" colKey="amount" currentKey={costKey as string} dir={costDir} onSort={costToggle as (k: string) => void} />
@@ -538,7 +525,6 @@ function CostsTab({ start, end }: { start: string; end: string }) {
                   <td className="px-4 py-2.5 max-w-[180px] truncate">{c.detail || c.concept}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{c.client_name ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs truncate max-w-[120px]">{c.case_title ?? '—'}</td>
-                  <td className="px-4 py-2.5 text-muted-foreground text-xs">{c.category_name ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs">{c.account_code ?? '—'}</td>
                   <td className="px-4 py-2.5 text-muted-foreground text-xs truncate max-w-[120px]">{c.service_code ?? '—'}</td>
                   <td className="px-4 py-2.5 font-semibold text-orange-700">{formatCurrency(c.amount)}</td>
@@ -552,7 +538,7 @@ function CostsTab({ start, end }: { start: string; end: string }) {
                   </td>
                 </tr>
               ))}
-              {!costs.length && <tr><td colSpan={10} className="px-4 py-8 text-center text-muted-foreground">Sin costos en el período</td></tr>}
+              {!costs.length && <tr><td colSpan={9} className="px-4 py-8 text-center text-muted-foreground">Sin costos en el período</td></tr>}
             </tbody>
           </table>
         </CardContent>
@@ -567,7 +553,6 @@ function CostsTab({ start, end }: { start: string; end: string }) {
               <div className="space-y-1"><Label>Fecha <span className="text-destructive text-xs">*</span></Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
               <div className="space-y-1"><Label>Cliente</Label><Select value={form.client_id} onValueChange={f('client_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="space-y-1"><Label>Caso</Label><Select value={form.case_id} onValueChange={f('case_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1 col-span-2"><Label>Categoría</Label><Select value={form.category_id} onValueChange={f('category_id')}><SelectTrigger><SelectValue placeholder="Ninguna" /></SelectTrigger><SelectContent><SelectItem value="">Ninguna</SelectItem>{cats.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
               <div className="col-span-2"><CuentaSelect tipo="Egreso" value={form.account_id} onChange={f('account_id')} /></div>
               <div className="col-span-2">
                 <ServicioPicker

@@ -7,7 +7,8 @@ import {
 import { toast } from 'sonner'
 import { invoicesApi } from '@/api/invoices'
 import { incomesApi } from '@/api/incomes'
-import type { Category, Invoice, InvoiceItemIn, InvoiceStatus, UnbilledItems } from '@/types'
+import { finanzasApi } from '@/api/finanzas'
+import type { Invoice, InvoiceItemIn, InvoiceStatus, UnbilledItems } from '@/types'
 import { useSettingsStore } from '@/store/settings'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -151,15 +152,12 @@ function RegisterIncomeDialog({
   const today = new Date().toISOString().split('T')[0]
   const [amount, setAmount] = useState(String(invoice.total))
   const [incomeDate, setIncomeDate] = useState(today)
-  const [categoryId, setCategoryId] = useState<number | null>(null)
+  const [accountId, setAccountId] = useState<number | null>(null)
   const [detail, setDetail] = useState(`Factura ${invoice.invoice_number}`)
 
-  const { data: categories = [] } = useQuery<Category[]>({
-    queryKey: ['categories', 'income'],
-    queryFn: () =>
-      import('@/api/client').then((m) =>
-        m.default.get('/categories', { params: { kind: 'income' } }).then((r) => r.data),
-      ),
+  const { data: cuentas = [] } = useQuery({
+    queryKey: ['finanzas-cuentas', 'Ingreso'],
+    queryFn: () => finanzasApi.listCuentas({ tipo: 'Ingreso' }),
   })
 
   const save = useMutation({
@@ -169,7 +167,7 @@ function RegisterIncomeDialog({
         income_date: incomeDate,
         client_id: invoice.client_id,
         case_id: invoice.case_id,
-        category_id: categoryId,
+        account_id: accountId,
         detail,
         invoice_id: invoice.id,
       }),
@@ -217,18 +215,18 @@ function RegisterIncomeDialog({
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Categoría</Label>
+            <Label className="text-xs">Cuenta contable</Label>
             <Select
-              value={categoryId ? String(categoryId) : 'none'}
-              onValueChange={(v) => setCategoryId(v === 'none' ? null : parseInt(v))}
+              value={accountId ? String(accountId) : 'none'}
+              onValueChange={(v) => setAccountId(v === 'none' ? null : parseInt(v))}
             >
               <SelectTrigger className="h-8 text-sm">
-                <SelectValue placeholder="Sin categoría" />
+                <SelectValue placeholder="Sin cuenta" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Sin categoría</SelectItem>
-                {categories.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                <SelectItem value="none">Sin cuenta</SelectItem>
+                {cuentas.map((c) => (
+                  <SelectItem key={c.id} value={String(c.id)}>{c.account_code} — {c.nombre}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

@@ -97,18 +97,18 @@ export default function Reports() {
   const totalExpense = expenses.reduce((s: number, e: any) => s + (e.amount_cents ?? 0), 0)
   const balance = totalIncome - totalExpense
 
-  // Income by category
+  // Income by account
   const incomeByCategory: Record<string, number> = {}
   incomes.forEach((i: any) => {
-    const k = i.category_name ?? 'Sin categoría'
+    const k = i.account_nombre ?? 'Sin cuenta'
     incomeByCategory[k] = (incomeByCategory[k] ?? 0) + (i.amount_cents ?? 0)
   })
   const incomeCategories = Object.entries(incomeByCategory).sort((a, b) => b[1] - a[1])
 
-  // Expenses by category
+  // Expenses by account
   const expByCategory: Record<string, number> = {}
   expenses.forEach((e: any) => {
-    const k = e.category_name ?? 'Sin categoría'
+    const k = e.account_nombre ?? 'Sin cuenta'
     expByCategory[k] = (expByCategory[k] ?? 0) + (e.amount_cents ?? 0)
   })
   const expCategories = Object.entries(expByCategory).sort((a, b) => b[1] - a[1])
@@ -214,7 +214,7 @@ export default function Reports() {
             <Card>
               <CardContent className="pt-5">
                 <h2 className="font-semibold mb-4 flex items-center gap-2">
-                  <TrendingUp className="h-4 w-4 text-green-500" />Ingresos por categoría
+                  <TrendingUp className="h-4 w-4 text-green-500" />Ingresos por cuenta
                 </h2>
                 {incomeCategories.length === 0
                   ? <p className="text-muted-foreground text-sm">Sin ingresos en el período</p>
@@ -244,7 +244,7 @@ export default function Reports() {
             <Card>
               <CardContent className="pt-5">
                 <h2 className="font-semibold mb-4 flex items-center gap-2">
-                  <TrendingDown className="h-4 w-4 text-red-500" />Egresos por categoría
+                  <TrendingDown className="h-4 w-4 text-red-500" />Egresos por cuenta
                 </h2>
                 {expCategories.length === 0
                   ? <p className="text-muted-foreground text-sm">Sin egresos en el período</p>
@@ -346,7 +346,7 @@ export default function Reports() {
                       <tr className="border-b" style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
                         <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Fecha</th>
                         <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Descripción</th>
-                        <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Categoría</th>
+                        <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Cuenta</th>
                         <th className="text-right py-2 font-medium text-muted-foreground">Monto</th>
                       </tr>
                     </thead>
@@ -355,7 +355,7 @@ export default function Reports() {
                         <tr key={i.id} className="border-b" style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
                           <td className="py-2 pr-4 tabular-nums text-muted-foreground whitespace-nowrap">{fmtDate(i.income_date)}</td>
                           <td className="py-2 pr-4">{i.description || '—'}</td>
-                          <td className="py-2 pr-4 text-muted-foreground">{i.category_name || '—'}</td>
+                          <td className="py-2 pr-4 text-muted-foreground">{i.account_nombre || '—'}</td>
                           <td className="py-2 text-right tabular-nums font-medium text-green-600">{cents(i.amount_cents)}</td>
                         </tr>
                       ))}
@@ -383,7 +383,7 @@ export default function Reports() {
                       <tr className="border-b" style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
                         <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Fecha</th>
                         <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Descripción</th>
-                        <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Categoría</th>
+                        <th className="text-left py-2 pr-4 font-medium text-muted-foreground">Cuenta</th>
                         <th className="text-right py-2 font-medium text-muted-foreground">Monto</th>
                       </tr>
                     </thead>
@@ -392,7 +392,7 @@ export default function Reports() {
                         <tr key={e.id} className="border-b" style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
                           <td className="py-2 pr-4 tabular-nums text-muted-foreground whitespace-nowrap">{fmtDate(e.expense_date)}</td>
                           <td className="py-2 pr-4">{e.description || '—'}</td>
-                          <td className="py-2 pr-4 text-muted-foreground">{e.category_name || '—'}</td>
+                          <td className="py-2 pr-4 text-muted-foreground">{e.account_nombre || '—'}</td>
                           <td className="py-2 text-right tabular-nums font-medium text-red-600">{cents(e.amount_cents)}</td>
                         </tr>
                       ))}

@@ -925,8 +925,8 @@ export default function CaseDetailPanel({ kase, onClose }: CaseDetailPanelProps)
             {kase.service_area && (
               <span className="px-2 py-0.5 rounded border text-muted-foreground border-border/50 bg-muted/20">{kase.service_area}</span>
             )}
-            {kase.product_name && (
-              <span className="px-2 py-0.5 rounded border text-purple-300 border-purple-500/30 bg-purple-500/10">{kase.product_name}</span>
+            {kase.service_nombre && (
+              <span className="px-2 py-0.5 rounded border text-purple-300 border-purple-500/30 bg-purple-500/10">{kase.service_nombre}</span>
             )}
             <span className="px-2 py-0.5 rounded border text-muted-foreground border-border/50 bg-muted/20 flex items-center gap-1">
               <CalendarDays className="h-2.5 w-2.5" />

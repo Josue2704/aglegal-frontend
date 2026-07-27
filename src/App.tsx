@@ -13,7 +13,6 @@ import Clients from './pages/Clients'
 import Cases from './pages/Cases'
 import Sessions from './pages/Sessions'
 import Cashflow from './pages/Cashflow'
-import Categories from './pages/Categories'
 import Catalogo from './pages/Catalogo'
 import Finanzas from './pages/Finanzas'
 import Comisiones from './pages/Comisiones'
@@ -99,7 +98,6 @@ export default function App() {
               <Route path="tasks" element={<PermissionRoute permission="tareas.ver"><Tasks /></PermissionRoute>} />
               <Route path="sessions" element={<PermissionRoute permission="agenda.ver"><Sessions /></PermissionRoute>} />
               <Route path="cashflow" element={<PermissionRoute permission="flujo_caja.ver"><Cashflow /></PermissionRoute>} />
-              <Route path="categories" element={<PermissionRoute permission="categorias.ver"><Categories /></PermissionRoute>} />
               <Route path="catalogo" element={<PermissionRoute permission="categorias.ver"><Catalogo /></PermissionRoute>} />
               <Route path="finanzas" element={<PermissionRoute permission="categorias.ver"><Finanzas /></PermissionRoute>} />
               <Route path="comisiones" element={<PermissionRoute permission="expedientes.ver"><Comisiones /></PermissionRoute>} />

@@ -5,7 +5,6 @@ import { Plus, Trash2, Pencil, Search, CalendarDays, X, LayoutList } from 'lucid
 import { toast } from 'sonner'
 import { casesApi } from '@/api/cases'
 import { clientsApi } from '@/api/clients'
-import { categoriesApi } from '@/api/categories'
 import { catalogoApi } from '@/api/catalogo'
 import { usersApi } from '@/api/users'
 import { finanzasApi } from '@/api/finanzas'
@@ -45,7 +44,6 @@ type FormData = {
   priority: string
   opened_at: string
   notes: string
-  service_product_id: string
   internal_ref: string
   official_ref: string
   opposing_party: string
@@ -62,7 +60,7 @@ type FormData = {
 }
 
 const EMPTY_FORM: FormData = {
-  client_id: '', service_area: 'Otro', title: '', status: 'Abierto', priority: 'Media', opened_at: today(), notes: '', service_product_id: '',
+  client_id: '', service_area: 'Otro', title: '', status: 'Abierto', priority: 'Media', opened_at: today(), notes: '',
   internal_ref: '', official_ref: '', opposing_party: '', court_entity: '', responsible_username: '',
   service_id: '', honorarios_contratados: '', costos_directos_estimados: '', mes_cobro_esperado: '',
   estado_cobro: 'En ejecución', fecha_cierre_estimada: '', fecha_cierre_real: '', proxima_accion: '',
@@ -151,11 +149,6 @@ export default function Cases() {
   })
   const { sorted: sortedCases, sortKey, sortDir, toggle } = useSortable(cases as unknown as Record<string, unknown>[], 'opened_at', 'desc')
   const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
-  const { data: products = [] } = useQuery({
-    queryKey: ['product-choices', form.service_area],
-    queryFn: () => categoriesApi.productChoices(form.service_area ? { service_area: form.service_area } : undefined),
-    enabled: dlg,
-  })
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
   const { data: serviceMatches = [] } = useQuery({
     queryKey: ['servicio-choices', serviceSearch],
@@ -184,7 +177,6 @@ export default function Cases() {
     setForm({
       client_id: String(c.client_id), service_area: c.service_area, title: c.title, status: c.status,
       priority: c.priority, opened_at: c.opened_at, notes: c.notes ?? '',
-      service_product_id: c.service_product_id ? String(c.service_product_id) : '',
       internal_ref: c.internal_ref ?? '', official_ref: c.official_ref ?? '',
       opposing_party: c.opposing_party ?? '', court_entity: c.court_entity ?? '',
       responsible_username: c.responsible_username ?? '',
@@ -209,7 +201,6 @@ export default function Cases() {
       client_id: Number(form.client_id), service_area: form.service_area, title: form.title,
       status: form.status as CaseIn['status'], priority: form.priority as CaseIn['priority'],
       opened_at: form.opened_at, notes: form.notes,
-      service_product_id: form.service_product_id ? Number(form.service_product_id) : null,
       internal_ref: editing ? form.internal_ref : undefined, official_ref: form.official_ref,
       opposing_party: form.opposing_party, court_entity: form.court_entity,
       responsible_username: form.responsible_username,
@@ -313,7 +304,7 @@ export default function Cases() {
                       <td className="px-4 py-3"><Badge variant={STATUS_COLOR[c.status] ?? 'outline'}>{c.status}</Badge></td>
                       <td className="px-4 py-3"><Badge variant={PRIORITY_COLOR[c.priority] ?? 'outline'}>{c.priority}</Badge></td>
                       <td className="px-4 py-3 text-muted-foreground text-xs">
-                        {c.service_code ? <><span className="font-mono">{c.service_code}</span><br />{c.service_nombre}</> : (c.product_name ?? c.service_area)}
+                        {c.service_code ? <><span className="font-mono">{c.service_code}</span><br />{c.service_nombre}</> : c.service_area}
                       </td>
                       <td className="px-4 py-3"><Badge variant={ESTADO_COBRO_COLOR[c.estado_cobro] ?? 'outline'} className="text-[10px] whitespace-nowrap">{c.estado_cobro}</Badge></td>
                       <td className="px-4 py-3 text-right font-mono text-xs">{money(c.saldo_pendiente)}</td>
@@ -376,7 +367,7 @@ export default function Cases() {
               </div>
               <div className="space-y-1">
                 <Label>Área de servicio</Label>
-                <Select value={form.service_area} onValueChange={(v) => setForm((p) => ({ ...p, service_area: v, service_product_id: '' }))}>
+                <Select value={form.service_area} onValueChange={(v) => setForm((p) => ({ ...p, service_area: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{SERVICE_AREAS.map((a) => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
                 </Select>
@@ -393,16 +384,6 @@ export default function Cases() {
                 <Select value={form.priority} onValueChange={f('priority')}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>{PRIORITIES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1">
-                <Label>Producto/Servicio</Label>
-                <Select value={form.service_product_id} onValueChange={f('service_product_id')}>
-                  <SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">Ninguno</SelectItem>
-                    {products.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>)}
-                  </SelectContent>
                 </Select>
               </div>
               <div className="space-y-1"><Label>Fecha apertura</Label><Input type="date" value={form.opened_at} onChange={(e) => setForm({ ...form, opened_at: e.target.value })} /></div>

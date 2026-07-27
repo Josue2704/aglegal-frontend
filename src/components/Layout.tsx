@@ -15,7 +15,6 @@ const BREADCRUMB: Record<string, { label: string; parent?: string }> = {
   '/sessions':   { label: 'Agenda', parent: 'Gestión' },
   '/cashflow':   { label: 'Flujo de Caja', parent: 'Finanzas' },
   '/payroll':    { label: 'Nóminas', parent: 'Finanzas' },
-  '/categories': { label: 'Categorías', parent: 'Finanzas' },
   '/users':      { label: 'Usuarios', parent: 'Sistema' },
   '/settings':   { label: 'Configuración', parent: 'Sistema' },
 }

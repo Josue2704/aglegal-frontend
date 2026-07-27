@@ -85,8 +85,6 @@ export interface Case {
   opened_at: string
   closed_at: string | null
   notes: string | null
-  service_product_id: number | null
-  product_name: string | null
   internal_ref: string | null
   official_ref: string | null
   opposing_party: string | null
@@ -124,7 +122,6 @@ export interface CaseIn {
   priority: CasePriority
   opened_at: string
   notes?: string
-  service_product_id?: number | null
   internal_ref?: string
   official_ref?: string
   opposing_party?: string
@@ -210,11 +207,8 @@ export interface Income {
   income_date: string
   client_id: number | null
   client_name: string | null
-  category_id: number | null
-  category_name: string | null
   case_id: number | null
   case_title: string | null
-  product_name: string | null
   detail: string | null
   concept: string
   invoice_id: number | null
@@ -234,7 +228,6 @@ export interface IncomeIn {
   amount: number
   income_date: string
   client_id?: number | null
-  category_id?: number | null
   case_id?: number | null
   detail?: string
   invoice_id?: number | null
@@ -247,8 +240,6 @@ export interface IncomeIn {
 // ── Expenses ──────────────────────────────────────────────────────────────────
 export interface Expense {
   id: number
-  category_id: number | null
-  category_name: string | null
   detail: string | null
   concept: string
   amount: number
@@ -263,7 +254,6 @@ export interface Expense {
   monto_neto_operativo: number
 }
 export interface ExpenseIn {
-  category_id?: number | null
   detail: string
   amount: number
   expense_date: string
@@ -280,9 +270,6 @@ export interface Cost {
   client_name: string | null
   case_id: number | null
   case_title: string | null
-  category_id: number | null
-  category_name: string | null
-  product_name: string | null
   detail: string | null
   concept: string
   amount: number
@@ -302,7 +289,6 @@ export interface Cost {
 export interface CostIn {
   client_id?: number | null
   case_id?: number | null
-  category_id?: number | null
   detail: string
   amount: number
   cost_date: string
@@ -311,25 +297,6 @@ export interface CostIn {
   service_id?: number | null
   monto_iva?: number | null
   monto_reembolsable?: number | null
-}
-
-// ── Categories ────────────────────────────────────────────────────────────────
-export type CategoryKind = 'income' | 'expense' | 'cost' | 'service'
-export interface Category {
-  id: number
-  kind: CategoryKind
-  name: string
-  created_at: string
-}
-export interface ServiceProduct {
-  id: number
-  category_id: number
-  category_name: string | null
-  name: string
-  description: string | null
-  base_price: number | null
-  active: boolean
-  created_at: string
 }
 
 // ── Catálogo maestro (categorías / subcategorías / servicios / familias) ──────
@@ -714,7 +681,6 @@ export interface MonthlyMetrics {
   incomes: number
   expenses: number
   balance: number
-  categories_total: number
 }
 export interface CashflowTotals {
   total_incomes: number
