@@ -26,7 +26,7 @@ DialogOverlay.displayName = DialogPrimitive.Overlay.displayName
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, onPointerDownOutside, onInteractOutside, ...props }, ref) => (
+>(({ className, children, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -35,32 +35,14 @@ const DialogContent = React.forwardRef<
         'fixed left-[50%] top-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 sm:rounded-lg',
         className
       )}
-      onPointerDownOutside={(e) => {
-        // While a Radix popper (Select, DropdownMenu, Popover...) is open, Radix sets
-        // pointer-events:none on this dialog's own content (the popper is a higher,
-        // more-recently-opened layer) — so a click that lands anywhere other than
-        // exactly on the popper's own content passes straight through this dialog and
-        // reaches whatever's behind everything, which looks like a genuine "outside"
-        // click to us even though the user is just dismissing the popper's dropdown.
-        // Checking the whole document (not just e.target) catches that pass-through
-        // case too, not just clicks that literally land on a popper item.
-        const target = e.target as HTMLElement
-        if (target.closest('[data-radix-popper-content-wrapper]') || document.querySelector('[data-radix-popper-content-wrapper]')) {
-          e.preventDefault()
-          return
-        }
-        onPointerDownOutside?.(e)
-      }}
-      onInteractOutside={(e) => {
-        // Belt-and-suspenders: onInteractOutside fires for both pointer AND focus-outside
-        // interactions. Same guard as onPointerDownOutside above.
-        const target = e.target as HTMLElement
-        if (target.closest('[data-radix-popper-content-wrapper]') || document.querySelector('[data-radix-popper-content-wrapper]')) {
-          e.preventDefault()
-          return
-        }
-        onInteractOutside?.(e)
-      }}
+      // Dialogs never close on an outside click. Radix's own dismiss-on-outside-click
+      // logic depends on internal layer/pointer-events bookkeeping that breaks in ways
+      // that are hard to fully predict whenever a nested Select/combo is open (see git
+      // history on this file for the failed attempts at guarding it precisely) — instead
+      // of chasing that, the feature is just removed. Dialogs close only via the X
+      // button, an explicit Cancel button, or a successful submit — never by accident.
+      onPointerDownOutside={(e) => e.preventDefault()}
+      onInteractOutside={(e) => e.preventDefault()}
       {...props}
     >
       {children}
