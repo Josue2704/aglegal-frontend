@@ -1,12 +1,17 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Circle, Clock, Search, Briefcase, AlertTriangle, ListChecks, X } from 'lucide-react'
+import { CheckCircle2, Circle, Clock, Search, Briefcase, AlertTriangle, ListChecks, X, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 import { casesApi } from '@/api/cases'
 import type { GlobalCaseTask } from '@/types'
+import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { formatDate, today } from '@/lib/utils'
 
 type FilterMode = 'all' | 'pending' | 'overdue' | 'done'
@@ -22,10 +27,73 @@ function isOverdue(task: GlobalCaseTask): boolean {
   return !task.done && !!task.due_date && task.due_date < today()
 }
 
+// ─── Nueva tarea (sin tener que entrar primero al expediente) ─────────────────
+function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [caseId, setCaseId] = useState('')
+  const [title, setTitle] = useState('')
+  const [due, setDue] = useState('')
+  const [notes, setNotes] = useState('')
+  const [critico, setCritico] = useState(false)
+
+  const { data: caseChoices = [] } = useQuery({ queryKey: ['case-choices'], queryFn: () => casesApi.choices(), enabled: open })
+
+  const create = useMutation({
+    mutationFn: () => casesApi.createTask(Number(caseId), { title: title.trim(), due_date: due || null, notes: notes || null, es_critico: critico }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['all-tasks'] })
+      toast.success('Tarea creada')
+      setCaseId(''); setTitle(''); setDue(''); setNotes(''); setCritico(false)
+      onClose()
+    },
+    onError: () => toast.error('Error al crear la tarea'),
+  })
+
+  return (
+    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent>
+        <DialogHeader><DialogTitle>Nueva tarea</DialogTitle></DialogHeader>
+        <form onSubmit={(e) => { e.preventDefault(); if (!caseId || !title.trim()) return toast.error('Expediente y título son requeridos'); create.mutate() }} className="space-y-3">
+          <div className="space-y-1">
+            <Label>Expediente <span className="text-destructive text-xs">*</span></Label>
+            <Select value={caseId} onValueChange={setCaseId}>
+              <SelectTrigger><SelectValue placeholder="Seleccionar expediente..." /></SelectTrigger>
+              <SelectContent>{caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label>Título <span className="text-destructive text-xs">*</span></Label>
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
+          </div>
+          <div className="space-y-1">
+            <Label>Fecha de vencimiento</Label>
+            <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <Label>Notas</Label>
+            <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <label className="flex items-center gap-2 text-xs cursor-pointer select-none rounded-lg px-2.5 py-2"
+            style={{ background: critico ? 'hsl(0 70% 55% / 0.1)' : 'transparent', border: `1px solid ${critico ? 'hsl(0 70% 55% / 0.3)' : 'hsl(var(--border))'}` }}>
+            <input type="checkbox" checked={critico} onChange={(e) => setCritico(e.target.checked)} className="h-3.5 w-3.5" />
+            <AlertTriangle className={`h-3.5 w-3.5 ${critico ? 'text-destructive' : 'text-muted-foreground'}`} />
+            <span className={critico ? 'font-medium text-destructive' : 'text-muted-foreground'}>Plazo legal crítico</span>
+          </label>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
+            <Button type="submit" disabled={create.isPending}>{create.isPending ? 'Guardando...' : 'Crear tarea'}</Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export default function Tasks() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterMode>('pending')
+  const [newDlg, setNewDlg] = useState(false)
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['all-tasks'],
@@ -89,7 +157,10 @@ export default function Tasks() {
           <h1 className="text-2xl font-bold">Tareas</h1>
           <p className="text-muted-foreground text-sm">Checklist global de todos los expedientes</p>
         </div>
+        <Button onClick={() => setNewDlg(true)}><Plus className="h-4 w-4" />Nueva tarea</Button>
       </div>
+
+      <NewTaskDialog open={newDlg} onClose={() => setNewDlg(false)} />
 
       {/* Stats bar */}
       <div className="grid grid-cols-3 gap-3">
@@ -229,7 +300,13 @@ function TaskRow({ task, onToggle, isPending }: { task: GlobalCaseTask; onToggle
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className={`text-sm ${task.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+        <p className={`text-sm flex items-center gap-1.5 ${task.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+          {task.es_critico && (
+            <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-[9px] font-bold uppercase tracking-wide text-destructive"
+              style={{ background: 'hsl(0 70% 55% / 0.12)', border: '1px solid hsl(0 70% 55% / 0.3)' }}>
+              <AlertTriangle className="h-2.5 w-2.5" />Crítico
+            </span>
+          )}
           {task.title}
         </p>
         {task.notes && (

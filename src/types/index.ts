@@ -51,6 +51,7 @@ export interface Client {
   created_at: string
   session_count: number
   case_count: number
+  archived_at: string | null
 }
 export interface ClientIn {
   name: string
@@ -112,6 +113,7 @@ export interface Case {
   dias_duracion: number | null
   proxima_accion: string | null
   opportunity_id: number | null
+  archived_at: string | null
 }
 export interface CaseIn {
   client_id: number
@@ -156,6 +158,7 @@ export interface CaseTask {
   notes: string | null
   completed_notes: string | null
   responsible_username: string | null
+  es_critico: boolean
   created_at: string
 }
 
@@ -170,6 +173,30 @@ export interface CaseTaskIn {
   due_date?: string | null
   notes?: string | null
   responsible_username?: string
+  es_critico?: boolean
+}
+
+export interface CaseTimeEntry {
+  id: number
+  case_id: number
+  username: string
+  work_date: string
+  hours: number
+  description: string | null
+  billable: boolean
+  invoice_id: number | null
+  created_at: string
+}
+export interface CaseTimeEntryIn {
+  work_date: string
+  hours: number
+  description?: string | null
+  billable?: boolean
+}
+
+export interface ConflictoInteres {
+  clientes: { id: number; name: string; client_type: string }[]
+  casos: { id: number; title: string; opposing_party: string | null; client_name: string }[]
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
@@ -636,6 +663,7 @@ export interface Oportunidad {
   motivo_perdida: string | null
   case_id: number | null
   case_internal_ref: string | null
+  honorarios_estimados: number | null
   fecha_prospecto: string
   fecha_cotizado: string | null
   fecha_cierre: string | null
@@ -648,6 +676,7 @@ export interface ConversionComercial {
   ganados: number
   perdidos: number
   conversion_pct: number | null
+  valor_pipeline: number
 }
 
 // ── Payroll ───────────────────────────────────────────────────────────────────
@@ -660,16 +689,18 @@ export interface PayrollEntry {
   payment_date: string
   notes: string | null
   expense_id: number | null
+  personal_id: number | null
   created_at: string
 }
 export type Payroll = PayrollEntry
 export interface PayrollIn {
-  employee_name: string
+  employee_name?: string
   role?: string
   period: string
   amount: number
   payment_date: string
   notes?: string
+  personal_id?: number | null
 }
 
 // ── Users ─────────────────────────────────────────────────────────────────────
@@ -677,6 +708,7 @@ export interface User {
   id: number
   username: string
   full_name: string | null
+  email: string | null
   role: string
   role_id: number | null
   active: boolean
@@ -685,6 +717,7 @@ export interface User {
 export interface UserIn {
   username: string
   full_name?: string
+  email?: string
   role?: string
   role_id?: number | null
   password?: string
@@ -822,10 +855,20 @@ export interface UnbilledCost {
   cost_date: string
 }
 
+export interface UnbilledTimeEntry {
+  id: number
+  work_date: string
+  hours: number
+  description: string | null
+  case_title: string | null
+  case_id: number | null
+}
+
 export interface UnbilledItems {
   sessions: UnbilledSession[]
   tasks: UnbilledTask[]
   costs: UnbilledCost[]
+  time_entries: UnbilledTimeEntry[]
 }
 
 // ── Misc ──────────────────────────────────────────────────────────────────────

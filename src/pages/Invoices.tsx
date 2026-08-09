@@ -2,7 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Printer, Pencil, Trash2, FileText, ChevronDown, ChevronUp,
-  Check, X, Receipt, DollarSign, Clock, CheckCircle,
+  Check, X, Receipt, DollarSign, Clock, CheckCircle, Download,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { invoicesApi } from '@/api/invoices'
@@ -10,7 +10,7 @@ import { incomesApi } from '@/api/incomes'
 import { finanzasApi } from '@/api/finanzas'
 import type { Invoice, InvoiceItemIn, InvoiceStatus, UnbilledItems } from '@/types'
 import { useSettingsStore } from '@/store/settings'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, exportCsv, today as todayStr } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -335,7 +335,7 @@ function UnbilledPicker({
   clientId: number
   onSelect: (items: LineItem[]) => void
 }) {
-  const [open, setOpen] = useState<'sessions' | 'tasks' | 'costs' | null>('sessions')
+  const [open, setOpen] = useState<'sessions' | 'tasks' | 'costs' | 'horas' | null>('sessions')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [prices, setPrices] = useState<Record<string, number>>({})
 
@@ -347,6 +347,7 @@ function UnbilledPicker({
   const sessions = data?.sessions ?? []
   const tasks = data?.tasks ?? []
   const costs = data?.costs ?? []
+  const horas = data?.time_entries ?? []
 
   function key(type: string, id: number) {
     return `${type}:${id}`
@@ -399,6 +400,17 @@ function UnbilledPicker({
             entity_type: 'cost',
             entity_id: c.id,
           })
+      } else if (type === 'horas') {
+        const h = horas.find((x) => x.id === id)
+        if (h)
+          lines.push({
+            _key: crypto.randomUUID(),
+            description: `Horas ${h.work_date}${h.description ? ` — ${h.description}` : ''} (${h.hours}h)`,
+            quantity: h.hours,
+            unit_price: price,
+            entity_type: 'time_entry',
+            entity_id: h.id,
+          })
       }
     })
     if (lines.length === 0) return
@@ -407,10 +419,10 @@ function UnbilledPicker({
   }
 
   if (isLoading) return <p className="text-xs text-muted-foreground py-2">Cargando partidas...</p>
-  if (!data || (sessions.length + tasks.length + costs.length === 0))
+  if (!data || (sessions.length + tasks.length + costs.length + horas.length === 0))
     return (
       <p className="text-xs text-muted-foreground py-2">
-        Sin sesiones, tareas o costos no facturados para este cliente
+        Sin sesiones, tareas, horas o costos no facturados para este cliente
       </p>
     )
 
@@ -420,7 +432,7 @@ function UnbilledPicker({
     count,
     children,
   }: {
-    id: 'sessions' | 'tasks' | 'costs'
+    id: 'sessions' | 'tasks' | 'costs' | 'horas'
     title: string
     count: number
     children: React.ReactNode
@@ -499,6 +511,24 @@ function UnbilledPicker({
                   <span className="font-medium">{c.concept}</span>
                   {c.detail && <span className="text-muted-foreground"> — {c.detail}</span>}
                   <span className="text-muted-foreground"> ({formatCurrency(c.amount)})</span>
+                </span>
+                {sel.has(k) && <PriceInput k={k} />}
+              </label>
+            )
+          })}
+        </Section>
+      )}
+      {horas.length > 0 && (
+        <Section id="horas" title="Horas trabajadas" count={horas.length}>
+          {horas.map((h) => {
+            const k = key('horas', h.id)
+            return (
+              <label key={h.id} className="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-muted/30 rounded px-1">
+                <input type="checkbox" checked={sel.has(k)} onChange={() => toggle(k)} className="h-4 w-4 shrink-0" />
+                <span className="flex-1 text-xs">
+                  <span className="font-medium">{h.work_date} · {h.hours}h</span>
+                  {h.description && <span className="text-muted-foreground"> — {h.description}</span>}
+                  {h.case_title && <span className="text-muted-foreground"> ({h.case_title})</span>}
                 </span>
                 {sel.has(k) && <PriceInput k={k} />}
               </label>
@@ -855,10 +885,24 @@ export default function Invoices() {
           <h1 className="text-2xl font-bold">Facturas</h1>
           <p className="text-sm text-muted-foreground">Genera y gestiona facturas por cliente</p>
         </div>
-        <Button onClick={() => setBuilding(true)}>
-          <Plus className="h-4 w-4" />
-          Nueva Factura
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() =>
+              exportCsv(
+                `facturas_${todayStr()}.csv`,
+                ['N°', 'Cliente', 'Expediente', 'Fecha', 'Vencimiento', 'Estado', 'Total'],
+                visible.map((i) => [i.invoice_number, i.client_name, i.case_title, i.invoice_date, i.due_date, i.status, i.total]),
+              )
+            }
+          >
+            <Download className="h-4 w-4" />CSV
+          </Button>
+          <Button onClick={() => setBuilding(true)}>
+            <Plus className="h-4 w-4" />
+            Nueva Factura
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}

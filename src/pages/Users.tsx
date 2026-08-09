@@ -21,8 +21,8 @@ const ROLE_COLOR: Record<string, 'destructive' | 'info' | 'secondary' | 'outline
   Visualizador: 'outline',
 }
 
-type UserForm = { username: string; full_name: string; role_id: number | null; password: string }
-const EMPTY_FORM: UserForm = { username: '', full_name: '', role_id: null, password: '' }
+type UserForm = { username: string; full_name: string; email: string; role_id: number | null; password: string }
+const EMPTY_FORM: UserForm = { username: '', full_name: '', email: '', role_id: null, password: '' }
 
 export default function Users() {
   const qc = useQueryClient()
@@ -57,7 +57,7 @@ export default function Users() {
   function openNew() { setEditing(null); setForm(EMPTY_FORM); setDlg('form') }
   function openEdit(u: User) {
     setEditing(u)
-    setForm({ username: u.username, full_name: u.full_name ?? '', role_id: u.role_id, password: '' })
+    setForm({ username: u.username, full_name: u.full_name ?? '', email: u.email ?? '', role_id: u.role_id, password: '' })
     setDlg('form')
   }
   function openPassword(u: User) { setEditing(u); setPwdForm({ password: '', confirm: '' }); setDlg('password') }
@@ -74,6 +74,7 @@ export default function Users() {
     const payload: UserIn = {
       username: form.username,
       full_name: form.full_name,
+      email: form.email,
       role: role?.name ?? 'Usuario',
       role_id: form.role_id,
       password: form.password || undefined,
@@ -105,13 +106,14 @@ export default function Users() {
           <CardContent className="p-0">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
-                <tr>{['Usuario', 'Nombre', 'Rol', 'Registro', 'Acciones'].map((h) => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>)}</tr>
+                <tr>{['Usuario', 'Nombre', 'Correo', 'Rol', 'Registro', 'Acciones'].map((h) => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>)}</tr>
               </thead>
               <tbody>
                 {users.map((u) => (
                   <tr key={u.id} className="border-t hover:bg-muted/30 transition-colors">
                     <td className="px-4 py-3 font-mono text-sm font-medium">{u.username}</td>
                     <td className="px-4 py-3">{u.full_name || '—'}</td>
+                    <td className="px-4 py-3 text-muted-foreground">{u.email || '—'}</td>
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-1.5">
                         <Shield className="h-3 w-3 text-muted-foreground" />
@@ -128,7 +130,7 @@ export default function Users() {
                     </td>
                   </tr>
                 ))}
-                {!users.length && <tr><td colSpan={5} className="px-4 py-8 text-center text-muted-foreground">Sin usuarios</td></tr>}
+                {!users.length && <tr><td colSpan={6} className="px-4 py-8 text-center text-muted-foreground">Sin usuarios</td></tr>}
               </tbody>
             </table>
           </CardContent>
@@ -148,6 +150,11 @@ export default function Users() {
               <div className="space-y-1 col-span-2">
                 <Label>Nombre completo</Label>
                 <Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} />
+              </div>
+              <div className="space-y-1 col-span-2">
+                <Label>Correo electrónico</Label>
+                <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="usuario@despacho.com" />
+                <p className="text-[11px] text-muted-foreground">Necesario para recibir el recordatorio diario de tareas vencidas o con plazo crítico.</p>
               </div>
               <div className="space-y-1 col-span-2">
                 <Label>Rol <span className="text-destructive text-xs">*</span></Label>

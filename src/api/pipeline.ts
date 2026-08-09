@@ -8,6 +8,7 @@ export interface OportunidadPayload {
   service_id?: number | null
   canal_captacion: string
   origen_negocio: string
+  honorarios_estimados?: number | null
 }
 
 export const pipelineApi = {

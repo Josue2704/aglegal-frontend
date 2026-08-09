@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Pencil, Search, CalendarDays, X, LayoutList } from 'lucide-react'
+import { Plus, Trash2, Pencil, Search, CalendarDays, X, LayoutList, AlertTriangle, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { casesApi } from '@/api/cases'
 import { clientsApi } from '@/api/clients'
@@ -21,7 +21,7 @@ import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { formatDate, today } from '@/lib/utils'
+import { formatDate, today, exportCsv } from '@/lib/utils'
 import CaseDetailPanel from '@/components/CaseDetailPanel'
 
 const STATUSES = ['Abierto', 'En trámite', 'En pausa', 'Cerrado'] as const
@@ -131,6 +131,7 @@ export default function Cases() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('Todos')
+  const [showArchived, setShowArchived] = useState(false)
 
   const urlClientId = searchParams.get('client_id') ? Number(searchParams.get('client_id')) : undefined
   const urlClientName = searchParams.get('client_name') ?? undefined
@@ -142,9 +143,20 @@ export default function Cases() {
   const [selectedService, setSelectedService] = useState<{ id: number; service_code: string; nombre: string; category_code?: string; subcategory_code?: string } | null>(null)
 
   const { data: cases = [], isLoading } = useQuery({
-    queryKey: ['cases', search, statusFilter, urlClientId],
-    queryFn: () => casesApi.list({ search: search || undefined, status: statusFilter !== 'Todos' ? statusFilter : undefined, client_id: urlClientId }),
+    queryKey: ['cases', search, statusFilter, urlClientId, showArchived],
+    queryFn: () => casesApi.list({ search: search || undefined, status: statusFilter !== 'Todos' ? statusFilter : undefined, client_id: urlClientId, archived: showArchived }),
   })
+
+  // Conflicto de interés: cruza el nombre de la contraparte que se está escribiendo
+  // contra clientes existentes y contrapartes de otros expedientes activos. No bloquea
+  // nada — solo avisa antes de aceptar el caso, como exige la ética profesional.
+  const { data: conflicto } = useQuery({
+    queryKey: ['conflicto-interes', form.opposing_party],
+    queryFn: () => casesApi.conflictoInteres(form.opposing_party),
+    enabled: dlg && form.opposing_party.trim().length >= 3,
+    staleTime: 5_000,
+  })
+  const hayConflicto = !!conflicto && (conflicto.clientes.length > 0 || conflicto.casos.length > 0)
   const { sorted: sortedCases, sortKey, sortDir, toggle } = useSortable(cases as unknown as Record<string, unknown>[], 'opened_at', 'desc')
   const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
@@ -169,9 +181,18 @@ export default function Cases() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['cases'] }); toast.success('Caso actualizado'); setDlg(false) },
     onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error'),
   })
-  const deleteCase = useMutation({
-    mutationFn: casesApi.delete,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['cases'] }); toast.success('Caso eliminado') },
+  const archiveCase = useMutation({
+    mutationFn: casesApi.archive,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['cases'] }); toast.success('Expediente movido a la papelera') },
+  })
+  const restoreCase = useMutation({
+    mutationFn: casesApi.restore,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['cases'] }); toast.success('Expediente restaurado') },
+  })
+  const purgeCase = useMutation({
+    mutationFn: casesApi.purge,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['cases'] }); toast.success('Expediente borrado permanentemente') },
+    onError: () => toast.error('No se pudo borrar el expediente'),
   })
 
   function openNew() { setEditing(null); setForm(EMPTY_FORM); setSelectedService(null); setServiceSearch(''); setDlg(true) }
@@ -242,9 +263,29 @@ export default function Cases() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Expedientes</h1>
-          <p className="text-muted-foreground text-sm">{cases.length} caso{cases.length !== 1 ? 's' : ''}</p>
+          <p className="text-muted-foreground text-sm">{cases.length} caso{cases.length !== 1 ? 's' : ''}{showArchived ? ' en la papelera' : ''}</p>
         </div>
-        <Button onClick={openNew}><Plus className="h-4 w-4" />Nuevo expediente</Button>
+        <div className="flex gap-2">
+          <Button variant={showArchived ? 'default' : 'outline'} onClick={() => setShowArchived((v) => !v)}>
+            <Trash2 className="h-4 w-4" />{showArchived ? 'Viendo papelera' : 'Papelera'}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() =>
+              exportCsv(
+                `expedientes_${today()}.csv`,
+                ['N° Interno', 'Título', 'Cliente', 'Estado', 'Prioridad', 'Servicio', 'Estado de cobro', 'Saldo pendiente', 'Apertura'],
+                (sortedCases as unknown as Case[]).map((c) => [
+                  c.internal_ref, c.title, c.client_name, c.status, c.priority,
+                  c.service_nombre, c.estado_cobro, c.saldo_pendiente, c.opened_at,
+                ]),
+              )
+            }
+          >
+            <Download className="h-4 w-4" />CSV
+          </Button>
+          {!showArchived && <Button onClick={openNew}><Plus className="h-4 w-4" />Nuevo expediente</Button>}
+        </div>
       </div>
 
       {/* Filters */}
@@ -334,8 +375,27 @@ export default function Cases() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(c)}><Pencil className="h-3.5 w-3.5" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => { if (confirm('¿Eliminar caso?')) deleteCase.mutate(c.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                          {showArchived ? (
+                            <>
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => restoreCase.mutate(c.id)}>Restaurar</Button>
+                              <Button
+                                size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Borrar permanentemente"
+                                onClick={() => { if (confirm(`¿Borrar el expediente "${c.title}" permanentemente? Esto no se puede deshacer.`)) purgeCase.mutate(c.id) }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(c)}><Pencil className="h-3.5 w-3.5" /></Button>
+                              <Button
+                                size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Archivar (papelera)"
+                                onClick={() => { if (confirm('¿Archivar este expediente? Se mueve a la papelera y se puede restaurar luego.')) archiveCase.mutate(c.id) }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -471,6 +531,20 @@ export default function Cases() {
                 <div className="space-y-1">
                   <Label>Contraparte</Label>
                   <Input placeholder="Nombre de la contraparte" value={form.opposing_party} onChange={(e) => setForm({ ...form, opposing_party: e.target.value })} />
+                  {hayConflicto && (
+                    <div className="flex items-start gap-2 rounded-lg px-2.5 py-2 mt-1 text-xs" style={{ background: 'hsl(0 70% 55% / 0.1)', border: '1px solid hsl(0 70% 55% / 0.3)' }}>
+                      <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive" />
+                      <div className="space-y-1">
+                        <p className="font-medium text-destructive">Posible conflicto de interés</p>
+                        {conflicto!.clientes.map((cl) => (
+                          <p key={`cl-${cl.id}`} className="text-muted-foreground">"{cl.name}" ya es cliente del despacho.</p>
+                        ))}
+                        {conflicto!.casos.map((cs) => (
+                          <p key={`cs-${cs.id}`} className="text-muted-foreground">"{cs.opposing_party}" ya es contraparte en el expediente "{cs.title}" ({cs.client_name}).</p>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-1">
                   <Label>Juzgado / Entidad</Label>

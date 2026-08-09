@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom'
-import { Sun, Moon, Search, X, User, Briefcase, CalendarDays, Menu } from 'lucide-react'
+import { Sun, Moon, Search, X, User, Briefcase, CalendarDays, Menu, Receipt, CheckSquare, Target } from 'lucide-react'
 import { NotificationBell } from './NotificationBell'
 import { useQuery } from '@tanstack/react-query'
 import { Sidebar } from './Sidebar'
@@ -34,7 +34,10 @@ function GlobalSearch() {
     staleTime: 10_000,
   })
 
-  const hasResults = results && (results.clients.length + results.cases.length + results.sessions.length) > 0
+  const hasResults = results && (
+    results.clients.length + results.cases.length + results.sessions.length +
+    results.invoices.length + results.tasks.length + results.oportunidades.length
+  ) > 0
 
   useEffect(() => {
     if (open) setTimeout(() => inputRef.current?.focus(), 50)
@@ -172,6 +175,69 @@ function GlobalSearch() {
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-foreground truncate">{s.client_name} — {s.consult_type}</p>
                           <p className="text-xs text-muted-foreground">{s.session_date} · {s.status}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {results!.invoices.length > 0 && (
+                  <div>
+                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Facturas</p>
+                    {results!.invoices.map((i) => (
+                      <button
+                        key={i.id}
+                        onClick={() => go(`/invoices`)}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="h-7 w-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'hsl(var(--c-surface-1))' }}>
+                          <Receipt className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate font-mono">{i.invoice_number} — {i.client_name}</p>
+                          <p className="text-xs text-muted-foreground">{i.status} · ${(i.total_cents / 100).toFixed(2)}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {results!.tasks.length > 0 && (
+                  <div>
+                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Tareas</p>
+                    {results!.tasks.map((t) => (
+                      <button
+                        key={t.id}
+                        onClick={() => go(`/cases?search=${encodeURIComponent(t.case_title)}`)}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="h-7 w-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'hsl(var(--c-surface-1))' }}>
+                          <CheckSquare className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className={`text-sm font-medium truncate ${t.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>{t.title}</p>
+                          <p className="text-xs text-muted-foreground truncate">{t.case_title}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {results!.oportunidades.length > 0 && (
+                  <div>
+                    <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Oportunidades</p>
+                    {results!.oportunidades.map((o) => (
+                      <button
+                        key={o.id}
+                        onClick={() => go(`/pipeline`)}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="h-7 w-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'hsl(var(--c-surface-1))' }}>
+                          <Target className="h-3.5 w-3.5 text-muted-foreground" />
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground truncate">{o.client_name ?? o.prospecto_nombre}</p>
+                          <p className="text-xs text-muted-foreground">{o.estado}</p>
                         </div>
                       </button>
                     ))}

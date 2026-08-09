@@ -360,6 +360,7 @@ function InlineAttachments({ clientId }: { clientId: number }) {
 export default function Clients() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
   const [dlg, setDlg] = useState<'form' | 'history' | null>(null)
   const [editing, setEditing] = useState<Client | null>(null)
   const [form, setForm] = useState<ClientIn>(EMPTY)
@@ -368,8 +369,8 @@ export default function Clients() {
   const [statementClient, setStatementClient] = useState<Client | null>(null)
 
   const { data: clients = [], isLoading } = useQuery({
-    queryKey: ['clients', search],
-    queryFn: () => clientsApi.list(search || undefined),
+    queryKey: ['clients', search, showArchived],
+    queryFn: () => clientsApi.list(search || undefined, showArchived),
   })
   const { sorted, sortKey, sortDir, toggle } = useSortable(
     clients as unknown as Record<string, unknown>[],
@@ -407,10 +408,21 @@ export default function Clients() {
       toast.error(e.response?.data?.detail ?? 'Error al actualizar'),
   })
 
-  const remove = useMutation({
-    mutationFn: clientsApi.delete,
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); toast.success('Cliente eliminado') },
-    onError: () => toast.error('No se pudo eliminar el cliente'),
+  const archive = useMutation({
+    mutationFn: clientsApi.archive,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); toast.success('Cliente movido a la papelera') },
+    onError: () => toast.error('No se pudo archivar el cliente'),
+  })
+
+  const restore = useMutation({
+    mutationFn: clientsApi.restore,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); toast.success('Cliente restaurado') },
+  })
+
+  const purge = useMutation({
+    mutationFn: clientsApi.purge,
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['clients'] }); toast.success('Cliente borrado permanentemente') },
+    onError: () => toast.error('No se pudo borrar el cliente'),
   })
 
   function openNew() { setEditing(null); setForm(EMPTY); setDlg('form') }
@@ -459,10 +471,17 @@ export default function Clients() {
         <div>
           <h1 className="text-2xl font-bold">Clientes</h1>
           <p className="text-muted-foreground text-sm">
-            {clients.length} cliente{clients.length !== 1 ? 's' : ''}
+            {clients.length} cliente{clients.length !== 1 ? 's' : ''}{showArchived ? ' en la papelera' : ''}
           </p>
         </div>
         <div className="flex gap-2">
+          <Button
+            variant={showArchived ? 'default' : 'outline'}
+            onClick={() => setShowArchived((v) => !v)}
+            title="Clientes archivados — se pueden restaurar"
+          >
+            <Trash2 className="h-4 w-4" />{showArchived ? 'Viendo papelera' : 'Papelera'}
+          </Button>
           <Button
             variant="outline"
             onClick={() =>
@@ -478,7 +497,7 @@ export default function Clients() {
           >
             <Download className="h-4 w-4" />CSV
           </Button>
-          <Button onClick={openNew}><Plus className="h-4 w-4" />Nuevo cliente</Button>
+          {!showArchived && <Button onClick={openNew}><Plus className="h-4 w-4" />Nuevo cliente</Button>}
         </div>
       </div>
 
@@ -563,26 +582,43 @@ export default function Clients() {
                       <td className="px-4 py-3 text-muted-foreground">{formatDate(c.created_at.slice(0, 10))}</td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1">
-                          <Button size="icon" variant="ghost" className="h-7 w-7" title="Estado de cuenta" onClick={() => setStatementClient(c)}>
-                            <FileText className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" title="Documentos" onClick={() => setDocsClient(c)}>
-                            <Paperclip className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openHistory(c)}>
-                            <History className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(c)}>
-                            <Pencil className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-7 w-7 text-destructive"
-                            onClick={() => { if (confirm('¿Eliminar cliente?')) remove.mutate(c.id) }}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {showArchived ? (
+                            <>
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => restore.mutate(c.id)}>
+                                Restaurar
+                              </Button>
+                              <Button
+                                size="icon" variant="ghost" className="h-7 w-7 text-destructive" title="Borrar permanentemente"
+                                onClick={() => { if (confirm(`¿Borrar "${c.name}" permanentemente? Esto no se puede deshacer.`)) purge.mutate(c.id) }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          ) : (
+                            <>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" title="Estado de cuenta" onClick={() => setStatementClient(c)}>
+                                <FileText className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" title="Documentos" onClick={() => setDocsClient(c)}>
+                                <Paperclip className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openHistory(c)}>
+                                <History className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(c)}>
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7 text-destructive"
+                                title="Archivar (papelera)"
+                                onClick={() => { if (confirm('¿Archivar este cliente? Se mueve a la papelera y se puede restaurar luego.')) archive.mutate(c.id) }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

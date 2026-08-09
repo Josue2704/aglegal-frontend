@@ -3,11 +3,11 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   X, CheckSquare, Plus, Trash2, Upload, Download, FileText,
   CalendarDays, Clock, CheckCircle2, Circle, Paperclip, ChevronDown,
-  Scale, Building2, UserCheck, Hash,
+  Scale, Building2, UserCheck, Hash, AlertTriangle, Timer, Receipt,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
-import type { Case, CaseTask, CaseTaskIn, Session, CaseAttachment, SessionStatus, Attachment } from '@/types'
+import type { Case, CaseTask, CaseTaskIn, Session, CaseAttachment, SessionStatus, Attachment, CaseTimeEntryIn } from '@/types'
 import { casesApi } from '@/api/cases'
 import { sessionsApi } from '@/api/sessions'
 import { attachmentsApi } from '@/api/attachments'
@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { formatDate } from '@/lib/utils'
+import { formatDate, today } from '@/lib/utils'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -53,7 +53,7 @@ function fileIcon(name: string) {
 
 // ── Tabs ────────────────────────────────────────────────────────────────────
 
-type Tab = 'sessions' | 'documents' | 'tasks'
+type Tab = 'sessions' | 'documents' | 'tasks' | 'horas'
 
 // ── Sessions Tab ────────────────────────────────────────────────────────────
 
@@ -543,6 +543,7 @@ function TasksTab({ kase }: { kase: Case }) {
   const [newDue, setNewDue] = useState('')
   const [newNotes, setNewNotes] = useState('')
   const [newResponsible, setNewResponsible] = useState('')
+  const [newCritico, setNewCritico] = useState(false)
   const [newGuideFile, setNewGuideFile] = useState<File | null>(null)
   const guideFileRef = useRef<HTMLInputElement>(null)
 
@@ -561,7 +562,7 @@ function TasksTab({ kase }: { kase: Case }) {
   })
 
   function resetForm() {
-    setNewTitle(''); setNewDue(''); setNewNotes(''); setNewResponsible(''); setNewGuideFile(null)
+    setNewTitle(''); setNewDue(''); setNewNotes(''); setNewResponsible(''); setNewCritico(false); setNewGuideFile(null)
     if (guideFileRef.current) guideFileRef.current.value = ''
     setShowForm(false)
   }
@@ -587,6 +588,11 @@ function TasksTab({ kase }: { kase: Case }) {
   const toggleTask = useMutation({
     mutationFn: ({ id, done, completed_notes }: { id: number; done: boolean; completed_notes?: string }) =>
       casesApi.setTaskDone(id, done, completed_notes || null),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['case-tasks', kase.id] }),
+  })
+
+  const toggleCritico = useMutation({
+    mutationFn: ({ id, es_critico }: { id: number; es_critico: boolean }) => casesApi.setTaskCritico(id, es_critico),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['case-tasks', kase.id] }),
   })
 
@@ -693,6 +699,16 @@ function TasksTab({ kase }: { kase: Case }) {
             />
           </div>
 
+          {/* Plazo crítico */}
+          <label className="flex items-center gap-2 text-xs cursor-pointer select-none rounded-lg px-2.5 py-2"
+            style={{ background: newCritico ? 'hsl(0 70% 55% / 0.1)' : 'transparent', border: `1px solid ${newCritico ? 'hsl(0 70% 55% / 0.3)' : 'hsl(var(--c-inner-border))'}` }}>
+            <input type="checkbox" checked={newCritico} onChange={(e) => setNewCritico(e.target.checked)} className="h-3.5 w-3.5" />
+            <AlertTriangle className={`h-3.5 w-3.5 ${newCritico ? 'text-destructive' : 'text-muted-foreground'}`} />
+            <span className={newCritico ? 'font-medium text-destructive' : 'text-muted-foreground'}>
+              Plazo legal crítico (prescripción, término procesal...)
+            </span>
+          </label>
+
           {/* Guide document */}
           <div className="space-y-1">
             <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
@@ -738,6 +754,7 @@ function TasksTab({ kase }: { kase: Case }) {
                 due_date: newDue || null,
                 notes: newNotes || null,
                 responsible_username: newResponsible || undefined,
+                es_critico: newCritico,
               })}
             >
               {createTask.isPending ? 'Guardando...' : 'Crear tarea'}
@@ -772,7 +789,13 @@ function TasksTab({ kase }: { kase: Case }) {
                 </button>
 
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => toggleExpand(t.id)}>
-                  <p className={`text-sm leading-snug ${t.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                  <p className={`text-sm leading-snug flex items-center gap-1.5 ${t.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
+                    {t.es_critico && (
+                      <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-[9px] font-bold uppercase tracking-wide text-destructive"
+                        style={{ background: 'hsl(0 70% 55% / 0.12)', border: '1px solid hsl(0 70% 55% / 0.3)' }}>
+                        <AlertTriangle className="h-2.5 w-2.5" />Crítico
+                      </span>
+                    )}
                     {t.title}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -811,6 +834,19 @@ function TasksTab({ kase }: { kase: Case }) {
               {/* Expanded detail */}
               {isExpanded && (
                 <div className="px-3 pb-3 space-y-3 border-t" style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
+                  <div className="pt-2.5">
+                    <button
+                      type="button"
+                      onClick={() => toggleCritico.mutate({ id: t.id, es_critico: !t.es_critico })}
+                      className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md transition-colors"
+                      style={t.es_critico
+                        ? { color: 'hsl(0 70% 55%)', background: 'hsl(0 70% 55% / 0.1)', border: '1px solid hsl(0 70% 55% / 0.3)' }
+                        : { color: 'hsl(var(--muted-foreground))', border: '1px solid hsl(var(--c-inner-border))' }}
+                    >
+                      <AlertTriangle className="h-3 w-3" />
+                      {t.es_critico ? 'Quitar plazo crítico' : 'Marcar como plazo legal crítico'}
+                    </button>
+                  </div>
                   {/* Notes */}
                   <div className="pt-2.5 space-y-2">
                     <div className="space-y-1">
@@ -870,6 +906,114 @@ function TasksTab({ kase }: { kase: Case }) {
   )
 }
 
+// ── Horas Tab (registro de horas trabajadas, para servicios cobrados "Por hora") ──
+
+const EMPTY_TIME_ENTRY: CaseTimeEntryIn = { work_date: today(), hours: 1, description: '', billable: true }
+
+function HorasTab({ kase }: { kase: Case }) {
+  const qc = useQueryClient()
+  const [showForm, setShowForm] = useState(false)
+  const [form, setForm] = useState<CaseTimeEntryIn>(EMPTY_TIME_ENTRY)
+
+  const { data: entries = [], isLoading } = useQuery({
+    queryKey: ['case-time-entries', kase.id],
+    queryFn: () => casesApi.listTimeEntries(kase.id),
+  })
+
+  const create = useMutation({
+    mutationFn: () => casesApi.createTimeEntry(kase.id, form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['case-time-entries', kase.id] })
+      toast.success('Horas registradas')
+      setForm(EMPTY_TIME_ENTRY)
+      setShowForm(false)
+    },
+    onError: () => toast.error('Error al registrar las horas'),
+  })
+
+  const remove = useMutation({
+    mutationFn: (id: number) => casesApi.deleteTimeEntry(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['case-time-entries', kase.id] }),
+  })
+
+  const totalHoras = entries.reduce((s, e) => s + e.hours, 0)
+  const totalFacturables = entries.filter((e) => e.billable && !e.invoice_id).reduce((s, e) => s + e.hours, 0)
+
+  if (isLoading) return <p className="text-muted-foreground text-sm py-8 text-center">Cargando...</p>
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl p-4 flex items-center justify-between" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-inner-border))' }}>
+        <div>
+          <p className="text-xs text-muted-foreground">Horas registradas</p>
+          <p className="text-lg font-semibold">{totalHoras.toFixed(2)} h</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xs text-muted-foreground">Pendientes de facturar</p>
+          <p className="text-lg font-semibold text-amber-500">{totalFacturables.toFixed(2)} h</p>
+        </div>
+      </div>
+
+      {!showForm ? (
+        <Button size="sm" variant="outline" className="h-7 text-xs gap-1 w-full" onClick={() => setShowForm(true)}>
+          <Plus className="h-3 w-3" />Registrar horas
+        </Button>
+      ) : (
+        <div className="rounded-xl p-4 space-y-3" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-inner-border))' }}>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Fecha</label>
+              <Input type="date" className="h-8 text-sm" value={form.work_date} onChange={(e) => setForm((p) => ({ ...p, work_date: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Horas</label>
+              <Input type="number" min="0.25" step="0.25" className="h-8 text-sm" value={form.hours} onChange={(e) => setForm((p) => ({ ...p, hours: Number(e.target.value) }))} />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Descripción</label>
+            <Textarea className="text-sm resize-none" rows={2} placeholder="Qué se trabajó..." value={form.description ?? ''} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
+          </div>
+          <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
+            <input type="checkbox" checked={form.billable} onChange={(e) => setForm((p) => ({ ...p, billable: e.target.checked }))} className="h-3.5 w-3.5" />
+            Facturable a este cliente
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setShowForm(false); setForm(EMPTY_TIME_ENTRY) }}>Cancelar</Button>
+            <Button size="sm" className="h-7 text-xs" disabled={form.hours <= 0 || create.isPending} onClick={() => create.mutate()}>
+              {create.isPending ? 'Guardando...' : 'Guardar'}
+            </Button>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-1.5">
+        {entries.map((e) => (
+          <div key={e.id} className="flex items-center gap-3 px-3 py-2 rounded-lg group text-xs" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-inner-border))' }}>
+            <Timer className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            <div className="flex-1 min-w-0">
+              <p className="text-foreground">{formatDate(e.work_date)} · <span className="font-semibold">{e.hours}h</span></p>
+              {e.description && <p className="text-muted-foreground/70 truncate">{e.description}</p>}
+            </div>
+            {e.invoice_id ? (
+              <span className="inline-flex items-center gap-1 text-[10px] text-emerald-500"><Receipt className="h-2.5 w-2.5" />Facturado</span>
+            ) : !e.billable ? (
+              <span className="text-[10px] text-muted-foreground/60">No facturable</span>
+            ) : null}
+            <button
+              onClick={() => { if (confirm('¿Eliminar este registro de horas?')) remove.mutate(e.id) }}
+              className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 hover:bg-destructive/10 hover:text-destructive transition-all"
+            >
+              <Trash2 className="h-3 w-3" />
+            </button>
+          </div>
+        ))}
+        {!entries.length && <p className="text-center text-muted-foreground text-sm py-6">Sin horas registradas todavía.</p>}
+      </div>
+    </div>
+  )
+}
+
 // ── Main Panel ───────────────────────────────────────────────────────────────
 
 interface CaseDetailPanelProps {
@@ -884,6 +1028,7 @@ export default function CaseDetailPanel({ kase, onClose }: CaseDetailPanelProps)
     { id: 'sessions', label: 'Sesiones', icon: <CalendarDays className="h-4 w-4" /> },
     { id: 'documents', label: 'Documentos', icon: <Paperclip className="h-4 w-4" /> },
     { id: 'tasks', label: 'Tareas', icon: <CheckSquare className="h-4 w-4" /> },
+    { id: 'horas', label: 'Horas', icon: <Timer className="h-4 w-4" /> },
   ]
 
   return (
@@ -1002,6 +1147,7 @@ export default function CaseDetailPanel({ kase, onClose }: CaseDetailPanelProps)
           {tab === 'sessions' && <SessionsTab kase={kase} />}
           {tab === 'documents' && <DocumentsTab kase={kase} />}
           {tab === 'tasks' && <TasksTab kase={kase} />}
+          {tab === 'horas' && <HorasTab kase={kase} />}
         </div>
       </div>
     </div>

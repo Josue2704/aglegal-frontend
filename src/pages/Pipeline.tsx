@@ -41,7 +41,7 @@ function InfoBanner({ children }: { children: React.ReactNode }) {
 function OportunidadDialog({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: Oportunidad | null }) {
   const qc = useQueryClient()
   const [mode, setMode] = useState<'cliente' | 'prospecto'>('prospecto')
-  const [form, setForm] = useState({ client_id: '', prospecto_nombre: '', prospecto_contacto: '', service_id: '', canal_captacion: 'Referido', origen_negocio: 'Andrea' })
+  const [form, setForm] = useState({ client_id: '', prospecto_nombre: '', prospecto_contacto: '', service_id: '', canal_captacion: 'Referido', origen_negocio: 'Andrea', honorarios_estimados: '' })
   const [serviceSearch, setServiceSearch] = useState('')
 
   const { data: clientes = [] } = useQuery({ queryKey: ['clientes-choices'], queryFn: clientsApi.choices })
@@ -55,10 +55,11 @@ function OportunidadDialog({ open, onClose, editing }: { open: boolean; onClose:
         client_id: editing.client_id ? String(editing.client_id) : '', prospecto_nombre: editing.prospecto_nombre ?? '',
         prospecto_contacto: editing.prospecto_contacto ?? '', service_id: editing.service_id ? String(editing.service_id) : '',
         canal_captacion: editing.canal_captacion, origen_negocio: editing.origen_negocio,
+        honorarios_estimados: editing.honorarios_estimados != null ? String(editing.honorarios_estimados) : '',
       })
     } else {
       setMode('prospecto')
-      setForm({ client_id: '', prospecto_nombre: '', prospecto_contacto: '', service_id: '', canal_captacion: 'Referido', origen_negocio: 'Andrea' })
+      setForm({ client_id: '', prospecto_nombre: '', prospecto_contacto: '', service_id: '', canal_captacion: 'Referido', origen_negocio: 'Andrea', honorarios_estimados: '' })
     }
   }, [open, editing])
 
@@ -69,6 +70,7 @@ function OportunidadDialog({ open, onClose, editing }: { open: boolean; onClose:
       prospecto_contacto: mode === 'prospecto' ? form.prospecto_contacto : '',
       service_id: form.service_id ? Number(form.service_id) : null,
       canal_captacion: form.canal_captacion, origen_negocio: form.origen_negocio,
+      honorarios_estimados: form.honorarios_estimados ? Number(form.honorarios_estimados) : null,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['oportunidades'] }); toast.success('Oportunidad creada'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
@@ -80,6 +82,7 @@ function OportunidadDialog({ open, onClose, editing }: { open: boolean; onClose:
       prospecto_contacto: mode === 'prospecto' ? form.prospecto_contacto : '',
       service_id: form.service_id ? Number(form.service_id) : null,
       canal_captacion: form.canal_captacion, origen_negocio: form.origen_negocio,
+      honorarios_estimados: form.honorarios_estimados ? Number(form.honorarios_estimados) : null,
     }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['oportunidades'] }); toast.success('Actualizada'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
@@ -145,6 +148,12 @@ function OportunidadDialog({ open, onClose, editing }: { open: boolean; onClose:
                 {servicios.length === 0 && <div className="px-2.5 py-2 text-xs text-muted-foreground">Sin resultados</div>}
               </div>
             )}
+          </div>
+
+          <div className="space-y-1">
+            <Label>Honorarios estimados</Label>
+            <Input type="number" min="0" step="0.01" placeholder="0.00" value={form.honorarios_estimados} onChange={(e) => setForm({ ...form, honorarios_estimados: e.target.value })} />
+            <p className="text-[11px] text-muted-foreground">Para medir el valor del embudo comercial — no es el honorario final del expediente.</p>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -227,6 +236,9 @@ function OportunidadCard({ op, onEdit, onCotizar, onGanar, onPerder }: {
         ) : (
           <div className="text-xs text-muted-foreground/60 italic">Sin servicio definido</div>
         )}
+        {op.honorarios_estimados != null && (
+          <div className="text-xs font-semibold" style={{ color: 'hsl(43 70% 55%)' }}>${op.honorarios_estimados.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+        )}
         <div className="flex flex-wrap gap-1">
           <Badge variant="secondary" className="text-[10px]">{op.canal_captacion}</Badge>
           <Badge variant="secondary" className="text-[10px]">{op.origen_negocio}</Badge>
@@ -292,12 +304,13 @@ export default function Pipeline() {
       <InfoBanner>Al marcar <strong>Ganado</strong>, el sistema crea el expediente automáticamente heredando cliente, servicio y origen — sin recapturar datos.</InfoBanner>
 
       {conversion && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
           <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Prospectos</div><div className="text-lg font-semibold">{conversion.prospectos}</div></CardContent></Card>
           <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Cotizados</div><div className="text-lg font-semibold">{conversion.cotizados}</div></CardContent></Card>
           <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Ganados</div><div className="text-lg font-semibold" style={{ color: 'hsl(142 70% 45%)' }}>{conversion.ganados}</div></CardContent></Card>
           <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Perdidos</div><div className="text-lg font-semibold text-destructive">{conversion.perdidos}</div></CardContent></Card>
           <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Conversión</div><div className="text-lg font-semibold">{conversion.conversion_pct != null ? `${(conversion.conversion_pct * 100).toFixed(0)}%` : '—'}</div></CardContent></Card>
+          <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Valor del embudo</div><div className="text-lg font-semibold" style={{ color: 'hsl(43 70% 55%)' }}>${conversion.valor_pipeline.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}</div></CardContent></Card>
         </div>
       )}
 

@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { RotateCcw, Users2 } from 'lucide-react'
+import { RotateCcw, Users2, Download } from 'lucide-react'
 import { toast } from 'sonner'
 import { comisionesApi } from '@/api/comisiones'
 import { Card, CardContent } from '@/components/ui/card'
@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { exportCsv } from '@/lib/utils'
 
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const currentMonth = () => new Date().toISOString().slice(0, 7)
@@ -33,9 +34,23 @@ export default function Comisiones() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold">Comisiones</h1>
-        <p className="text-muted-foreground text-sm">Compensación variable por originador — tramos mensuales acumulados por persona</p>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-bold">Comisiones</h1>
+          <p className="text-muted-foreground text-sm">Compensación variable por originador — tramos mensuales acumulados por persona</p>
+        </div>
+        <Button
+          variant="outline"
+          onClick={() =>
+            exportCsv(
+              `comisiones_${mes}.csv`,
+              ['Persona', 'Expediente', 'Fecha cobro', 'Tipo', '%', 'Base', 'Comisión'],
+              detalle.map((c) => [c.persona_nombre, c.case_title, c.income_date, c.ajusta_a_commission_id != null ? 'Ajuste' : c.tipo_origen, c.porcentaje_participacion, c.base_utilidad_directa, c.comision]),
+            )
+          }
+        >
+          <Download className="h-4 w-4" />CSV
+        </Button>
       </div>
 
       <div className="flex items-center gap-2">

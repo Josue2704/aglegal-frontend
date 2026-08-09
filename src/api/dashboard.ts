@@ -21,7 +21,8 @@ export const dashboardApi = {
     ).then((r) => r.data),
   alerts: (params?: { stale_days?: number }) =>
     api.get<{
-      overdue_tasks: { id: number; title: string; due_date: string; case_id: number; case_title: string; client_name: string | null }[]
+      overdue_tasks: { id: number; title: string; due_date: string; case_id: number; case_title: string; client_name: string | null; es_critico?: boolean }[]
+      critical_tasks: { id: number; title: string; due_date: string; case_id: number; case_title: string; client_name: string | null }[]
       stale_cases: { id: number; title: string; status: string; client_name: string | null; last_session: string | null }[]
       overdue_billing: { id: number; title: string; client_name: string | null; mes_cobro_esperado: string; estado_cobro: string; saldo_pendiente_cents: number }[]
       budget_deviation: { mes: string; cobrado_mes_cents: number; cartera_ponderada_mes_cents: number; proyeccion_cierre_cents: number; meta_ingresos_cents: number; cumplimiento_proyectado_pct: number | null }[]
@@ -37,5 +38,8 @@ export const dashboardApi = {
       clients: { id: number; name: string; phone: string | null; email: string | null }[]
       cases: { id: number; title: string; status: string; client_name: string | null }[]
       sessions: { id: number; session_date: string; consult_type: string; status: string; client_name: string | null }[]
+      invoices: { id: number; invoice_number: string; status: string; total_cents: number; client_name: string | null }[]
+      tasks: { id: number; title: string; done: boolean; due_date: string | null; case_id: number; case_title: string }[]
+      oportunidades: { id: number; estado: string; prospecto_nombre: string | null; client_name: string | null }[]
     }>('/dashboard/search', { params: { q } }).then((r) => r.data),
 }

@@ -164,6 +164,7 @@ export default function Dashboard() {
   const balance = kpis?.balance ?? 0
 
   const overdueTasks = alertsData?.overdue_tasks ?? []
+  const criticalTasks = alertsData?.critical_tasks ?? []
   const staleCases = alertsData?.stale_cases ?? []
   const overdueBilling = alertsData?.overdue_billing ?? []
   const budgetDeviation = alertsData?.budget_deviation ?? []
@@ -180,6 +181,31 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <p className="text-muted-foreground text-sm">Resumen comercial, operativo y financiero</p>
       </div>
+
+      {/* ── Plazos legales críticos — separados del resto, no se mezclan con pendientes normales ── */}
+      {criticalTasks.length > 0 && (
+        <div className="rounded-xl p-4 space-y-3" style={{ background: 'hsl(0 70% 55% / 0.1)', border: '1px solid hsl(0 70% 55% / 0.35)' }}>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+            <span className="text-sm font-bold text-destructive">
+              {criticalTasks.length} plazo{criticalTasks.length > 1 ? 's' : ''} legal{criticalTasks.length > 1 ? 'es' : ''} crítico{criticalTasks.length > 1 ? 's' : ''} — vencido{criticalTasks.length > 1 ? 's' : ''} o por vencer en 3 días
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {criticalTasks.map((t) => (
+              <Link key={`critical-${t.id}`} to={`/cases?search=${encodeURIComponent(t.case_title)}`}
+                className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-red-500/10 transition-colors" style={{ border: '1px solid hsl(0 70% 55% / 0.2)' }}>
+                <AlertTriangle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-foreground truncate">{t.title}</p>
+                  <p className="text-[11px] text-muted-foreground">{t.case_title} · vence {formatDate(t.due_date)}</p>
+                </div>
+                <ChevronRight className="h-3 w-3 text-muted-foreground shrink-0 mt-0.5" />
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Alertas ── */}
       {totalAlerts > 0 && (
@@ -246,12 +272,13 @@ export default function Dashboard() {
 
         {/* ══════════════════════ COMERCIAL ══════════════════════ */}
         <TabsContent value="comercial" className="mt-4 space-y-6">
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-6 gap-4">
             <KpiCard title="Prospectos" value={String(conversion?.prospectos ?? 0)} icon={Users} />
             <KpiCard title="Cotizados" value={String(conversion?.cotizados ?? 0)} icon={Target} />
             <KpiCard title="Ganados" value={String(conversion?.ganados ?? 0)} icon={TrendingUp} color="text-green-600" />
             <KpiCard title="Perdidos" value={String(conversion?.perdidos ?? 0)} icon={TrendingDown} color="text-red-500" />
             <KpiCard title="Conversión" value={conversion?.conversion_pct != null ? pct(conversion.conversion_pct) : '—'} sub="Ganados / Cotizados" icon={Percent} />
+            <KpiCard title="Valor del embudo" value={money(conversion?.valor_pipeline ?? 0)} sub="Prospectos + cotizados" icon={CircleDollarSign} color="text-amber-500" />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

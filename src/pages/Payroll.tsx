@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { payrollApi } from '@/api/payroll'
+import { finanzasApi } from '@/api/finanzas'
 import type { PayrollIn } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -14,15 +15,16 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { formatCurrency, formatDate, today } from '@/lib/utils'
 
 const ROLES = ['Abogado', 'Asistente', 'Contador', 'Recepcionista', 'Notario', 'Pasante', 'Otro']
+const OTRO = '__otro__'
 
-type FormData = { employee_name: string; role: string; period: string; amount: string; payment_date: string; notes: string }
+type FormData = { personal_id: string; employee_name: string; role: string; period: string; amount: string; payment_date: string; notes: string }
 
 function currentPeriod() {
   const now = new Date()
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
 }
 
-const EMPTY: FormData = { employee_name: '', role: 'Abogado', period: currentPeriod(), amount: '', payment_date: today(), notes: '' }
+const EMPTY: FormData = { personal_id: '', employee_name: '', role: 'Abogado', period: currentPeriod(), amount: '', payment_date: today(), notes: '' }
 
 export default function Payroll() {
   const qc = useQueryClient()
@@ -31,8 +33,10 @@ export default function Payroll() {
   const [filterPeriod, setFilterPeriod] = useState(currentPeriod())
 
   const { data: all = [], isLoading } = useQuery({ queryKey: ['payroll'], queryFn: payrollApi.list })
+  const { data: personal = [] } = useQuery({ queryKey: ['finanzas-personal', 'Activo'], queryFn: () => finanzasApi.listPersonal('Activo') })
 
   const entries = filterPeriod ? all.filter((e) => e.period === filterPeriod) : all
+  const usaOtro = form.personal_id === OTRO || (personal.length === 0 && !form.personal_id)
 
   const create = useMutation({
     mutationFn: (d: PayrollIn) => payrollApi.create(d),
@@ -46,10 +50,16 @@ export default function Payroll() {
 
   function handleSubmit(ev: React.FormEvent) {
     ev.preventDefault()
-    if (!form.employee_name.trim()) return toast.error('El nombre del colaborador es requerido')
+    if (usaOtro && !form.employee_name.trim()) return toast.error('El nombre del colaborador es requerido')
+    if (!usaOtro && !form.personal_id) return toast.error('Selecciona un colaborador del catálogo de Personal')
     if (!form.period) return toast.error('El período es requerido')
     if (!form.amount || Number(form.amount) <= 0) return toast.error('El monto debe ser mayor a 0')
-    create.mutate({ employee_name: form.employee_name, role: form.role, period: form.period, amount: Number(form.amount), payment_date: form.payment_date, notes: form.notes })
+    create.mutate({
+      personal_id: usaOtro ? null : Number(form.personal_id),
+      employee_name: usaOtro ? form.employee_name : undefined,
+      role: usaOtro ? form.role : undefined,
+      period: form.period, amount: Number(form.amount), payment_date: form.payment_date, notes: form.notes,
+    })
   }
 
   const f = (k: keyof FormData) => (v: string) => setForm((p) => ({ ...p, [k]: v }))
@@ -106,8 +116,23 @@ export default function Payroll() {
           <DialogHeader><DialogTitle>Nuevo pago de planilla</DialogTitle></DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1 col-span-2"><Label>Nombre colaborador <span className="text-destructive text-xs">*</span></Label><Input value={form.employee_name} onChange={(e) => setForm({ ...form, employee_name: e.target.value })} /></div>
-              <div className="space-y-1"><Label>Rol</Label><Select value={form.role} onValueChange={f('role')}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1 col-span-2">
+                <Label>Colaborador <span className="text-destructive text-xs">*</span></Label>
+                <Select value={form.personal_id} onValueChange={f('personal_id')}>
+                  <SelectTrigger><SelectValue placeholder="Seleccionar del catálogo de Personal..." /></SelectTrigger>
+                  <SelectContent>
+                    {personal.map((p) => <SelectItem key={p.id} value={String(p.id)}>{p.persona} — {p.cargo}</SelectItem>)}
+                    <SelectItem value={OTRO}>Otro (no está en el catálogo de Personal)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">Se prefiere el catálogo de Personal para que el nombre coincida siempre con Finanzas.</p>
+              </div>
+              {usaOtro && (
+                <>
+                  <div className="space-y-1 col-span-2"><Label>Nombre colaborador <span className="text-destructive text-xs">*</span></Label><Input value={form.employee_name} onChange={(e) => setForm({ ...form, employee_name: e.target.value })} /></div>
+                  <div className="space-y-1"><Label>Rol</Label><Select value={form.role} onValueChange={f('role')}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{ROLES.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent></Select></div>
+                </>
+              )}
               <div className="space-y-1"><Label>Período <span className="text-destructive text-xs">*</span></Label><Input type="month" value={form.period} onChange={(e) => setForm({ ...form, period: e.target.value })} /></div>
               <div className="space-y-1"><Label>Monto <span className="text-destructive text-xs">*</span></Label><Input type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
               <div className="space-y-1"><Label>Fecha de pago</Label><Input type="date" value={form.payment_date} onChange={(e) => setForm({ ...form, payment_date: e.target.value })} /></div>
