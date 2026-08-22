@@ -479,15 +479,17 @@ function GastosFijosTab() {
 
 // ─── Punto de equilibrio ─────────────────────────────────────────────────────────
 
-function SupuestosDialog({ open, onClose, existing }: { open: boolean; onClose: () => void; existing: import('@/types').Supuestos | null }) {
+function SupuestosDialog({ open, onClose, existing, defaultPeriodo }: {
+  open: boolean; onClose: () => void; existing: import('@/types').Supuestos | null; defaultPeriodo: string
+}) {
   const qc = useQueryClient()
-  const [form, setForm] = useState({ periodo: '2026', costo_variable_pct: '10', margen_operativo_meta_pct: '20', margen_seguridad_pct: '15' })
+  const [form, setForm] = useState({ periodo: defaultPeriodo, costo_variable_pct: '10', margen_operativo_meta_pct: '20', margen_seguridad_pct: '15' })
 
   useEffect(() => {
     if (!open) return
     if (existing) setForm({ periodo: existing.periodo, costo_variable_pct: String(existing.costo_variable_pct * 100), margen_operativo_meta_pct: String(existing.margen_operativo_meta_pct * 100), margen_seguridad_pct: String(existing.margen_seguridad_pct * 100) })
-    else setForm({ periodo: '2026', costo_variable_pct: '10', margen_operativo_meta_pct: '20', margen_seguridad_pct: '15' })
-  }, [open, existing])
+    else setForm({ periodo: defaultPeriodo, costo_variable_pct: '10', margen_operativo_meta_pct: '20', margen_seguridad_pct: '15' })
+  }, [open, existing, defaultPeriodo])
 
   const save = useMutation({
     mutationFn: () => {
@@ -728,8 +730,14 @@ function PresupuestoTab() {
 function PuntoEquilibrioTab() {
   const [mes, setMes] = useState(currentMonth())
   const [dlg, setDlg] = useState(false)
+  const periodoActual = mes.slice(0, 4)
   const { data: supuestosList = [] } = useQuery({ queryKey: ['finanzas-supuestos'], queryFn: finanzasApi.listSupuestos })
-  const supuestos = supuestosList[0] ?? null
+  // Los supuestos son por período (año) — antes se tomaba siempre el primero de la lista
+  // sin importar qué mes estaba seleccionado arriba. Si hay uno para el año exacto del
+  // mes elegido, se usa ese; si no, se muestra el más reciente como referencia (el
+  // backend hace el mismo fallback al calcular).
+  const supuestos = supuestosList.find((s) => s.periodo === periodoActual) ?? supuestosList[0] ?? null
+  const supuestosCoinciden = supuestos?.periodo === periodoActual
   const { data: calc, isError } = useQuery({
     queryKey: ['finanzas-punto-equilibrio', mes],
     queryFn: () => finanzasApi.puntoEquilibrio(mes),
@@ -744,13 +752,27 @@ function PuntoEquilibrioTab() {
       <Card>
         <CardContent className="p-4 flex flex-wrap items-center gap-4 justify-between">
           <div className="flex flex-wrap gap-6">
-            <div><div className="text-xs text-muted-foreground uppercase tracking-wider">Costo variable</div><div className="font-mono font-semibold">{supuestos ? pct(supuestos.costo_variable_pct) : '—'}</div></div>
+            <div>
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">
+                Costo variable {supuestos && <span className="font-mono">— {supuestos.periodo}</span>}
+              </div>
+              <div className="font-mono font-semibold">{supuestos ? pct(supuestos.costo_variable_pct) : '—'}</div>
+            </div>
             <div><div className="text-xs text-muted-foreground uppercase tracking-wider">Margen operativo meta</div><div className="font-mono font-semibold">{supuestos ? pct(supuestos.margen_operativo_meta_pct) : '—'}</div></div>
             <div><div className="text-xs text-muted-foreground uppercase tracking-wider">Margen de seguridad</div><div className="font-mono font-semibold">{supuestos ? pct(supuestos.margen_seguridad_pct) : '—'}</div></div>
           </div>
-          <Button size="sm" variant="outline" onClick={() => setDlg(true)}><Pencil className="h-3.5 w-3.5" />{supuestos ? 'Editar supuestos' : 'Definir supuestos'}</Button>
+          <Button size="sm" variant="outline" onClick={() => setDlg(true)}>
+            <Pencil className="h-3.5 w-3.5" />
+            {supuestosCoinciden ? 'Editar supuestos' : `Definir supuestos ${periodoActual}`}
+          </Button>
         </CardContent>
       </Card>
+
+      {supuestos && !supuestosCoinciden && (
+        <div className="text-xs rounded-lg px-3 py-2" style={{ background: 'hsl(43 90% 50% / 0.1)', border: '1px solid hsl(43 90% 50% / 0.3)', color: 'hsl(43 80% 45%)' }}>
+          No hay supuestos definidos para {periodoActual} — el cálculo de abajo usa los de <strong>{supuestos.periodo}</strong> como referencia. Define los del {periodoActual} para un cálculo exacto de ese año.
+        </div>
+      )}
 
       <div className="flex items-center gap-2">
         <Label className="text-sm">Mes a calcular</Label>
@@ -770,7 +792,7 @@ function PuntoEquilibrioTab() {
         </div>
       ) : null}
 
-      <SupuestosDialog open={dlg} onClose={() => setDlg(false)} existing={supuestos} />
+      <SupuestosDialog open={dlg} onClose={() => setDlg(false)} existing={supuestosCoinciden ? supuestos : null} defaultPeriodo={periodoActual} />
     </div>
   )
 }

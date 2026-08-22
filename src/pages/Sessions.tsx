@@ -1104,7 +1104,12 @@ export default function Sessions() {
   const [editing, setEditing] = useState<Session | null>(null)
   const [newDate, setNewDate] = useState<string | undefined>()
   const [newTime, setNewTime] = useState<string | undefined>()
-  const [view, setView] = useState<'calendar' | 'week' | 'day' | 'list'>('calendar')
+  // En pantallas angostas el mes/semana en cuadrícula queda demasiado apretado para
+  // usarse (columnas de ~50px) — arranca en Lista, que sí es legible en un teléfono.
+  // Sigue siendo elección del usuario cambiar a Mes/Semana/Día en cualquier momento.
+  const [view, setView] = useState<'calendar' | 'week' | 'day' | 'list'>(
+    () => (typeof window !== 'undefined' && window.innerWidth < 768 ? 'list' : 'calendar')
+  )
   const [dayDate, setDayDate] = useState(new Date())
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [attachmentSession, setAttachmentSession] = useState<Session | null>(null)
