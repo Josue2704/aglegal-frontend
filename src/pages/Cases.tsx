@@ -13,6 +13,8 @@ import type { Case, CaseIn, CaseUpdate, CaseEstadoCobro, TipoOrigen } from '@/ty
 import { TIPO_ORIGEN_VALUES } from '@/types'
 import { useSortable } from '@/hooks/useSortable'
 import { SortableTh } from '@/components/ui/sortable-th'
+import { HelpButton } from '@/components/HelpButton'
+import { casesHelp } from '@/lib/helpContent'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -262,7 +264,10 @@ export default function Cases() {
 
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Expedientes</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Expedientes</h1>
+            <HelpButton content={casesHelp} />
+          </div>
           <p className="text-muted-foreground text-sm">{cases.length} caso{cases.length !== 1 ? 's' : ''}{showArchived ? ' en la papelera' : ''}</p>
         </div>
         <div className="flex gap-2">

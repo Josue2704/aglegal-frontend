@@ -12,6 +12,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Checkbox } from '@/components/ui/checkbox'
+import { HelpButton } from '@/components/HelpButton'
+import { rolesHelp } from '@/lib/helpContent'
 
 const MODULE_LABELS: Record<string, string> = {
   dashboard: 'Dashboard', clientes: 'Clientes', expedientes: 'Expedientes',
@@ -214,7 +216,10 @@ export default function Roles() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Roles y Permisos</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Roles y Permisos</h1>
+            <HelpButton content={rolesHelp} />
+          </div>
           <p className="text-muted-foreground text-sm">Define qué puede hacer cada tipo de usuario en el sistema</p>
         </div>
         <Button onClick={openNew}><Plus className="h-4 w-4" />Nuevo rol</Button>

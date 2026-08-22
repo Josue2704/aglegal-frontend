@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2, Info, Wallet, Users, Receipt, Gauge, Search, Target } from 'lucide-react'
 import { toast } from 'sonner'
 import { finanzasApi } from '@/api/finanzas'
+import { HelpButton } from '@/components/HelpButton'
+import { finanzasHelp } from '@/lib/helpContent'
 import { catalogoApi } from '@/api/catalogo'
 import type { Cuenta, Persona, GastoFijo, Categoria, Familia, CatalogoEstado, Forecast } from '@/types'
 import { NATURALEZAS_CUENTA, CENTROS_COSTO, GASTOS_FIJOS_TIPOS } from '@/types'
@@ -779,7 +781,10 @@ export default function Finanzas() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">Finanzas</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">Finanzas</h1>
+          <HelpButton content={finanzasHelp} />
+        </div>
         <p className="text-muted-foreground text-sm">Plan de cuentas, personal, gastos fijos, punto de equilibrio y presupuesto</p>
       </div>
       <Tabs defaultValue="cuentas">

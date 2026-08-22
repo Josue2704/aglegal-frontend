@@ -23,6 +23,8 @@ import { AttachmentsDialog } from '@/components/AttachmentsDialog'
 import { formatDate, exportCsv, today } from '@/lib/utils'
 import { useSortable } from '@/hooks/useSortable'
 import { SortableTh } from '@/components/ui/sortable-th'
+import { HelpButton } from '@/components/HelpButton'
+import { clientsHelp } from '@/lib/helpContent'
 
 // ─── Statement Dialog ──────────────────────────────────────────────────────
 
@@ -469,7 +471,10 @@ export default function Clients() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Clientes</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Clientes</h1>
+            <HelpButton content={clientsHelp} />
+          </div>
           <p className="text-muted-foreground text-sm">
             {clients.length} cliente{clients.length !== 1 ? 's' : ''}{showArchived ? ' en la papelera' : ''}
           </p>

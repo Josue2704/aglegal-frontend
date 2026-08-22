@@ -19,6 +19,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatCurrency, formatDate } from '@/lib/utils'
+import { HelpButton } from '@/components/HelpButton'
+import { dashboardHelp } from '@/lib/helpContent'
 import type { GrossProfitItem } from '@/types'
 
 const COLORS = ['#2563eb', '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444']
@@ -178,7 +180,10 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">Dashboard</h1>
+          <HelpButton content={dashboardHelp} />
+        </div>
         <p className="text-muted-foreground text-sm">Resumen comercial, operativo y financiero</p>
       </div>
 

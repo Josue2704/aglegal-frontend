@@ -13,6 +13,8 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Label } from '@/components/ui/label'
 import { Input } from '@/components/ui/input'
+import { HelpButton } from '@/components/HelpButton'
+import { settingsHelp } from '@/lib/helpContent'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 // ─── Currencies ───────────────────────────────────────────────────────────────
@@ -473,7 +475,10 @@ export default function Settings() {
   return (
     <div className="space-y-6 max-w-2xl">
       <div>
-        <h1 className="text-2xl font-bold">Configuración</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">Configuración</h1>
+          <HelpButton content={settingsHelp} />
+        </div>
         <p className="text-muted-foreground text-sm">
           Preferencias del sistema · Divisa activa:{' '}
           <span className="font-medium">{CURRENCIES.find((c) => c.code === currency)?.label ?? currency}</span>{' '}

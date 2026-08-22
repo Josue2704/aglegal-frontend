@@ -13,6 +13,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { formatCurrency, formatDate, today } from '@/lib/utils'
+import { HelpButton } from '@/components/HelpButton'
+import { payrollHelp } from '@/lib/helpContent'
 
 const ROLES = ['Abogado', 'Asistente', 'Contador', 'Recepcionista', 'Notario', 'Pasante', 'Otro']
 const OTRO = '__otro__'
@@ -69,7 +71,10 @@ export default function Payroll() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Planilla</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Planilla</h1>
+            <HelpButton content={payrollHelp} />
+          </div>
           <p className="text-muted-foreground text-sm">Gestión de pagos a colaboradores</p>
         </div>
         <div className="flex gap-3">

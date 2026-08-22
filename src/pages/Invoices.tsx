@@ -17,6 +17,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { HelpButton } from '@/components/HelpButton'
+import { invoicesHelp } from '@/lib/helpContent'
 
 // ─── Utils ─────────────────────────────────────────────────────────────────────
 
@@ -882,7 +884,10 @@ export default function Invoices() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Facturas</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Facturas</h1>
+            <HelpButton content={invoicesHelp} />
+          </div>
           <p className="text-sm text-muted-foreground">Genera y gestiona facturas por cliente</p>
         </div>
         <div className="flex gap-2">

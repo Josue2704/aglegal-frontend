@@ -13,6 +13,8 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { formatDate, today } from '@/lib/utils'
+import { HelpButton } from '@/components/HelpButton'
+import { tasksHelp } from '@/lib/helpContent'
 
 type FilterMode = 'all' | 'pending' | 'overdue' | 'done'
 
@@ -154,7 +156,10 @@ export default function Tasks() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Tareas</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Tareas</h1>
+            <HelpButton content={tasksHelp} />
+          </div>
           <p className="text-muted-foreground text-sm">Checklist global de todos los expedientes</p>
         </div>
         <Button onClick={() => setNewDlg(true)}><Plus className="h-4 w-4" />Nueva tarea</Button>

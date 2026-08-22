@@ -23,6 +23,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { formatCurrency, formatDate, today, exportCsv } from '@/lib/utils'
 import { useSortable } from '@/hooks/useSortable'
 import { SortableTh } from '@/components/ui/sortable-th'
+import { HelpButton } from '@/components/HelpButton'
+import { cashflowHelp } from '@/lib/helpContent'
 import { AttachmentsDialog } from '@/components/AttachmentsDialog'
 
 function DateRange({ start, end, onStart, onEnd }: { start: string; end: string; onStart: (v: string) => void; onEnd: (v: string) => void }) {
@@ -773,7 +775,10 @@ export default function Cashflow() {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Flujo de Caja</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Flujo de Caja</h1>
+            <HelpButton content={cashflowHelp} />
+          </div>
           <p className="text-muted-foreground text-sm">Ingresos, gastos operativos y costos directos</p>
         </div>
         <DateRange start={start} end={end} onStart={setStart} onEnd={setEnd} />

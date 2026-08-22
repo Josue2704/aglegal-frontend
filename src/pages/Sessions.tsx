@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
+import { HelpButton } from '@/components/HelpButton'
+import { sessionsHelp } from '@/lib/helpContent'
 import {
   startOfMonth, endOfMonth, startOfWeek, endOfWeek, eachDayOfInterval,
   isSameMonth, isSameDay, addMonths, subMonths, addWeeks, subWeeks,
@@ -1253,7 +1255,10 @@ export default function Sessions() {
       {/* Page header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Agenda</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Agenda</h1>
+            <HelpButton content={sessionsHelp} />
+          </div>
           <p className="text-sm text-muted-foreground">
             {allSessions.length} sesiones ·{' '}
             <span style={{ color: STATUS_COLOR.Pendiente }}>{pending} pendientes</span> ·{' '}

@@ -13,6 +13,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { formatDate } from '@/lib/utils'
+import { HelpButton } from '@/components/HelpButton'
+import { usersHelp } from '@/lib/helpContent'
 
 const ROLE_COLOR: Record<string, 'destructive' | 'info' | 'secondary' | 'outline'> = {
   Administrador: 'destructive',
@@ -95,7 +97,10 @@ export default function Users() {
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold">Usuarios</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Usuarios</h1>
+            <HelpButton content={usersHelp} />
+          </div>
           <p className="text-muted-foreground text-sm">{users.length} usuario{users.length !== 1 ? 's' : ''}</p>
         </div>
         <Button onClick={openNew}><Plus className="h-4 w-4" />Nuevo usuario</Button>

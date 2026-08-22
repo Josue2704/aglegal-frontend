@@ -15,6 +15,8 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { formatDate } from '@/lib/utils'
+import { HelpButton } from '@/components/HelpButton'
+import { gobiernoHelp } from '@/lib/helpContent'
 
 type ApiErr = { response?: { data?: { detail?: string } } }
 const errMsg = (e: ApiErr) => e.response?.data?.detail ?? 'Ocurrió un error'
@@ -429,7 +431,10 @@ export default function Gobierno() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">Gobierno del Catálogo</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">Gobierno del Catálogo</h1>
+          <HelpButton content={gobiernoHelp} />
+        </div>
         <p className="text-muted-foreground text-sm">Toda alta, cambio o baja del Catálogo Maestro pasa por aquí — el efecto real solo se aplica al aprobar</p>
       </div>
 

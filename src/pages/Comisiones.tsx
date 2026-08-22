@@ -9,6 +9,8 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { exportCsv } from '@/lib/utils'
+import { HelpButton } from '@/components/HelpButton'
+import { comisionesHelp } from '@/lib/helpContent'
 
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const currentMonth = () => new Date().toISOString().slice(0, 7)
@@ -36,7 +38,10 @@ export default function Comisiones() {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">Comisiones</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Comisiones</h1>
+            <HelpButton content={comisionesHelp} />
+          </div>
           <p className="text-muted-foreground text-sm">Compensación variable por originador — tramos mensuales acumulados por persona</p>
         </div>
         <Button

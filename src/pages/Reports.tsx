@@ -12,6 +12,8 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { HelpButton } from '@/components/HelpButton'
+import { reportsHelp } from '@/lib/helpContent'
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 function cents(n: number | null | undefined) {
@@ -151,7 +153,10 @@ export default function Reports() {
         {/* Header */}
         <div className="flex items-start justify-between flex-wrap gap-3 no-print">
           <div>
-            <h1 className="text-2xl font-bold">Reportes</h1>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">Reportes</h1>
+              <HelpButton content={reportsHelp} />
+            </div>
             <p className="text-muted-foreground text-sm">Resumen financiero y operativo del bufete</p>
           </div>
           <Button onClick={() => window.print()} className="gap-2">

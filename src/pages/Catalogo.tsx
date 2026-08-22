@@ -13,6 +13,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { HelpButton } from '@/components/HelpButton'
+import { catalogoHelp } from '@/lib/helpContent'
 
 function InfoBanner({ children }: { children: React.ReactNode }) {
   return (
@@ -289,7 +291,10 @@ export default function Catalogo() {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold">Catálogo Maestro</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-bold">Catálogo Maestro</h1>
+          <HelpButton content={catalogoHelp} />
+        </div>
         <p className="text-muted-foreground text-sm">Categorías, subcategorías, servicios y familias comerciales — con códigos permanentes e historial de cambios</p>
       </div>
 

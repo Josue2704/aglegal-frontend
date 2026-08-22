@@ -15,6 +15,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { HelpButton } from '@/components/HelpButton'
+import { pipelineHelp } from '@/lib/helpContent'
 
 type ApiErr = { response?: { data?: { detail?: string } } }
 const errMsg = (e: ApiErr) => e.response?.data?.detail ?? 'Ocurrió un error'
@@ -295,7 +297,10 @@ export default function Pipeline() {
     <div className="space-y-5">
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold">Pipeline Comercial</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Pipeline Comercial</h1>
+            <HelpButton content={pipelineHelp} />
+          </div>
           <p className="text-muted-foreground text-sm">Seguimiento comercial antes del expediente — prospecto → cotizado → ganado o perdido</p>
         </div>
         <Button onClick={() => { setEditing(null); setDlg(true) }}><Plus className="h-4 w-4" />Nueva oportunidad</Button>
