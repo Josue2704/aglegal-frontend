@@ -195,7 +195,7 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
             <Button size="sm" onClick={openNew}><Plus className="h-4 w-4" />Nuevo ingreso</Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
@@ -357,7 +357,7 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
             <Button size="sm" onClick={openNew}><Plus className="h-4 w-4" />Nuevo gasto</Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
@@ -512,7 +512,7 @@ function CostsTab({ start, end }: { start: string; end: string }) {
             <Button size="sm" onClick={openNew}><Plus className="h-4 w-4" />Nuevo costo</Button>
           </div>
         </CardHeader>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>

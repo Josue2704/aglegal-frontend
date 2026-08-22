@@ -334,7 +334,7 @@ function PersonalTab() {
       <InfoBanner>Catálogo de costo de nómina — alimenta gastos fijos. No asigna quién atiende un expediente.</InfoBanner>
       <div className="flex justify-end"><Button size="sm" onClick={() => { setEditing(null); setDlg(true) }}><Plus className="h-4 w-4" />Nuevo registro</Button></div>
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
               <th className="text-left px-4 py-2.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Código</th>
@@ -445,7 +445,7 @@ function GastosFijosTab() {
       <InfoBanner>Catálogo de costos fijos con vigencia — no una sola cifra manual. Alimenta el cálculo del punto de equilibrio.</InfoBanner>
       <div className="flex justify-end"><Button size="sm" onClick={() => { setEditing(null); setDlg(true) }}><Plus className="h-4 w-4" />Nuevo gasto fijo</Button></div>
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
               <th className="text-left px-4 py-2.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Código</th>
@@ -654,7 +654,7 @@ function PresupuestoTab() {
         <Button size="sm" onClick={openNew}><Plus className="h-3.5 w-3.5" />Nueva meta</Button>
       </div>
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>
@@ -692,7 +692,7 @@ function PresupuestoTab() {
         <>
           <h3 className="text-sm font-semibold">Cartera pendiente ponderada — mes de cobro esperado {mes}</h3>
           <Card>
-            <CardContent className="p-0">
+            <CardContent className="p-0 overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-muted/50">
                   <tr>

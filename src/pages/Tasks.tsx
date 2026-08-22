@@ -168,7 +168,7 @@ export default function Tasks() {
       <NewTaskDialog open={newDlg} onClose={() => setNewDlg(false)} />
 
       {/* Stats bar */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <StatCard icon={<Clock className="h-4 w-4 text-blue-400" />} label="Pendientes" value={pending} color="text-blue-400" />
         <StatCard icon={<AlertTriangle className="h-4 w-4 text-red-400" />} label="Vencidas" value={overdue} color="text-red-400" />
         <StatCard icon={<CheckCircle2 className="h-4 w-4 text-green-400" />} label="Completadas" value={done} color="text-green-400" />

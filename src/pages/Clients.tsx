@@ -284,7 +284,7 @@ function InlineAttachments({ clientId }: { clientId: number }) {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
           Fotos y documentos {attachments.length > 0 && `(${attachments.length})`}
         </label>

@@ -69,7 +69,7 @@ export default function Payroll() {
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">Planilla</h1>
@@ -91,7 +91,7 @@ export default function Payroll() {
 
       {isLoading ? <p className="text-muted-foreground text-sm">Cargando...</p> : (
         <Card>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>{['Fecha', 'Colaborador', 'Rol', 'Período', 'Monto', ''].map((h) => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>)}</tr>

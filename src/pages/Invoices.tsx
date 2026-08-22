@@ -284,40 +284,42 @@ function LineItemsEditor({
         <p className="text-xs text-muted-foreground text-center py-2">Sin líneas — agrega una abajo</p>
       )}
       {items.map((it) => (
-        <div key={it._key} className="flex gap-2 items-center">
+        <div key={it._key} className="flex flex-wrap gap-2 items-center">
           <Input
-            className="flex-1 text-sm h-8"
+            className="flex-1 min-w-[160px] text-sm h-8"
             placeholder="Descripción"
             value={it.description}
             onChange={(e) => update(it._key, 'description', e.target.value)}
           />
-          <Input
-            type="number"
-            className="w-16 text-sm h-8"
-            placeholder="Cant."
-            min={0.01}
-            step={0.01}
-            value={it.quantity}
-            onChange={(e) => update(it._key, 'quantity', parseFloat(e.target.value) || 1)}
-          />
-          <Input
-            type="number"
-            className="w-28 text-sm h-8"
-            placeholder="Precio"
-            min={0}
-            step={0.01}
-            value={it.unit_price}
-            onChange={(e) => update(it._key, 'unit_price', parseFloat(e.target.value) || 0)}
-          />
-          <span className="w-24 text-right text-sm font-medium shrink-0">
-            {formatCurrency(it.quantity * it.unit_price)}
-          </span>
-          <button
-            onClick={() => remove(it._key)}
-            className="h-7 w-7 flex items-center justify-center rounded hover:bg-destructive/10 text-destructive shrink-0"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
+          <div className="flex gap-2 items-center shrink-0 ml-auto">
+            <Input
+              type="number"
+              className="w-16 text-sm h-8"
+              placeholder="Cant."
+              min={0.01}
+              step={0.01}
+              value={it.quantity}
+              onChange={(e) => update(it._key, 'quantity', parseFloat(e.target.value) || 1)}
+            />
+            <Input
+              type="number"
+              className="w-24 text-sm h-8"
+              placeholder="Precio"
+              min={0}
+              step={0.01}
+              value={it.unit_price}
+              onChange={(e) => update(it._key, 'unit_price', parseFloat(e.target.value) || 0)}
+            />
+            <span className="w-20 text-right text-sm font-medium shrink-0">
+              {formatCurrency(it.quantity * it.unit_price)}
+            </span>
+            <button
+              onClick={() => remove(it._key)}
+              className="h-7 w-7 flex items-center justify-center rounded hover:bg-destructive/10 text-destructive shrink-0"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
         </div>
       ))}
       <Button variant="outline" size="sm" onClick={add} className="mt-1">
@@ -781,11 +783,11 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
               Líneas de Factura
             </p>
-            <div className="text-xs text-muted-foreground flex gap-2 mb-2 font-medium">
+            <div className="hidden sm:flex text-xs text-muted-foreground gap-2 mb-2 font-medium">
               <span className="flex-1 pl-6">Descripción</span>
               <span className="w-16 text-right">Cant.</span>
-              <span className="w-28 text-right">Precio unit.</span>
-              <span className="w-24 text-right">Subtotal</span>
+              <span className="w-24 text-right">Precio unit.</span>
+              <span className="w-20 text-right">Subtotal</span>
               <span className="w-7" />
             </div>
             <LineItemsEditor items={lineItems} onChange={setLineItems} />
@@ -882,7 +884,7 @@ export default function Invoices() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">Facturas</h1>
@@ -961,6 +963,7 @@ export default function Invoices() {
             <p className="text-xs text-muted-foreground/60 mt-1">Crea la primera con el botón superior</p>
           </div>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid hsl(var(--c-inner-border))', background: 'hsl(var(--muted)/0.4)' }}>
@@ -1042,6 +1045,7 @@ export default function Invoices() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
 

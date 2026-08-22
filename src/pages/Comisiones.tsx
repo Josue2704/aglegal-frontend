@@ -73,7 +73,7 @@ export default function Comisiones() {
       <div>
         <h3 className="text-sm font-semibold mb-2">Resumen por persona — {mes}</h3>
         <Card>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>
@@ -104,7 +104,7 @@ export default function Comisiones() {
       <div>
         <h3 className="text-sm font-semibold mb-2">Detalle de movimientos — {mes}</h3>
         <Card>
-          <CardContent className="p-0">
+          <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
                 <tr>

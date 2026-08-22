@@ -124,6 +124,10 @@
     @apply bg-background text-foreground;
     font-family: 'Poppins', 'Roboto', system-ui, sans-serif;
     font-feature-settings: "rlig" 1, "calt" 1;
+    /* Safety net: an unwrapped table or a non-wrapping row anywhere in the app
+       should never be able to drag the whole page sideways — worst case it
+       should just clip, not break the layout for everything below/around it. */
+    overflow-x: hidden;
   }
 
   h1, h2, h3, h4, h5, h6 {

@@ -219,8 +219,8 @@ function SessionDialog({
           </div>
 
           {/* Date & Time */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1 col-span-3 sm:col-span-1">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="space-y-1">
               <Label>Fecha <span className="text-destructive text-xs">*</span></Label>
               <Input type="date" value={form.session_date} onChange={(e) => f('session_date')(e.target.value)} />
             </div>

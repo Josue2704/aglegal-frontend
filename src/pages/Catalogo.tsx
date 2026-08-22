@@ -105,7 +105,7 @@ function FamiliasTab() {
         No son lo mismo que las subcategorías.
       </InfoBanner>
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr style={{ borderBottom: '1px solid hsl(var(--border))' }}>
@@ -234,6 +234,7 @@ function CatalogoTab() {
                           svcs.length === 0 ? (
                             <div className="pl-16 pr-4 py-3 text-xs text-muted-foreground/60">Sin servicios todavía</div>
                           ) : (
+                            <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                               <thead>
                                 <tr style={{ borderBottom: '1px solid hsl(var(--border)/0.5)' }}>
@@ -262,6 +263,7 @@ function CatalogoTab() {
                                 ))}
                               </tbody>
                             </table>
+                            </div>
                           )
                         )}
                       </div>

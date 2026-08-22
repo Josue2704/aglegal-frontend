@@ -330,7 +330,7 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader><CardTitle className="text-base">Servicios más frecuentes · días de atención</CardTitle></CardHeader>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>
@@ -387,7 +387,7 @@ export default function Dashboard() {
               <Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-40" />
             </div>
             <Card>
-              <CardContent className="p-0">
+              <CardContent className="p-0 overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-muted/50">
                     <tr>

@@ -262,7 +262,7 @@ export default function Cases() {
         </div>
       )}
 
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">Expedientes</h1>
