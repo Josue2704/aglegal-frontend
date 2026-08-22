@@ -28,6 +28,9 @@ const GREEN = '#16a34a'
 const RED = '#dc2626'
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const pct = (n: number) => `${(n * 100).toFixed(0)}%`
+// Semáforo de cumplimiento tal como lo define el Excel maestro (00_PARA_DESARROLLADOR,
+// KPI "Cumplimiento ingresos"): verde >=100%, amarillo 85%-99%, rojo <85%.
+const semaforo = (n: number | null) => (n == null ? 'text-muted-foreground' : n >= 1 ? 'text-green-600' : n >= 0.85 ? 'text-amber-600' : 'text-red-600')
 const currentMonth = () => new Date().toISOString().slice(0, 7)
 
 function groupCount<T>(items: T[], key: (item: T) => string): { label: string; count: number }[] {
@@ -406,12 +409,12 @@ export default function Dashboard() {
                         <td className="px-4 py-2"><span className="font-mono text-xs text-muted-foreground mr-1.5">{c.family_code}</span>{c.family_nombre}</td>
                         <td className="px-4 py-2 text-right font-mono">{c.meta_casos}</td>
                         <td className="px-4 py-2 text-right font-mono">{c.casos_reales}</td>
-                        <td className={`px-4 py-2 text-right font-mono ${(c.cumplimiento_casos_pct ?? 0) >= 0.85 ? 'text-green-600' : 'text-amber-600'}`}>
+                        <td className={`px-4 py-2 text-right font-mono ${semaforo(c.cumplimiento_casos_pct)}`}>
                           {c.cumplimiento_casos_pct != null ? pct(c.cumplimiento_casos_pct) : '—'}
                         </td>
                         <td className="px-4 py-2 text-right font-mono">{money(c.meta_ingresos)}</td>
                         <td className="px-4 py-2 text-right font-mono">{money(c.ingresos_reales)}</td>
-                        <td className={`px-4 py-2 text-right font-mono font-semibold ${(c.cumplimiento_ingresos_pct ?? 0) >= 0.85 ? 'text-green-600' : 'text-red-600'}`}>
+                        <td className={`px-4 py-2 text-right font-mono font-semibold ${semaforo(c.cumplimiento_ingresos_pct)}`}>
                           {c.cumplimiento_ingresos_pct != null ? pct(c.cumplimiento_ingresos_pct) : '—'}
                         </td>
                       </tr>
@@ -457,7 +460,7 @@ export default function Dashboard() {
               value={proyeccion ? money(proyeccion.proyeccion_cierre) : '—'}
               sub={proyeccion ? `Meta: ${money(proyeccion.meta_ingresos)}` : undefined}
               icon={Target}
-              color={proyeccion && (proyeccion.cumplimiento_proyectado_pct ?? 0) >= 0.85 ? 'text-green-600' : 'text-amber-600'}
+              color={proyeccion ? semaforo(proyeccion.cumplimiento_proyectado_pct) : 'text-primary'}
             />
             <KpiCard
               title="Cartera ponderada"

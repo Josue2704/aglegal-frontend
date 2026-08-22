@@ -643,7 +643,8 @@ function PresupuestoTab() {
                 className="h-full rounded-full"
                 style={{
                   width: `${Math.min(cumplimiento * 100, 100)}%`,
-                  background: cumplimiento >= 0.85 ? 'hsl(142 70% 45%)' : cumplimiento >= 0.6 ? 'hsl(43 90% 50%)' : 'hsl(0 70% 55%)',
+                  // Semáforo tal como lo define el Excel maestro: verde >=100%, amarillo 85%-99%, rojo <85%.
+                  background: cumplimiento >= 1 ? 'hsl(142 70% 45%)' : cumplimiento >= 0.85 ? 'hsl(43 90% 50%)' : 'hsl(0 70% 55%)',
                 }}
               />
             </div>
