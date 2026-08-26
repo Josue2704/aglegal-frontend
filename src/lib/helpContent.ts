@@ -73,6 +73,8 @@ export const casesHelp: HelpContent = {
   tips: [
     'El estado de cobro y el saldo pendiente se calculan solos a partir de los honorarios contratados vs. lo facturado — no se editan a mano.',
     '"Papelera" guarda expedientes archivados, igual que en Clientes.',
+    'Si comparas contra el Archivo Maestro de Excel: el "estado_expediente" de esa hoja (Cotizado/Aceptado/En ejecución/Finalizado/Facturado/Cobrado/Suspendido) aquí se ve repartido en dos lugares — "Cotizado" y "Aceptado" son estados de la oportunidad en Pipeline Comercial, antes de que el caso se abra; una vez abierto, el expediente usa "Estado" (Abierto/En trámite/En pausa/Cerrado) y "Estado de cobro" (En ejecución/Finalizado pendiente de facturar/Facturado pendiente de cobro/Cobrado/Suspendido) por separado.',
+    'El "origen_negocio" del Excel (Andrea/Alfredo/Guadalupe/Referido/Orgánico/Otro) se captura en Pipeline Comercial al crear la oportunidad, no en el expediente — el expediente solo hereda quién originó el negocio a través de "Originadores" (usado para calcular comisión).',
   ],
 }
 

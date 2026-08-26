@@ -25,7 +25,7 @@ const CURRENCY_LOCALE: Record<string, string> = {
 
 export function formatCurrency(amount: number): string {
   const { currency } = getStoredSettings()
-  const locale = CURRENCY_LOCALE[currency] ?? 'es-CR'
+  const locale = CURRENCY_LOCALE[currency] ?? 'en-US'
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency,

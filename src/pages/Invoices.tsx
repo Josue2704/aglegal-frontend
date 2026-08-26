@@ -163,8 +163,9 @@ function RegisterIncomeDialog({
   })
 
   const save = useMutation({
-    mutationFn: () =>
-      incomesApi.create({
+    mutationFn: () => {
+      if (!accountId) throw new Error('La cuenta contable es requerida')
+      return incomesApi.create({
         amount: parseFloat(amount) || invoice.total,
         income_date: incomeDate,
         client_id: invoice.client_id,
@@ -172,7 +173,8 @@ function RegisterIncomeDialog({
         account_id: accountId,
         detail,
         invoice_id: invoice.id,
-      }),
+      })
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['invoices'] })
       qc.invalidateQueries({ queryKey: ['incomes'] })
@@ -217,16 +219,15 @@ function RegisterIncomeDialog({
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-xs">Cuenta contable</Label>
+            <Label className="text-xs">Cuenta contable <span className="text-destructive text-xs">*</span></Label>
             <Select
-              value={accountId ? String(accountId) : 'none'}
-              onValueChange={(v) => setAccountId(v === 'none' ? null : parseInt(v))}
+              value={accountId ? String(accountId) : ''}
+              onValueChange={(v) => setAccountId(v ? parseInt(v) : null)}
             >
               <SelectTrigger className="h-8 text-sm">
-                <SelectValue placeholder="Sin cuenta" />
+                <SelectValue placeholder="Seleccionar cuenta..." />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">Sin cuenta</SelectItem>
                 {cuentas.map((c) => (
                   <SelectItem key={c.id} value={String(c.id)}>{c.account_code} — {c.nombre}</SelectItem>
                 ))}
@@ -245,7 +246,7 @@ function RegisterIncomeDialog({
 
         <DialogFooter className="mt-2">
           <Button variant="ghost" onClick={onClose}>Omitir</Button>
-          <Button disabled={save.isPending} onClick={() => save.mutate()}>
+          <Button disabled={save.isPending || !accountId} onClick={() => save.mutate()}>
             <Check className="h-4 w-4" />
             {save.isPending ? 'Guardando...' : 'Registrar'}
           </Button>

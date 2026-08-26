@@ -131,7 +131,14 @@ export default function Comisiones() {
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-muted-foreground">{c.porcentaje_participacion.toFixed(1)}%</td>
                       <td className="px-4 py-2.5 text-right font-mono">{money(c.base_utilidad_directa)}</td>
-                      <td className={`px-4 py-2.5 text-right font-mono font-semibold ${c.comision < 0 ? 'text-destructive' : 'text-green-600'}`}>{money(c.comision)}</td>
+                      <td className={`px-4 py-2.5 text-right font-mono font-semibold ${c.comision < 0 ? 'text-destructive' : 'text-green-600'}`}>
+                        {money(c.comision)}
+                        {c.tramos.length > 0 && (
+                          <div className="text-[10px] font-normal text-muted-foreground mt-0.5">
+                            {c.tramos.map((t) => `${(t.tasa * 100).toFixed(0)}% de ${money(t.monto / t.tasa)}`).join(' + ')}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-2.5">
                         {!isAjuste && (
                           <Button

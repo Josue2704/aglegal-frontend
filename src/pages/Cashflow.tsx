@@ -43,7 +43,7 @@ function CuentaSelect({ tipo, value, onChange }: { tipo: 'Ingreso' | 'Egreso'; v
   const { data: cuentas = [] } = useQuery({ queryKey: ['finanzas-cuentas', tipo], queryFn: () => finanzasApi.listCuentas({ tipo }) })
   return (
     <div className="space-y-1">
-      <Label>Cuenta contable</Label>
+      <Label>Cuenta contable <span className="text-destructive text-xs">*</span></Label>
       <Select value={value} onValueChange={onChange}>
         <SelectTrigger><SelectValue placeholder="Seleccionar cuenta..." /></SelectTrigger>
         <SelectContent>
@@ -94,17 +94,31 @@ function ServicioPicker({ selected, onSelect, onClear }: { selected: { service_c
   )
 }
 
-function NetoPreview({ bruto, iva, reembolsable }: { bruto: string; iva: string; reembolsable: string }) {
-  const neto = (Number(bruto) || 0) - (Number(iva) || 0) - (Number(reembolsable) || 0)
+function NetoPreview({ bruto, iva, reembolsable, fondosTerceros }: { bruto: string; iva: string; reembolsable: string; fondosTerceros: string }) {
+  const neto = (Number(bruto) || 0) - (Number(iva) || 0) - (Number(reembolsable) || 0) - (Number(fondosTerceros) || 0)
   return <p className="text-xs text-muted-foreground">Monto neto operativo (calculado): <span className="font-mono font-medium text-foreground">{formatCurrency(neto)}</span></p>
+}
+
+// IVA de El Salvador: 13% flat (Ley de IVA). Solo un atajo — el monto sigue siendo editable
+// a mano para movimientos exentos o con retención distinta.
+function IvaSvButton({ bruto, onFill }: { bruto: string; onFill: (v: string) => void }) {
+  return (
+    <button
+      type="button"
+      className="text-[11px] text-accent hover:underline"
+      onClick={() => onFill(((Number(bruto) || 0) * 0.13).toFixed(2))}
+    >
+      13% (El Salvador)
+    </button>
+  )
 }
 
 // ─── Income Tab ───────────────────────────────────────────────────────────────
 type IncomeForm = {
   amount: string; date: string; client_id: string; case_id: string; detail: string
-  account_id: string; service_id: string; monto_iva: string; monto_reembolsable: string
+  account_id: string; service_id: string; monto_iva: string; monto_reembolsable: string; monto_fondos_terceros: string
 }
-const EMPTY_INC: IncomeForm = { amount: '', date: today(), client_id: '', case_id: '', detail: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '' }
+const EMPTY_INC: IncomeForm = { amount: '', date: today(), client_id: '', case_id: '', detail: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '', monto_fondos_terceros: '' }
 
 function IncomesTab({ start, end }: { start: string; end: string }) {
   const qc = useQueryClient()
@@ -124,10 +138,11 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
     client_id: form.client_id ? Number(form.client_id) : null,
     case_id: form.case_id ? Number(form.case_id) : null,
     detail: form.detail,
-    account_id: form.account_id ? Number(form.account_id) : null,
+    account_id: Number(form.account_id),
     service_id: form.service_id ? Number(form.service_id) : null,
     monto_iva: form.monto_iva ? Number(form.monto_iva) : null,
     monto_reembolsable: form.monto_reembolsable ? Number(form.monto_reembolsable) : null,
+    monto_fondos_terceros: form.monto_fondos_terceros ? Number(form.monto_fondos_terceros) : null,
   })
 
   const createInc = useMutation({
@@ -152,6 +167,7 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
       amount: String(i.amount), date: i.income_date, client_id: i.client_id ? String(i.client_id) : '', case_id: i.case_id ? String(i.case_id) : '', detail: i.detail ?? '',
       account_id: i.account_id ? String(i.account_id) : '', service_id: i.service_id ? String(i.service_id) : '',
       monto_iva: i.monto_iva ? String(i.monto_iva) : '', monto_reembolsable: i.monto_reembolsable ? String(i.monto_reembolsable) : '',
+      monto_fondos_terceros: i.monto_fondos_terceros ? String(i.monto_fondos_terceros) : '',
     })
     setSelectedService(i.service_id && i.service_code && i.service_nombre ? { service_code: i.service_code, nombre: i.service_nombre } : null)
     setDlg(true)
@@ -161,6 +177,7 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
     e.preventDefault()
     if (!form.date) return toast.error('La fecha es requerida')
     if (!form.amount || Number(form.amount) <= 0) return toast.error('El monto debe ser mayor a 0')
+    if (!form.account_id) return toast.error('La cuenta contable es requerida')
     editing ? update.mutate(editing.id) : createInc.mutate()
   }
 
@@ -261,9 +278,13 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
                   onClear={() => { setSelectedService(null); setForm({ ...form, service_id: '' }) }}
                 />
               </div>
-              <div className="space-y-1"><Label>IVA</Label><Input type="number" step="0.01" min="0" value={form.monto_iva} onChange={(e) => setForm({ ...form, monto_iva: e.target.value })} placeholder="0.00" /></div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between"><Label>IVA</Label><IvaSvButton bruto={form.amount} onFill={(v) => setForm({ ...form, monto_iva: v })} /></div>
+                <Input type="number" step="0.01" min="0" value={form.monto_iva} onChange={(e) => setForm({ ...form, monto_iva: e.target.value })} placeholder="0.00" />
+              </div>
               <div className="space-y-1"><Label>Reembolsable</Label><Input type="number" step="0.01" min="0" value={form.monto_reembolsable} onChange={(e) => setForm({ ...form, monto_reembolsable: e.target.value })} placeholder="0.00" /></div>
-              <div className="col-span-2"><NetoPreview bruto={form.amount} iva={form.monto_iva} reembolsable={form.monto_reembolsable} /></div>
+              <div className="space-y-1 col-span-2"><Label>Fondos de terceros</Label><Input type="number" step="0.01" min="0" value={form.monto_fondos_terceros} onChange={(e) => setForm({ ...form, monto_fondos_terceros: e.target.value })} placeholder="0.00" /></div>
+              <div className="col-span-2"><NetoPreview bruto={form.amount} iva={form.monto_iva} reembolsable={form.monto_reembolsable} fondosTerceros={form.monto_fondos_terceros} /></div>
             </div>
             <DialogFooter><Button type="button" variant="outline" onClick={() => setDlg(false)}>Cancelar</Button><Button type="submit">Guardar</Button></DialogFooter>
           </form>
@@ -274,8 +295,8 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
 }
 
 // ─── Expenses Tab ─────────────────────────────────────────────────────────────
-type ExpForm = { amount: string; date: string; detail: string; notes: string; account_id: string; monto_iva: string; monto_reembolsable: string }
-const EMPTY_EXP: ExpForm = { amount: '', date: today(), detail: '', notes: '', account_id: '', monto_iva: '', monto_reembolsable: '' }
+type ExpForm = { amount: string; date: string; detail: string; notes: string; account_id: string; monto_iva: string; monto_reembolsable: string; monto_fondos_terceros: string }
+const EMPTY_EXP: ExpForm = { amount: '', date: today(), detail: '', notes: '', account_id: '', monto_iva: '', monto_reembolsable: '', monto_fondos_terceros: '' }
 
 function ExpensesTab({ start, end }: { start: string; end: string }) {
   const qc = useQueryClient()
@@ -288,9 +309,10 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
 
   const toPayload = (): ExpenseIn => ({
     amount: Number(form.amount), expense_date: form.date, detail: form.detail, notes: form.notes,
-    account_id: form.account_id ? Number(form.account_id) : null,
+    account_id: Number(form.account_id),
     monto_iva: form.monto_iva ? Number(form.monto_iva) : null,
     monto_reembolsable: form.monto_reembolsable ? Number(form.monto_reembolsable) : null,
+    monto_fondos_terceros: form.monto_fondos_terceros ? Number(form.monto_fondos_terceros) : null,
   })
 
   const create = useMutation({
@@ -316,6 +338,7 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
       account_id: e.account_id ? String(e.account_id) : '',
       monto_iva: e.monto_iva ? String(e.monto_iva) : '',
       monto_reembolsable: e.monto_reembolsable ? String(e.monto_reembolsable) : '',
+      monto_fondos_terceros: e.monto_fondos_terceros ? String(e.monto_fondos_terceros) : '',
     })
     setDlg(true)
   }
@@ -325,6 +348,7 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
     if (!form.date) return toast.error('La fecha es requerida')
     if (!form.amount || Number(form.amount) <= 0) return toast.error('El monto debe ser mayor a 0')
     if (!form.detail.trim()) return toast.error('El detalle es requerido')
+    if (!form.account_id) return toast.error('La cuenta contable es requerida')
     editing ? update.mutate(editing.id) : create.mutate()
   }
 
@@ -402,9 +426,13 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
               <div className="space-y-1"><Label>Monto <span className="text-destructive text-xs">*</span></Label><Input type="number" step="0.01" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
               <div className="space-y-1"><Label>Fecha <span className="text-destructive text-xs">*</span></Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
               <div className="col-span-2"><CuentaSelect tipo="Egreso" value={form.account_id} onChange={(v) => setForm({ ...form, account_id: v })} /></div>
-              <div className="space-y-1"><Label>IVA</Label><Input type="number" step="0.01" min="0" value={form.monto_iva} onChange={(e) => setForm({ ...form, monto_iva: e.target.value })} placeholder="0.00" /></div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between"><Label>IVA</Label><IvaSvButton bruto={form.amount} onFill={(v) => setForm({ ...form, monto_iva: v })} /></div>
+                <Input type="number" step="0.01" min="0" value={form.monto_iva} onChange={(e) => setForm({ ...form, monto_iva: e.target.value })} placeholder="0.00" />
+              </div>
               <div className="space-y-1"><Label>Reembolsable</Label><Input type="number" step="0.01" min="0" value={form.monto_reembolsable} onChange={(e) => setForm({ ...form, monto_reembolsable: e.target.value })} placeholder="0.00" /></div>
-              <div className="col-span-2"><NetoPreview bruto={form.amount} iva={form.monto_iva} reembolsable={form.monto_reembolsable} /></div>
+              <div className="space-y-1"><Label>Fondos de terceros</Label><Input type="number" step="0.01" min="0" value={form.monto_fondos_terceros} onChange={(e) => setForm({ ...form, monto_fondos_terceros: e.target.value })} placeholder="0.00" /></div>
+              <div className="col-span-2"><NetoPreview bruto={form.amount} iva={form.monto_iva} reembolsable={form.monto_reembolsable} fondosTerceros={form.monto_fondos_terceros} /></div>
               <div className="space-y-1 col-span-2"><Label>Detalle <span className="text-destructive text-xs">*</span></Label><Input value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} /></div>
               <div className="space-y-1 col-span-2"><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             </div>
@@ -417,8 +445,8 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
 }
 
 // ─── Costs Tab ────────────────────────────────────────────────────────────────
-type CostForm = { amount: string; date: string; client_id: string; case_id: string; detail: string; notes: string; account_id: string; service_id: string; monto_iva: string; monto_reembolsable: string }
-const EMPTY_COST: CostForm = { amount: '', date: today(), client_id: '', case_id: '', detail: '', notes: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '' }
+type CostForm = { amount: string; date: string; client_id: string; case_id: string; detail: string; notes: string; account_id: string; service_id: string; monto_iva: string; monto_reembolsable: string; monto_fondos_terceros: string }
+const EMPTY_COST: CostForm = { amount: '', date: today(), client_id: '', case_id: '', detail: '', notes: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '', monto_fondos_terceros: '' }
 
 function CostsTab({ start, end }: { start: string; end: string }) {
   const qc = useQueryClient()
@@ -439,10 +467,11 @@ function CostsTab({ start, end }: { start: string; end: string }) {
     case_id: form.case_id ? Number(form.case_id) : null,
     detail: form.detail,
     notes: form.notes,
-    account_id: form.account_id ? Number(form.account_id) : null,
+    account_id: Number(form.account_id),
     service_id: form.service_id ? Number(form.service_id) : null,
     monto_iva: form.monto_iva ? Number(form.monto_iva) : null,
     monto_reembolsable: form.monto_reembolsable ? Number(form.monto_reembolsable) : null,
+    monto_fondos_terceros: form.monto_fondos_terceros ? Number(form.monto_fondos_terceros) : null,
   })
 
   const create = useMutation({
@@ -469,6 +498,7 @@ function CostsTab({ start, end }: { start: string; end: string }) {
       service_id: c.service_id ? String(c.service_id) : '',
       monto_iva: c.monto_iva ? String(c.monto_iva) : '',
       monto_reembolsable: c.monto_reembolsable ? String(c.monto_reembolsable) : '',
+      monto_fondos_terceros: c.monto_fondos_terceros ? String(c.monto_fondos_terceros) : '',
     })
     setSelectedService(c.service_id ? { service_code: c.service_code ?? '', nombre: c.service_nombre ?? '' } : null)
     setDlg(true)
@@ -479,6 +509,7 @@ function CostsTab({ start, end }: { start: string; end: string }) {
     if (!form.date) return toast.error('La fecha es requerida')
     if (!form.amount || Number(form.amount) <= 0) return toast.error('El monto debe ser mayor a 0')
     if (!form.detail.trim()) return toast.error('El detalle es requerido')
+    if (!form.account_id) return toast.error('La cuenta contable es requerida')
     editing ? update.mutate(editing.id) : create.mutate()
   }
 
@@ -570,9 +601,13 @@ function CostsTab({ start, end }: { start: string; end: string }) {
                   onClear={() => { setSelectedService(null); setForm({ ...form, service_id: '' }) }}
                 />
               </div>
-              <div className="space-y-1"><Label>IVA</Label><Input type="number" step="0.01" min="0" value={form.monto_iva} onChange={(e) => setForm({ ...form, monto_iva: e.target.value })} placeholder="0.00" /></div>
+              <div className="space-y-1">
+                <div className="flex items-center justify-between"><Label>IVA</Label><IvaSvButton bruto={form.amount} onFill={(v) => setForm({ ...form, monto_iva: v })} /></div>
+                <Input type="number" step="0.01" min="0" value={form.monto_iva} onChange={(e) => setForm({ ...form, monto_iva: e.target.value })} placeholder="0.00" />
+              </div>
               <div className="space-y-1"><Label>Reembolsable</Label><Input type="number" step="0.01" min="0" value={form.monto_reembolsable} onChange={(e) => setForm({ ...form, monto_reembolsable: e.target.value })} placeholder="0.00" /></div>
-              <div className="col-span-2"><NetoPreview bruto={form.amount} iva={form.monto_iva} reembolsable={form.monto_reembolsable} /></div>
+              <div className="space-y-1"><Label>Fondos de terceros</Label><Input type="number" step="0.01" min="0" value={form.monto_fondos_terceros} onChange={(e) => setForm({ ...form, monto_fondos_terceros: e.target.value })} placeholder="0.00" /></div>
+              <div className="col-span-2"><NetoPreview bruto={form.amount} iva={form.monto_iva} reembolsable={form.monto_reembolsable} fondosTerceros={form.monto_fondos_terceros} /></div>
               <div className="space-y-1 col-span-2"><Label>Detalle <span className="text-destructive text-xs">*</span></Label><Input value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} /></div>
               <div className="space-y-1 col-span-2"><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
             </div>

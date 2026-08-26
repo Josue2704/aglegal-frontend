@@ -365,9 +365,15 @@ function TransitionDialog({ open, onClose, solicitud, targetEstado }: { open: bo
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
 
+  const needsResultado = targetEstado === 'En revisión' || targetEstado === 'Rechazado'
+  const { data: duplicados = [] } = useQuery({
+    queryKey: ['gobierno-duplicados', solicitud?.tipo_registro, solicitud?.nombre_propuesto],
+    queryFn: () => gobiernoApi.duplicados(solicitud!.tipo_registro, solicitud!.nombre_propuesto),
+    enabled: needsResultado && !!solicitud?.nombre_propuesto,
+  })
+
   if (!solicitud || !targetEstado) return null
   const needsAprobador = targetEstado === 'Aprobado'
-  const needsResultado = targetEstado === 'En revisión' || targetEstado === 'Rechazado'
 
   const efectoLabel = solicitud.tipo_solicitud === 'Alta'
     ? `crea de una vez el registro real en Catálogo Maestro${solicitud.tipo_registro === 'Servicio' || solicitud.tipo_registro === 'Familia' ? ' con un código asignado automáticamente' : ` con el código ${solicitud.codigo_propuesto}`}`
@@ -383,6 +389,32 @@ function TransitionDialog({ open, onClose, solicitud, targetEstado }: { open: bo
           {needsResultado && (
             <div className="space-y-1">
               <Label>Resultado de revisión de duplicidad</Label>
+              {duplicados.length > 0 ? (
+                <div className="rounded-md p-2.5 space-y-1.5" style={{ background: 'hsl(38 90% 50% / 0.08)', border: '1px solid hsl(38 90% 50% / 0.25)' }}>
+                  <p className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                    Posible{duplicados.length > 1 ? 's' : ''} duplicado{duplicados.length > 1 ? 's' : ''} encontrado{duplicados.length > 1 ? 's' : ''} — revisión asistida, la decisión sigue siendo tuya:
+                  </p>
+                  <ul className="text-xs space-y-0.5">
+                    {duplicados.map((d) => (
+                      <li key={d.codigo} className="flex items-center justify-between gap-2">
+                        <span><span className="font-mono text-muted-foreground mr-1.5">{d.codigo}</span>{d.nombre}</span>
+                        <span className="text-muted-foreground shrink-0">{Math.round(d.similitud * 100)}% similar</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    className="text-[11px] text-accent hover:underline"
+                    onClick={() => setResultado(`Posibles duplicados encontrados: ${duplicados.map((d) => `${d.nombre} (${d.codigo}, ${Math.round(d.similitud * 100)}%)`).join(', ')}.`)}
+                  >
+                    Usar como resultado
+                  </button>
+                </div>
+              ) : (
+                needsResultado && solicitud.nombre_propuesto && (
+                  <p className="text-[11px] text-muted-foreground">No se encontraron nombres parecidos en el catálogo activo (revisión asistida).</p>
+                )
+              )}
               <Textarea rows={2} value={resultado} onChange={(e) => setResultado(e.target.value)} placeholder="Ej: Sin duplicidad identificada" />
             </div>
           )}

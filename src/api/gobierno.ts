@@ -1,4 +1,4 @@
-import type { Solicitud, SolicitudIn, SolicitudTransicion, SolicitudUpdate } from '@/types'
+import type { PosibleDuplicado, Solicitud, SolicitudIn, SolicitudTransicion, SolicitudUpdate } from '@/types'
 import api from './client'
 
 export const gobiernoApi = {
@@ -7,4 +7,6 @@ export const gobiernoApi = {
   create: (data: SolicitudIn) => api.post<Solicitud>('/solicitudes-catalogo', data).then((r) => r.data),
   update: (id: number, data: SolicitudUpdate) => api.put<Solicitud>(`/solicitudes-catalogo/${id}`, data).then((r) => r.data),
   transicion: (id: number, data: SolicitudTransicion) => api.post<Solicitud>(`/solicitudes-catalogo/${id}/transicion`, data).then((r) => r.data),
+  duplicados: (tipo_registro: string, nombre: string) =>
+    api.get<PosibleDuplicado[]>('/solicitudes-catalogo/duplicados', { params: { tipo_registro, nombre } }).then((r) => r.data),
 }

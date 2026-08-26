@@ -1,4 +1,4 @@
-import type { CarteraPonderada, Cuenta, Forecast, ForecastIn, ForecastUpdate, GastoFijo, Persona, ProyeccionCierreMes, PuntoEquilibrio, Supuestos } from '@/types'
+import type { CarteraPonderada, CumplimientoFamilia, Cuenta, Forecast, ForecastIn, ForecastUpdate, GastoFijo, Persona, ProyeccionCierreMes, PuntoEquilibrio, Supuestos, UtilidadOperativaReal } from '@/types'
 import api from './client'
 
 export interface CuentaPayload {
@@ -76,9 +76,9 @@ export const finanzasApi = {
 
   // Cumplimiento por familia (Fase 9)
   cumplimientoFamilia: (mes: string) =>
-    api.get<{
-      family_id: number; family_code: string; family_nombre: string
-      meta_casos: number; casos_reales: number; cumplimiento_casos_pct: number | null
-      meta_ingresos: number; ingresos_reales: number; cumplimiento_ingresos_pct: number | null
-    }[]>('/finanzas/cumplimiento-familia', { params: { mes } }).then((r) => r.data),
+    api.get<CumplimientoFamilia[]>('/finanzas/cumplimiento-familia', { params: { mes } }).then((r) => r.data),
+
+  // Utilidad operativa real del despacho (Fase 9) — exacta solo a nivel de despacho, no por familia
+  utilidadOperativaReal: (mes: string) =>
+    api.get<UtilidadOperativaReal>('/finanzas/utilidad-operativa-real', { params: { mes } }).then((r) => r.data),
 }

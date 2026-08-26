@@ -20,8 +20,9 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { formatCurrency, formatDate } from '@/lib/utils'
 import { HelpButton } from '@/components/HelpButton'
+import { OnboardingTour } from '@/components/OnboardingTour'
 import { dashboardHelp } from '@/lib/helpContent'
-import type { GrossProfitItem } from '@/types'
+import type { GrossProfitItem, Semaforo } from '@/types'
 
 const COLORS = ['#2563eb', '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444']
 const GREEN = '#16a34a'
@@ -29,8 +30,12 @@ const RED = '#dc2626'
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 const pct = (n: number) => `${(n * 100).toFixed(0)}%`
 // Semáforo de cumplimiento tal como lo define el Excel maestro (00_PARA_DESARROLLADOR,
-// KPI "Cumplimiento ingresos"): verde >=100%, amarillo 85%-99%, rojo <85%.
+// KPI "Cumplimiento ingresos"): verde >=100%, amarillo 85%-99%, rojo <85%. Para proyección de
+// cierre de mes (que no trae semáforo del backend) se sigue calculando aquí sobre el %.
 const semaforo = (n: number | null) => (n == null ? 'text-muted-foreground' : n >= 1 ? 'text-green-600' : n >= 0.85 ? 'text-amber-600' : 'text-red-600')
+// Cumplimiento por familia trae su semáforo ya calculado por el backend (misma regla, única fuente de verdad).
+const SEMAFORO_COLOR: Record<Semaforo, string> = { verde: 'text-green-600', amarillo: 'text-amber-600', rojo: 'text-red-600' }
+const semaforoColor = (s: Semaforo | null) => (s ? SEMAFORO_COLOR[s] : 'text-muted-foreground')
 const currentMonth = () => new Date().toISOString().slice(0, 7)
 
 function groupCount<T>(items: T[], key: (item: T) => string): { label: string; count: number }[] {
@@ -150,6 +155,7 @@ export default function Dashboard() {
   const { data: proyeccion } = useQuery({ queryKey: ['dashboard-proyeccion', mes], queryFn: () => finanzasApi.proyeccionCierreMes(mes) })
   const { data: cartera } = useQuery({ queryKey: ['dashboard-cartera', mes], queryFn: () => finanzasApi.carteraPonderada(mes) })
   const { data: comisionesResumen = [] } = useQuery({ queryKey: ['dashboard-comisiones', mes], queryFn: () => comisionesApi.resumen(mes) })
+  const { data: utilidadOperativa } = useQuery({ queryKey: ['dashboard-utilidad-operativa', mes], queryFn: () => finanzasApi.utilidadOperativaReal(mes) })
 
   // ── Comercial ──
   const { data: conversion } = useQuery({ queryKey: ['dashboard-conversion'], queryFn: pipelineApi.conversion })
@@ -182,6 +188,7 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
+      <OnboardingTour />
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">Dashboard</h1>
@@ -401,6 +408,11 @@ export default function Dashboard() {
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Meta ingresos</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Ingresos reales</th>
                       <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Cumpl. ingresos</th>
+                      <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Brecha</th>
+                      <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Costos directos</th>
+                      <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Utilidad directa real</th>
+                      <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Cumpl. utilidad</th>
+                      <th className="text-right px-4 py-2 font-medium text-muted-foreground text-xs">Ticket real</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -409,17 +421,26 @@ export default function Dashboard() {
                         <td className="px-4 py-2"><span className="font-mono text-xs text-muted-foreground mr-1.5">{c.family_code}</span>{c.family_nombre}</td>
                         <td className="px-4 py-2 text-right font-mono">{c.meta_casos}</td>
                         <td className="px-4 py-2 text-right font-mono">{c.casos_reales}</td>
-                        <td className={`px-4 py-2 text-right font-mono ${semaforo(c.cumplimiento_casos_pct)}`}>
+                        <td className={`px-4 py-2 text-right font-mono ${semaforoColor(c.semaforo_casos)}`}>
                           {c.cumplimiento_casos_pct != null ? pct(c.cumplimiento_casos_pct) : '—'}
                         </td>
                         <td className="px-4 py-2 text-right font-mono">{money(c.meta_ingresos)}</td>
                         <td className="px-4 py-2 text-right font-mono">{money(c.ingresos_reales)}</td>
-                        <td className={`px-4 py-2 text-right font-mono font-semibold ${semaforo(c.cumplimiento_ingresos_pct)}`}>
+                        <td className={`px-4 py-2 text-right font-mono font-semibold ${semaforoColor(c.semaforo_ingresos)}`}>
                           {c.cumplimiento_ingresos_pct != null ? pct(c.cumplimiento_ingresos_pct) : '—'}
                         </td>
+                        <td className={`px-4 py-2 text-right font-mono ${c.brecha_ingresos >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {c.brecha_ingresos >= 0 ? '+' : ''}{money(c.brecha_ingresos)}
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono text-muted-foreground">{money(c.costos_directos_reales)}</td>
+                        <td className="px-4 py-2 text-right font-mono">{money(c.utilidad_directa_real)}</td>
+                        <td className={`px-4 py-2 text-right font-mono font-semibold ${semaforoColor(c.semaforo_utilidad)}`}>
+                          {c.cumplimiento_utilidad_pct != null ? pct(c.cumplimiento_utilidad_pct) : '—'}
+                        </td>
+                        <td className="px-4 py-2 text-right font-mono text-muted-foreground">{c.ticket_real != null ? money(c.ticket_real) : '—'}</td>
                       </tr>
                     ))}
-                    {!cumplimiento.length && <tr><td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">Sin metas de presupuesto para este mes</td></tr>}
+                    {!cumplimiento.length && <tr><td colSpan={12} className="px-4 py-6 text-center text-muted-foreground">Sin metas de presupuesto para este mes</td></tr>}
                   </tbody>
                 </table>
               </CardContent>
@@ -448,7 +469,7 @@ export default function Dashboard() {
             <Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-40" />
           </div>
 
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
             <KpiCard
               title="Punto de equilibrio"
               value={puntoEquilibrio && !peError ? money(puntoEquilibrio.punto_equilibrio) : '—'}
@@ -470,6 +491,13 @@ export default function Dashboard() {
               color="text-orange-500"
             />
             <KpiCard title="Comisiones del mes" value={money(totalComisionesMes)} sub={`${comisionesResumen.length} persona${comisionesResumen.length === 1 ? '' : 's'}`} icon={CircleDollarSign} color="text-green-600" />
+            <KpiCard
+              title="Utilidad operativa real"
+              value={utilidadOperativa ? money(utilidadOperativa.utilidad_operativa_real) : '—'}
+              sub={utilidadOperativa?.margen_operativo_real_pct != null ? `Margen: ${pct(utilidadOperativa.margen_operativo_real_pct)}` : 'Ingresos − costos − gastos fijos − comisión'}
+              icon={Wallet}
+              color={utilidadOperativa && utilidadOperativa.utilidad_operativa_real >= 0 ? 'text-green-600' : 'text-red-500'}
+            />
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

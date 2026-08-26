@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useSearchParams } from 'react-router-dom'
-import { CalendarCheck, Unlink, ExternalLink, Coins, RotateCcw, Sun, Moon, Building2 } from 'lucide-react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import { CalendarCheck, Unlink, ExternalLink, Coins, RotateCcw, Sun, Moon, Building2, Sparkles } from 'lucide-react'
 import { toast } from 'sonner'
 import { googleCalApi } from '@/api/googleCal'
 import { outlookCalApi } from '@/api/outlookCal'
@@ -19,8 +19,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 
 // ─── Currencies ───────────────────────────────────────────────────────────────
 const CURRENCIES = [
-  { code: 'CRC', label: 'Colón costarricense',    symbol: '₡',   example: 125000 },
   { code: 'USD', label: 'Dólar estadounidense',   symbol: '$',   example: 250    },
+  { code: 'CRC', label: 'Colón costarricense',    symbol: '₡',   example: 125000 },
   { code: 'EUR', label: 'Euro',                    symbol: '€',   example: 230    },
   { code: 'COP', label: 'Peso colombiano',         symbol: '$',   example: 980000 },
   { code: 'MXN', label: 'Peso mexicano',           symbol: '$',   example: 4500   },
@@ -92,7 +92,7 @@ function CurrencyPanel() {
                     CRC: 'es-CR', USD: 'en-US', EUR: 'es-ES', COP: 'es-CO', MXN: 'es-MX',
                     PEN: 'es-PE', CLP: 'es-CL', ARS: 'es-AR', BRL: 'pt-BR',
                     GTQ: 'es-GT', HNL: 'es-HN', NIO: 'es-NI', DOP: 'es-DO',
-                  }[selected] ?? 'es-CR'
+                  }[selected] ?? 'en-US'
                   return new Intl.NumberFormat(locale, {
                     style: 'currency', currency: selected, minimumFractionDigits: 2,
                   }).format(previewCurrency.example)
@@ -468,6 +468,37 @@ function FirmPanel() {
   )
 }
 
+// ─── Recorrido de bienvenida ────────────────────────────────────────────────
+function OnboardingPanel() {
+  const { save } = useSettingsStore()
+  const navigate = useNavigate()
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-primary/10 text-primary">
+            <Sparkles className="h-5 w-5" />
+          </div>
+          <div>
+            <CardTitle className="text-base">Recorrido de bienvenida</CardTitle>
+            <CardDescription>El resumen de un minuto de cómo funciona AG Legal</CardDescription>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => { save({ onboardingCompletado: false }); navigate('/') }}
+        >
+          Volver a ver el recorrido
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Settings() {
   const { currency } = useSettingsStore()
@@ -491,6 +522,7 @@ export default function Settings() {
       <FirmPanel />
       <GoogleCalendarPanel />
       <OutlookCalendarPanel />
+      <OnboardingPanel />
 
       <Card className="opacity-60">
         <CardHeader className="pb-2">

@@ -247,6 +247,7 @@ export interface Income {
   service_nombre: string | null
   monto_iva: number
   monto_reembolsable: number
+  monto_fondos_terceros: number
   monto_neto_operativo: number
 }
 export interface IncomeIn {
@@ -256,10 +257,11 @@ export interface IncomeIn {
   case_id?: number | null
   detail?: string
   invoice_id?: number | null
-  account_id?: number | null
+  account_id: number
   service_id?: number | null
   monto_iva?: number | null
   monto_reembolsable?: number | null
+  monto_fondos_terceros?: number | null
 }
 
 // ── Expenses ──────────────────────────────────────────────────────────────────
@@ -276,6 +278,7 @@ export interface Expense {
   account_nombre: string | null
   monto_iva: number
   monto_reembolsable: number
+  monto_fondos_terceros: number
   monto_neto_operativo: number
 }
 export interface ExpenseIn {
@@ -283,9 +286,10 @@ export interface ExpenseIn {
   amount: number
   expense_date: string
   notes?: string
-  account_id?: number | null
+  account_id: number
   monto_iva?: number | null
   monto_reembolsable?: number | null
+  monto_fondos_terceros?: number | null
 }
 
 // ── Costs ─────────────────────────────────────────────────────────────────────
@@ -309,6 +313,7 @@ export interface Cost {
   service_nombre: string | null
   monto_iva: number
   monto_reembolsable: number
+  monto_fondos_terceros: number
   monto_neto_operativo: number
 }
 export interface CostIn {
@@ -318,10 +323,11 @@ export interface CostIn {
   amount: number
   cost_date: string
   notes?: string
-  account_id?: number | null
+  account_id: number
   service_id?: number | null
   monto_iva?: number | null
   monto_reembolsable?: number | null
+  monto_fondos_terceros?: number | null
 }
 
 // ── Catálogo maestro (categorías / subcategorías / servicios / familias) ──────
@@ -519,6 +525,41 @@ export interface ProyeccionCierreMes {
   cumplimiento_proyectado_pct: number | null
 }
 
+// ── Cumplimiento por familia y utilidad real (Fase 9) ─────────────────────────
+export type Semaforo = 'verde' | 'amarillo' | 'rojo'
+
+export interface CumplimientoFamilia {
+  family_id: number
+  family_code: string
+  family_nombre: string
+  meta_casos: number
+  casos_reales: number
+  cumplimiento_casos_pct: number | null
+  semaforo_casos: Semaforo | null
+  meta_ingresos: number
+  ingresos_reales: number
+  cumplimiento_ingresos_pct: number | null
+  semaforo_ingresos: Semaforo | null
+  brecha_ingresos: number
+  costos_directos_reales: number
+  utilidad_directa_meta: number
+  utilidad_directa_real: number
+  cumplimiento_utilidad_pct: number | null
+  semaforo_utilidad: Semaforo | null
+  ticket_real: number | null
+}
+
+export interface UtilidadOperativaReal {
+  mes: string
+  ingresos_reales: number
+  costos_directos_reales: number
+  utilidad_directa_real: number
+  gastos_fijos: number
+  comisiones: number
+  utilidad_operativa_real: number
+  margen_operativo_real_pct: number | null
+}
+
 // ── Comisión multi-originador (Fase 8) ────────────────────────────────────────
 export const TIPO_ORIGEN_VALUES = ['Cliente nuevo', 'Venta cruzada'] as const
 export type TipoOrigen = typeof TIPO_ORIGEN_VALUES[number]
@@ -538,6 +579,10 @@ export interface OriginadorIn {
   porcentaje_participacion: number
   tipo_origen: TipoOrigen
 }
+export interface TramoComision {
+  tasa: number
+  monto: number
+}
 export interface Comision {
   id: number
   income_id: number
@@ -553,6 +598,7 @@ export interface Comision {
   comision: number
   mes_reconocimiento: string
   ajusta_a_commission_id: number | null
+  tramos: TramoComision[]
   created_at: string
 }
 export interface ResumenComision {
@@ -572,6 +618,13 @@ export const TIPO_REGISTRO_VALUES = ['Categoria', 'Subcategoria', 'Servicio', 'F
 export type TipoRegistroSolicitud = typeof TIPO_REGISTRO_VALUES[number]
 export const SOLICITUD_ESTADOS = ['Solicitado', 'En revisión', 'Aprobado', 'Rechazado', 'Activo', 'Inactivo'] as const
 export type SolicitudEstado = typeof SOLICITUD_ESTADOS[number]
+
+export interface PosibleDuplicado {
+  codigo: string
+  nombre: string
+  estado: string
+  similitud: number
+}
 
 export interface Solicitud {
   id: number
