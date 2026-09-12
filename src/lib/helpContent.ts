@@ -65,13 +65,15 @@ export const casesHelp: HelpContent = {
   ],
   steps: [
     'Pulsa "Nuevo expediente", elige el cliente, título, estado y prioridad.',
+    'Al elegir el servicio del catálogo, si tiene una plantilla de tareas configurada, se sugiere un checklist inicial — puedes desmarcar las que no apliquen o agregar más antes de crear el expediente.',
     'Completa honorarios contratados, costos directos estimados y mes de cobro esperado — esto alimenta el estado de cobro y el saldo pendiente.',
     'En la sección judicial agrega número interno/oficial, contraparte, juzgado y abogado responsable.',
     'Usa "Próxima acción" para anotar el siguiente paso pendiente (ej. enviar minuta al cliente).',
-    'Desde el detalle del expediente se agregan tareas, sesiones y adjuntos ligados a ese caso.',
+    'Desde el detalle del expediente se agregan tareas, sesiones y adjuntos ligados a ese caso — si agregas una tarea o sesión con "monto adicional", ese monto sube automáticamente los honorarios contratados y queda en la bitácora del expediente (pestaña Tareas).',
   ],
   tips: [
     'El estado de cobro y el saldo pendiente se calculan solos a partir de los honorarios contratados vs. lo facturado — no se editan a mano.',
+    'Las tareas de la plantilla ya están incluidas en los honorarios pactados, sin recargo — el recargo automático solo aplica a tareas/sesiones agregadas después, marcadas con un monto adicional.',
     '"Papelera" guarda expedientes archivados, igual que en Clientes.',
     'Si comparas contra el Archivo Maestro de Excel: el "estado_expediente" de esa hoja (Cotizado/Aceptado/En ejecución/Finalizado/Facturado/Cobrado/Suspendido) aquí se ve repartido en dos lugares — "Cotizado" y "Aceptado" son estados de la oportunidad en Pipeline Comercial, antes de que el caso se abra; una vez abierto, el expediente usa "Estado" (Abierto/En trámite/En pausa/Cerrado) y "Estado de cobro" (En ejecución/Finalizado pendiente de facturar/Facturado pendiente de cobro/Cobrado/Suspendido) por separado.',
     'El "origen_negocio" del Excel (Andrea/Alfredo/Guadalupe/Referido/Orgánico/Otro) se captura en Pipeline Comercial al crear la oportunidad, no en el expediente — el expediente solo hereda quién originó el negocio a través de "Originadores" (usado para calcular comisión).',
@@ -138,11 +140,15 @@ export const invoicesHelp: HelpContent = {
   ],
   steps: [
     'Pulsa "Nueva Factura" y sigue el asistente: datos del cliente, expediente, número y fechas.',
+    'Si eliges un expediente, el panel de "partidas no facturadas" solo trae tareas, sesiones, horas y costos de ESE expediente — sin elegirlo, trae de todos los expedientes del cliente.',
     'Agrega los montos con su fecha de cobro, cuenta contable y detalle.',
     'Actualiza el estado conforme avanza: Borrador → Enviada → Pagada.',
     'Exporta a CSV con el botón correspondiente si necesitas la lista completa.',
   ],
-  tips: ['Las tarjetas superiores (total, pagadas, pendientes, ingresos cobrados) se actualizan solas según el estado de cada factura.'],
+  tips: [
+    'Las tarjetas superiores (total, pagadas, pendientes, ingresos cobrados) se actualizan solas según el estado de cada factura.',
+    'Si borras una factura, sus partidas (tareas, sesiones, horas, costos) vuelven a aparecer como "no facturadas" — se puede volver a facturar sin quedar huérfanas.',
+  ],
 }
 
 export const payrollHelp: HelpContent = {
@@ -183,8 +189,9 @@ export const catalogoHelp: HelpContent = {
   description: 'Catálogo de referencia con todas las categorías, subcategorías, servicios y familias que ofrece el despacho. Es de solo lectura.',
   steps: [
     'Usa las pestañas Catálogo y Familias, junto con el buscador, para consultar categorías, subcategorías y servicios existentes.',
-    'Haz clic en un servicio para ver su historial de cambios.',
-    'Si necesitas crear, modificar o dar de baja algo, ve a "Gobierno del Catálogo" y levanta una solicitud — no se edita directamente aquí.',
+    'Haz clic en el ícono de checklist junto a un servicio para administrar su plantilla de tareas — la lista que se sugiere al crear un expediente con ese servicio (esto sí es edición directa, no pasa por Gobierno del Catálogo).',
+    'Haz clic en el ícono de reloj para ver el historial de cambios de un servicio.',
+    'Si necesitas crear, modificar o dar de baja el servicio en sí (nombre, tarifa, código), ve a "Gobierno del Catálogo" y levanta una solicitud — no se edita directamente aquí.',
   ],
 }
 

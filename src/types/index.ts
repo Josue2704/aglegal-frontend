@@ -134,6 +134,7 @@ export interface CaseIn {
   estado_cobro?: CaseEstadoCobro
   fecha_cierre_estimada?: string | null
   proxima_accion?: string
+  tareas_iniciales?: { titulo: string; due_date?: string | null; notes?: string | null; es_critico?: boolean }[]
 }
 export interface CaseUpdate extends Omit<CaseIn, 'client_id'> {
   closed_at?: string | null
@@ -149,6 +150,7 @@ export interface TiempoAtencion {
   dias_promedio: number | null
 }
 
+export type TareaOrigen = 'plantilla' | 'manual'
 export interface CaseTask {
   id: number
   case_id: number
@@ -159,6 +161,8 @@ export interface CaseTask {
   completed_notes: string | null
   responsible_username: string | null
   es_critico: boolean
+  origen: TareaOrigen
+  monto_adicional: number
   created_at: string
 }
 
@@ -174,6 +178,35 @@ export interface CaseTaskIn {
   notes?: string | null
   responsible_username?: string
   es_critico?: boolean
+  monto_adicional?: number
+}
+
+export interface CaseHonorariosLogEntry {
+  id: number
+  case_id: number
+  origen_tipo: 'tarea' | 'sesion'
+  origen_id: number
+  monto: number
+  motivo: string
+  username: string
+  created_at: string
+}
+
+export interface PlantillaTarea {
+  id: number
+  service_id: number
+  titulo: string
+  orden: number
+  dias_plazo_relativo: number | null
+  es_critico_default: boolean
+  created_at: string
+  updated_at: string
+}
+export interface PlantillaTareaIn {
+  titulo: string
+  orden?: number
+  dias_plazo_relativo?: number | null
+  es_critico_default?: boolean
 }
 
 export interface CaseTimeEntry {
@@ -212,6 +245,7 @@ export interface Session {
   consult_type: string
   notes: string | null
   status: SessionStatus
+  monto_adicional: number
   created_at: string
 }
 export interface SessionIn {
@@ -223,6 +257,7 @@ export interface SessionIn {
   consult_type: string
   notes?: string
   status: SessionStatus
+  monto_adicional?: number
 }
 
 // ── Incomes ───────────────────────────────────────────────────────────────────

@@ -9,8 +9,8 @@ export const invoicesApi = {
 
   get: (id: number) => api.get<Invoice>(`/invoices/${id}`).then((r) => r.data),
 
-  unbilled: (clientId: number) =>
-    api.get<UnbilledItems>(`/invoices/unbilled/${clientId}`).then((r) => r.data),
+  unbilled: (clientId: number, caseId?: number | null) =>
+    api.get<UnbilledItems>(`/invoices/unbilled/${clientId}`, { params: caseId ? { case_id: caseId } : undefined }).then((r) => r.data),
 
   nextNumber: () =>
     api.get<{ invoice_number: string }>('/invoices/next-number').then((r) => r.data.invoice_number),

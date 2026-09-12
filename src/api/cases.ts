@@ -1,4 +1,4 @@
-import type { Case, CaseIn, CaseUpdate, CaseTask, CaseTaskIn, GlobalCaseTask, Choice, Session, TiempoAtencion, CaseTimeEntry, CaseTimeEntryIn, ConflictoInteres } from '@/types'
+import type { Case, CaseIn, CaseUpdate, CaseTask, CaseTaskIn, GlobalCaseTask, Choice, Session, TiempoAtencion, CaseTimeEntry, CaseTimeEntryIn, ConflictoInteres, CaseHonorariosLogEntry } from '@/types'
 import api from './client'
 
 export const casesApi = {
@@ -14,6 +14,7 @@ export const casesApi = {
   restore: (id: number) => api.post<Case>(`/cases/${id}/restore`).then((r) => r.data),
   purge: (id: number) => api.delete(`/cases/${id}/purge`),
   conflictoInteres: (nombre: string) => api.get<ConflictoInteres>('/cases/conflicto-interes', { params: { nombre } }).then((r) => r.data),
+  honorariosLog: (caseId: number) => api.get<CaseHonorariosLogEntry[]>(`/cases/${caseId}/honorarios-log`).then((r) => r.data),
   // Tasks
   listAllTasks: (params?: { done?: boolean; search?: string; case_id?: number }) =>
     api.get<GlobalCaseTask[]>('/cases/tasks', { params }).then((r) => r.data),

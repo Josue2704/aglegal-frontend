@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { formatDate, today } from '@/lib/utils'
+import { formatDate, formatCurrency, today } from '@/lib/utils'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -66,6 +66,7 @@ const EMPTY_SESSION_FORM = {
   consult_type: '',
   notes: '',
   status: 'Pendiente' as SessionStatus,
+  monto_adicional: '',
 }
 
 function SessionsTab({ kase }: { kase: Case }) {
@@ -89,15 +90,18 @@ function SessionsTab({ kase }: { kase: Case }) {
         consult_type: form.consult_type.trim(),
         notes: form.notes,
         status: form.status,
+        monto_adicional: form.monto_adicional ? Number(form.monto_adicional) : undefined,
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['case-sessions', kase.id] })
       qc.invalidateQueries({ queryKey: ['sessions'] })
+      qc.invalidateQueries({ queryKey: ['cases'] })
+      qc.invalidateQueries({ queryKey: ['case-honorarios-log', kase.id] })
       toast.success('Sesión creada')
       setShowForm(false)
       setForm(EMPTY_SESSION_FORM)
     },
-    onError: () => toast.error('Error al crear la sesión'),
+    onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error al crear la sesión'),
   })
 
   const total = sessions.length
@@ -205,6 +209,16 @@ function SessionsTab({ kase }: { kase: Case }) {
                 value={form.notes}
                 onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
               />
+            </div>
+            <div className="space-y-1 col-span-2">
+              <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Monto adicional a los honorarios ($, opcional)</label>
+              <Input
+                type="number" step="0.01" min="0" className="h-8 text-sm" placeholder="0.00"
+                value={form.monto_adicional} onChange={(e) => setForm((p) => ({ ...p, monto_adicional: e.target.value }))}
+              />
+              {Number(form.monto_adicional) > 0 && (
+                <p className="text-[11px] text-amber-600">⚠ Sumará {formatCurrency(Number(form.monto_adicional))} a los honorarios contratados (bitácora en la pestaña Tareas).</p>
+              )}
             </div>
           </div>
           <div className="flex justify-end gap-2">
@@ -544,6 +558,7 @@ function TasksTab({ kase }: { kase: Case }) {
   const [newNotes, setNewNotes] = useState('')
   const [newResponsible, setNewResponsible] = useState('')
   const [newCritico, setNewCritico] = useState(false)
+  const [newMontoAdicional, setNewMontoAdicional] = useState('')
   const [newGuideFile, setNewGuideFile] = useState<File | null>(null)
   const guideFileRef = useRef<HTMLInputElement>(null)
 
@@ -562,7 +577,8 @@ function TasksTab({ kase }: { kase: Case }) {
   })
 
   function resetForm() {
-    setNewTitle(''); setNewDue(''); setNewNotes(''); setNewResponsible(''); setNewCritico(false); setNewGuideFile(null)
+    setNewTitle(''); setNewDue(''); setNewNotes(''); setNewResponsible(''); setNewCritico(false)
+    setNewMontoAdicional(''); setNewGuideFile(null)
     if (guideFileRef.current) guideFileRef.current.value = ''
     setShowForm(false)
   }
@@ -579,10 +595,12 @@ function TasksTab({ kase }: { kase: Case }) {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['case-tasks', kase.id] })
+      qc.invalidateQueries({ queryKey: ['cases'] })
+      qc.invalidateQueries({ queryKey: ['case-honorarios-log', kase.id] })
       toast.success('Tarea creada')
       resetForm()
     },
-    onError: () => toast.error('Error al crear la tarea'),
+    onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error al crear la tarea'),
   })
 
   const toggleTask = useMutation({
@@ -608,7 +626,11 @@ function TasksTab({ kase }: { kase: Case }) {
 
   const deleteTask = useMutation({
     mutationFn: (id: number) => casesApi.deleteTask(id),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['case-tasks', kase.id] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['case-tasks', kase.id] })
+      qc.invalidateQueries({ queryKey: ['cases'] })
+      qc.invalidateQueries({ queryKey: ['case-honorarios-log', kase.id] })
+    },
   })
 
   function toggleExpand(id: number) {
@@ -709,6 +731,22 @@ function TasksTab({ kase }: { kase: Case }) {
             </span>
           </label>
 
+          {/* Monto adicional — sube honorarios_contratados automáticamente */}
+          <div className="space-y-1">
+            <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              Monto adicional a los honorarios ($, opcional)
+            </label>
+            <Input
+              type="number" step="0.01" min="0" className="h-8 text-sm" placeholder="0.00"
+              value={newMontoAdicional} onChange={(e) => setNewMontoAdicional(e.target.value)}
+            />
+            {Number(newMontoAdicional) > 0 && (
+              <p className="text-[11px] text-amber-600">
+                ⚠ Esto sumará {formatCurrency(Number(newMontoAdicional))} a los honorarios contratados del expediente (quedará en la bitácora).
+              </p>
+            )}
+          </div>
+
           {/* Guide document */}
           <div className="space-y-1">
             <label className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1">
@@ -755,6 +793,7 @@ function TasksTab({ kase }: { kase: Case }) {
                 notes: newNotes || null,
                 responsible_username: newResponsible || undefined,
                 es_critico: newCritico,
+                monto_adicional: newMontoAdicional ? Number(newMontoAdicional) : undefined,
               })}
             >
               {createTask.isPending ? 'Guardando...' : 'Crear tarea'}
@@ -902,6 +941,44 @@ function TasksTab({ kase }: { kase: Case }) {
           <p className="text-center text-muted-foreground text-sm py-6">Sin tareas. Crea una arriba.</p>
         )}
       </div>
+
+      <HonorariosLog caseId={kase.id} />
+    </div>
+  )
+}
+
+function HonorariosLog({ caseId }: { caseId: number }) {
+  const [open, setOpen] = useState(false)
+  const { data: log = [] } = useQuery({
+    queryKey: ['case-honorarios-log', caseId],
+    queryFn: () => casesApi.honorariosLog(caseId),
+    enabled: open,
+  })
+  if (!open) {
+    return (
+      <button onClick={() => setOpen(true)} className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2">
+        Ver bitácora de honorarios
+      </button>
+    )
+  }
+  return (
+    <div className="space-y-2 pt-2 border-t" style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-semibold text-foreground">Bitácora de honorarios</p>
+        <button onClick={() => setOpen(false)} className="text-muted-foreground hover:text-foreground"><X className="h-3.5 w-3.5" /></button>
+      </div>
+      {!log.length && <p className="text-xs text-muted-foreground">Sin movimientos automáticos — los honorarios no han cambiado desde que se creó el expediente.</p>}
+      {log.map((entry) => (
+        <div key={entry.id} className="flex items-center justify-between text-xs px-2 py-1.5 rounded" style={{ background: 'hsl(var(--c-surface-1))' }}>
+          <div className="min-w-0">
+            <p className="truncate">{entry.motivo}</p>
+            <p className="text-muted-foreground/70">{formatDate(entry.created_at)} · {entry.username}</p>
+          </div>
+          <span className={`font-mono shrink-0 ml-2 ${entry.monto >= 0 ? 'text-green-500' : 'text-red-400'}`}>
+            {entry.monto >= 0 ? '+' : ''}{formatCurrency(entry.monto)}
+          </span>
+        </div>
+      ))}
     </div>
   )
 }
@@ -1077,6 +1154,11 @@ export default function CaseDetailPanel({ kase, onClose }: CaseDetailPanelProps)
               <CalendarDays className="h-2.5 w-2.5" />
               {formatDate(kase.opened_at)}
             </span>
+            {kase.honorarios_contratados > 0 && (
+              <span className="px-2 py-0.5 rounded border text-green-400 border-green-500/30 bg-green-500/10">
+                Honorarios: {formatCurrency(kase.honorarios_contratados)}
+              </span>
+            )}
           </div>
 
           {/* Datos judiciales del expediente */}

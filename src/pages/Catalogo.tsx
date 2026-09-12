@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   ChevronDown, ChevronRight, Search, History,
-  Info, ShieldCheck, FolderTree, Briefcase, Layers,
+  Info, ShieldCheck, FolderTree, Briefcase, Layers, ListChecks,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { catalogoApi } from '@/api/catalogo'
@@ -14,6 +14,7 @@ import { Badge } from '@/components/ui/badge'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { HelpButton } from '@/components/HelpButton'
+import { PlantillaTareasDialog } from '@/components/PlantillaTareasDialog'
 import { catalogoHelp } from '@/lib/helpContent'
 
 function InfoBanner({ children }: { children: React.ReactNode }) {
@@ -137,6 +138,7 @@ function CatalogoTab() {
   const [expandedCat, setExpandedCat] = useState<Record<number, boolean>>({})
   const [expandedSub, setExpandedSub] = useState<Record<number, boolean>>({})
   const [historial, setHistorial] = useState<{ tipo: 'Categoria' | 'Subcategoria' | 'Servicio'; id: number; label: string } | null>(null)
+  const [plantillaSvc, setPlantillaSvc] = useState<{ id: number; label: string } | null>(null)
 
   const { data: categorias = [] } = useQuery({ queryKey: ['catalogo-categorias'], queryFn: () => catalogoApi.listCategorias() })
   const { data: subcategorias = [] } = useQuery({ queryKey: ['catalogo-subcategorias'], queryFn: () => catalogoApi.listSubcategorias() })
@@ -256,7 +258,8 @@ function CatalogoTab() {
                                       {money(sv.tarifa_referencia)} <span className="text-muted-foreground">/ {money(sv.margen_referencia)}</span>
                                     </td>
                                     <td className="px-3 py-2"><EstadoBadge estado={sv.estado} /></td>
-                                    <td className="px-3 py-2">
+                                    <td className="px-3 py-2 flex gap-1">
+                                      <Button size="icon" variant="ghost" className="h-7 w-7" title="Plantilla de tareas" onClick={() => setPlantillaSvc({ id: sv.id, label: `${sv.service_code} — ${sv.nombre}` })}><ListChecks className="h-3.5 w-3.5" /></Button>
                                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setHistorial({ tipo: 'Servicio', id: sv.id, label: `${sv.service_code} — ${sv.nombre}` })}><History className="h-3.5 w-3.5" /></Button>
                                     </td>
                                   </tr>
@@ -283,6 +286,7 @@ function CatalogoTab() {
       </div>
 
       <HistorialDialog open={!!historial} onClose={() => setHistorial(null)} tipo={historial?.tipo ?? 'Categoria'} entityId={historial?.id ?? null} label={historial?.label ?? ''} />
+      <PlantillaTareasDialog open={!!plantillaSvc} onClose={() => setPlantillaSvc(null)} serviceId={plantillaSvc?.id ?? null} serviceLabel={plantillaSvc?.label ?? ''} />
     </div>
   )
 }

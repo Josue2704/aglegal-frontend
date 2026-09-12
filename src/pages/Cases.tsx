@@ -143,6 +143,8 @@ export default function Cases() {
   const [detailCase, setDetailCase] = useState<Case | null>(null)
   const [serviceSearch, setServiceSearch] = useState('')
   const [selectedService, setSelectedService] = useState<{ id: number; service_code: string; nombre: string; category_code?: string; subcategory_code?: string } | null>(null)
+  const [tareasIniciales, setTareasIniciales] = useState<{ titulo: string; due_date: string; es_critico: boolean; incluida: boolean }[]>([])
+  const [nuevaTareaInicial, setNuevaTareaInicial] = useState('')
 
   const { data: cases = [], isLoading } = useQuery({
     queryKey: ['cases', search, statusFilter, urlClientId, showArchived],
@@ -173,6 +175,26 @@ export default function Cases() {
     return allServicios.filter((s) => s.service_code.toLowerCase().includes(term) || s.nombre.toLowerCase().includes(term))
   }, [allServicios, serviceSearch])
 
+  // Sugerencia de plantilla de tareas al elegir servicio — solo al crear (no al editar,
+  // ya tiene sus propias tareas). Editable: se puede desmarcar, o agregar tareas extra.
+  const { data: plantilla = [] } = useQuery({
+    queryKey: ['plantilla-tareas', selectedService?.id],
+    queryFn: () => catalogoApi.listPlantillaTareas(selectedService!.id),
+    enabled: dlg && !editing && !!selectedService,
+  })
+  useEffect(() => {
+    if (editing || !selectedService || !plantilla.length) { if (!selectedService) setTareasIniciales([]); return }
+    setTareasIniciales(plantilla.map((p) => ({
+      titulo: p.titulo,
+      due_date: p.dias_plazo_relativo != null
+        ? new Date(new Date(form.opened_at).getTime() + p.dias_plazo_relativo * 86_400_000).toISOString().slice(0, 10)
+        : '',
+      es_critico: p.es_critico_default,
+      incluida: true,
+    })))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plantilla, selectedService, editing])
+
   const createCase = useMutation({
     mutationFn: (d: CaseIn) => casesApi.create(d),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['cases'] }); toast.success('Caso creado'); setDlg(false) },
@@ -197,7 +219,7 @@ export default function Cases() {
     onError: () => toast.error('No se pudo borrar el expediente'),
   })
 
-  function openNew() { setEditing(null); setForm(EMPTY_FORM); setSelectedService(null); setServiceSearch(''); setDlg(true) }
+  function openNew() { setEditing(null); setForm(EMPTY_FORM); setSelectedService(null); setServiceSearch(''); setTareasIniciales([]); setNuevaTareaInicial(''); setDlg(true) }
   function openEdit(c: Case) {
     setEditing(c)
     setForm({
@@ -217,6 +239,7 @@ export default function Cases() {
     })
     setSelectedService(c.service_id && c.service_code && c.service_nombre ? { id: c.service_id, service_code: c.service_code, nombre: c.service_nombre, category_code: c.category_code ?? undefined, subcategory_code: c.subcategory_code ?? undefined } : null)
     setServiceSearch('')
+    setTareasIniciales([])
     setDlg(true)
   }
 
@@ -239,7 +262,14 @@ export default function Cases() {
       fecha_cierre_real: form.fecha_cierre_real || null,
       proxima_accion: form.proxima_accion,
     }
-    editing ? updateCase.mutate({ id: editing.id, data: payload }) : createCase.mutate(payload)
+    if (editing) {
+      updateCase.mutate({ id: editing.id, data: payload })
+    } else {
+      createCase.mutate({
+        ...payload,
+        tareas_iniciales: tareasIniciales.filter((t) => t.incluida).map((t) => ({ titulo: t.titulo, due_date: t.due_date || null, es_critico: t.es_critico })),
+      })
+    }
   }
 
   const f = (k: keyof FormData) => (v: string) => setForm((p) => ({ ...p, [k]: v }))
@@ -482,6 +512,35 @@ export default function Cases() {
                 )}
                 <p className="text-[11px] text-muted-foreground">Categoría, subcategoría y familia se completan solas a partir del servicio.</p>
               </div>
+
+              {!editing && selectedService && tareasIniciales.length > 0 && (
+                <div className="space-y-1.5 mb-3 rounded-lg p-3" style={{ background: 'hsl(var(--muted))' }}>
+                  <Label className="text-xs">Tareas sugeridas de la plantilla ({tareasIniciales.filter((t) => t.incluida).length} de {tareasIniciales.length})</Label>
+                  {tareasIniciales.map((t, i) => (
+                    <label key={i} className="flex items-center gap-2 text-xs cursor-pointer">
+                      <input type="checkbox" checked={t.incluida} className="h-3.5 w-3.5 shrink-0"
+                        onChange={(e) => setTareasIniciales((p) => p.map((x, j) => j === i ? { ...x, incluida: e.target.checked } : x))} />
+                      <span className={`flex-1 ${t.incluida ? '' : 'line-through text-muted-foreground'}`}>{t.titulo}</span>
+                      {t.due_date && <span className="text-[10px] text-muted-foreground shrink-0">{t.due_date}</span>}
+                      {t.es_critico && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
+                    </label>
+                  ))}
+                  <p className="text-[10px] text-muted-foreground pt-1">Se crean junto con el expediente, incluidas en los honorarios pactados sin recargo aparte.</p>
+                </div>
+              )}
+              {!editing && selectedService && (
+                <div className="flex gap-2 mb-3">
+                  <Input value={nuevaTareaInicial} onChange={(e) => setNuevaTareaInicial(e.target.value)} placeholder="Agregar otra tarea inicial..." className="h-8 text-xs" />
+                  <Button type="button" size="sm" variant="outline" className="h-8 text-xs shrink-0"
+                    onClick={() => {
+                      if (!nuevaTareaInicial.trim()) return
+                      setTareasIniciales((p) => [...p, { titulo: nuevaTareaInicial.trim(), due_date: '', es_critico: false, incluida: true }])
+                      setNuevaTareaInicial('')
+                    }}>
+                    <Plus className="h-3 w-3" />Agregar
+                  </Button>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1"><Label>Honorarios contratados ($)</Label><Input type="number" step="0.01" min="0" value={form.honorarios_contratados} onChange={(e) => setForm({ ...form, honorarios_contratados: e.target.value })} placeholder="0.00" /></div>
                 <div className="space-y-1"><Label>Costos directos estimados ($)</Label><Input type="number" step="0.01" min="0" value={form.costos_directos_estimados} onChange={(e) => setForm({ ...form, costos_directos_estimados: e.target.value })} placeholder="0.00" /></div>

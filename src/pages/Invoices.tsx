@@ -335,9 +335,11 @@ function LineItemsEditor({
 
 function UnbilledPicker({
   clientId,
+  caseId,
   onSelect,
 }: {
   clientId: number
+  caseId?: number | null
   onSelect: (items: LineItem[]) => void
 }) {
   const [open, setOpen] = useState<'sessions' | 'tasks' | 'costs' | 'horas' | null>('sessions')
@@ -345,8 +347,8 @@ function UnbilledPicker({
   const [prices, setPrices] = useState<Record<string, number>>({})
 
   const { data, isLoading } = useQuery<UnbilledItems>({
-    queryKey: ['unbilled', clientId],
-    queryFn: () => invoicesApi.unbilled(clientId),
+    queryKey: ['unbilled', clientId, caseId],
+    queryFn: () => invoicesApi.unbilled(clientId, caseId),
   })
 
   const sessions = data?.sessions ?? []
@@ -761,7 +763,7 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
             <section>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Partidas no facturadas
+                  Partidas no facturadas {caseId ? '(solo de este expediente)' : '(de todos los expedientes del cliente)'}
                 </p>
                 <button
                   className="text-xs text-primary underline"
@@ -770,9 +772,13 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
                   {showUnbilled ? 'Ocultar' : 'Mostrar'}
                 </button>
               </div>
+              {!caseId && (
+                <p className="text-[11px] text-amber-600 mb-2">⚠ Sin expediente seleccionado, estas partidas pueden venir de cualquier caso de este cliente. Elige un expediente arriba para acotar la factura a su trabajo.</p>
+              )}
               {showUnbilled && (
                 <UnbilledPicker
                   clientId={clientId}
+                  caseId={caseId}
                   onSelect={(items) => setLineItems((prev) => [...prev, ...items])}
                 />
               )}
