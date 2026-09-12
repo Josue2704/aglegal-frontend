@@ -1,10 +1,11 @@
 import { useState, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Circle, Clock, Search, Briefcase, AlertTriangle, ListChecks, X, Plus } from 'lucide-react'
+import { CheckCircle2, Circle, Clock, Search, Briefcase, AlertTriangle, ListChecks, X, Plus, User } from 'lucide-react'
 import { toast } from 'sonner'
 import { Link } from 'react-router-dom'
 import { casesApi } from '@/api/cases'
-import type { GlobalCaseTask } from '@/types'
+import { usersApi } from '@/api/users'
+import type { GlobalCaseTask, User as AppUser } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -37,15 +38,17 @@ function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () => void }
   const [due, setDue] = useState('')
   const [notes, setNotes] = useState('')
   const [critico, setCritico] = useState(false)
+  const [responsible, setResponsible] = useState('')
 
   const { data: caseChoices = [] } = useQuery({ queryKey: ['case-choices'], queryFn: () => casesApi.choices(), enabled: open })
+  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list, enabled: open })
 
   const create = useMutation({
-    mutationFn: () => casesApi.createTask(Number(caseId), { title: title.trim(), due_date: due || null, notes: notes || null, es_critico: critico }),
+    mutationFn: () => casesApi.createTask(Number(caseId), { title: title.trim(), due_date: due || null, notes: notes || null, es_critico: critico, responsible_username: responsible || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['all-tasks'] })
       toast.success('Tarea creada')
-      setCaseId(''); setTitle(''); setDue(''); setNotes(''); setCritico(false)
+      setCaseId(''); setTitle(''); setDue(''); setNotes(''); setCritico(false); setResponsible('')
       onClose()
     },
     onError: () => toast.error('Error al crear la tarea'),
@@ -75,6 +78,20 @@ function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () => void }
             <Label>Notas</Label>
             <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
+          <div className="space-y-1">
+            <Label>Responsable</Label>
+            <Select value={responsible} onValueChange={setResponsible}>
+              <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Sin asignar</SelectItem>
+                {users.filter((u) => u.active).map((u) => (
+                  <SelectItem key={u.username} value={u.username}>
+                    {u.full_name ? `${u.full_name} (${u.username})` : u.username}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
           <label className="flex items-center gap-2 text-xs cursor-pointer select-none rounded-lg px-2.5 py-2"
             style={{ background: critico ? 'hsl(0 70% 55% / 0.1)' : 'transparent', border: `1px solid ${critico ? 'hsl(0 70% 55% / 0.3)' : 'hsl(var(--border))'}` }}>
             <input type="checkbox" checked={critico} onChange={(e) => setCritico(e.target.checked)} className="h-3.5 w-3.5" />
@@ -95,18 +112,27 @@ export default function Tasks() {
   const qc = useQueryClient()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterMode>('pending')
+  const [responsableFilter, setResponsableFilter] = useState('')
   const [newDlg, setNewDlg] = useState(false)
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['all-tasks'],
     queryFn: () => casesApi.listAllTasks(),
   })
+  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
 
   const toggleDone = useMutation({
     mutationFn: ({ id, done }: { id: number; done: boolean }) =>
       casesApi.setTaskDone(id, done),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['all-tasks'] }),
     onError: () => toast.error('Error al actualizar la tarea'),
+  })
+
+  const setResponsible = useMutation({
+    mutationFn: ({ id, username }: { id: number; username: string | null }) =>
+      casesApi.setTaskResponsible(id, username),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['all-tasks'] }),
+    onError: () => toast.error('Error al asignar la tarea'),
   })
 
   // Stats
@@ -120,6 +146,12 @@ export default function Tasks() {
     else if (filter === 'overdue') list = list.filter(isOverdue)
     else if (filter === 'done') list = list.filter((t) => t.done)
 
+    if (responsableFilter) {
+      list = responsableFilter === '__sin_asignar__'
+        ? list.filter((t) => !t.responsible_username)
+        : list.filter((t) => t.responsible_username === responsableFilter)
+    }
+
     if (search.trim()) {
       const q = search.toLowerCase()
       list = list.filter(
@@ -130,7 +162,7 @@ export default function Tasks() {
       )
     }
     return list
-  }, [tasks, filter, search])
+  }, [tasks, filter, search, responsableFilter])
 
   // Group by case
   const grouped = useMemo(() => {
@@ -194,6 +226,16 @@ export default function Tasks() {
             </button>
           ))}
         </div>
+        <Select value={responsableFilter || '__todos__'} onValueChange={(v) => setResponsableFilter(v === '__todos__' ? '' : v)}>
+          <SelectTrigger className="w-44"><SelectValue placeholder="Responsable" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__todos__">Todos los responsables</SelectItem>
+            <SelectItem value="__sin_asignar__">Sin asignar</SelectItem>
+            {users.filter((u) => u.active).map((u) => (
+              <SelectItem key={u.username} value={u.username}>{u.full_name || u.username}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -258,8 +300,10 @@ export default function Tasks() {
                   <TaskRow
                     key={task.id}
                     task={task}
+                    users={users}
                     onToggle={() => toggleDone.mutate({ id: task.id, done: !task.done })}
                     isPending={toggleDone.isPending}
+                    onAssign={(username) => setResponsible.mutate({ id: task.id, username })}
                   />
                 ))}
               </div>
@@ -286,8 +330,11 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
   )
 }
 
-function TaskRow({ task, onToggle, isPending }: { task: GlobalCaseTask; onToggle: () => void; isPending: boolean }) {
+function TaskRow({ task, users, onToggle, isPending, onAssign }: {
+  task: GlobalCaseTask; users: AppUser[]; onToggle: () => void; isPending: boolean; onAssign: (username: string | null) => void
+}) {
   const overdue = isOverdue(task)
+  const responsable = users.find((u) => u.username === task.responsible_username)
 
   return (
     <div
@@ -320,6 +367,18 @@ function TaskRow({ task, onToggle, isPending }: { task: GlobalCaseTask; onToggle
       </div>
 
       <div className="flex items-center gap-2 shrink-0">
+        <Select value={task.responsible_username ?? '__sin_asignar__'} onValueChange={(v) => onAssign(v === '__sin_asignar__' ? null : v)}>
+          <SelectTrigger className="h-6 text-[11px] px-2 gap-1 border-none shadow-none bg-transparent hover:bg-muted/50 w-auto max-w-[140px]">
+            <User className="h-3 w-3 text-muted-foreground shrink-0" />
+            <span className={`truncate ${responsable ? '' : 'text-muted-foreground'}`}>{responsable?.full_name || responsable?.username || 'Sin asignar'}</span>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__sin_asignar__">Sin asignar</SelectItem>
+            {users.filter((u) => u.active).map((u) => (
+              <SelectItem key={u.username} value={u.username}>{u.full_name || u.username}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {task.due_date && (
           <span
             className={`inline-flex items-center gap-1 text-[11px] font-medium ${

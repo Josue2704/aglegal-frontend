@@ -26,6 +26,8 @@ export const casesApi = {
     api.patch<CaseTask>(`/cases/tasks/${taskId}/notes`, { notes, completed_notes }).then((r) => r.data),
   setTaskCritico: (taskId: number, es_critico: boolean) =>
     api.patch<CaseTask>(`/cases/tasks/${taskId}/critico`, { es_critico }).then((r) => r.data),
+  setTaskResponsible: (taskId: number, responsible_username: string | null) =>
+    api.patch<CaseTask>(`/cases/tasks/${taskId}/responsible`, { responsible_username }).then((r) => r.data),
   deleteTask: (taskId: number) => api.delete(`/cases/tasks/${taskId}`),
   // Sessions
   listSessions: (caseId: number) => api.get<Session[]>(`/cases/${caseId}/sessions`).then((r) => r.data),

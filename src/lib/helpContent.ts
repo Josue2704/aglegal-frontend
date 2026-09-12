@@ -80,17 +80,18 @@ export const casesHelp: HelpContent = {
 
 export const tasksHelp: HelpContent = {
   title: 'Tareas',
-  description: 'Lista global de pendientes de todos los expedientes, con filtros por vencidas, pendientes y completadas.',
+  description: 'Lista global de pendientes de todos los expedientes, con filtros por vencidas, pendientes, completadas y responsable.',
   before: ['El expediente al que pertenece la tarea (obligatorio) y un título claro.'],
   steps: [
     'Pulsa "Nueva tarea" — puedes crearla sin entrar primero al expediente, solo elige a cuál pertenece.',
-    'Agrega fecha de vencimiento y notas si aplica.',
+    'Agrega fecha de vencimiento, notas y un responsable si aplica.',
     'Marca "Plazo legal crítico" si es un plazo que no se puede perder (se resalta en rojo en el Dashboard).',
-    'Usa los filtros (todas, pendientes, vencidas, completadas) y la búsqueda para encontrarlas rápido.',
-    'Haz clic en el círculo junto a la tarea para marcarla como completada.',
+    'Usa los filtros (todas, pendientes, vencidas, completadas), el selector de responsable y la búsqueda para encontrarlas rápido.',
+    'Haz clic en el círculo junto a la tarea para marcarla como completada, o en el nombre del responsable para reasignarla.',
   ],
   tips: [
     'Los plazos legales críticos vencidos o a 3 días se muestran aparte en el Dashboard para que no se pierdan entre las tareas normales.',
+    'Reasignar el responsable no requiere abrir el expediente — se cambia directamente desde esta lista.',
   ],
 }
 
