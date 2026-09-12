@@ -16,6 +16,7 @@ import { formatCurrency, formatDate, today } from '@/lib/utils'
 import { HelpButton } from '@/components/HelpButton'
 import { payrollHelp } from '@/lib/helpContent'
 import { PayrollConfigDialog } from '@/components/PayrollConfigDialog'
+import { PrestacionesDialog } from '@/components/PrestacionesDialog'
 
 const ROLES = ['Abogado', 'Asistente', 'Contador', 'Recepcionista', 'Notario', 'Pasante', 'Otro']
 const OTRO = '__otro__'
@@ -59,6 +60,7 @@ export default function Payroll() {
   const qc = useQueryClient()
   const [dlg, setDlg] = useState(false)
   const [configDlg, setConfigDlg] = useState(false)
+  const [prestacionesDlg, setPrestacionesDlg] = useState(false)
   const [modo, setModo] = useState<PayrollModo>('calculado')
   const [form, setForm] = useState<FormData>(EMPTY)
   const [filterPeriod, setFilterPeriod] = useState(currentPeriod())
@@ -160,6 +162,7 @@ export default function Payroll() {
         </div>
         <div className="flex gap-3">
           <Input type="month" value={filterPeriod} onChange={(e) => setFilterPeriod(e.target.value)} className="w-40" />
+          <Button variant="outline" onClick={() => setPrestacionesDlg(true)}><Calculator className="h-4 w-4" />Prestaciones</Button>
           <Button variant="outline" onClick={() => setConfigDlg(true)}><Settings2 className="h-4 w-4" />Config. de ley</Button>
           <Button onClick={openNew}><Plus className="h-4 w-4" />Nuevo pago</Button>
         </div>
@@ -329,6 +332,7 @@ export default function Payroll() {
       </Dialog>
 
       <PayrollConfigDialog open={configDlg} onClose={() => setConfigDlg(false)} />
+      <PrestacionesDialog open={prestacionesDlg} onClose={() => setPrestacionesDlg(false)} />
     </div>
   )
 }

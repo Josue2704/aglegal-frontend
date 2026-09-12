@@ -1,4 +1,8 @@
-import type { PayrollEntry, PayrollIn, PayrollUpdate, PayrollAuditEntry, PayrollPreviewIn, PayrollPreview, PayrollConfig, PayrollConfigIn } from '@/types'
+import type {
+  PayrollEntry, PayrollIn, PayrollUpdate, PayrollAuditEntry, PayrollPreviewIn, PayrollPreview,
+  PayrollConfig, PayrollConfigIn, AguinaldoIn, AguinaldoResultado, VacacionesIn, VacacionesResultado,
+  IndemnizacionIn, IndemnizacionResultado,
+} from '@/types'
 import api from './client'
 
 export const payrollApi = {
@@ -11,4 +15,7 @@ export const payrollApi = {
   configVigente: () => api.get<PayrollConfig>('/payroll/config/vigente').then((r) => r.data),
   configHistorial: () => api.get<PayrollConfig[]>('/payroll/config/historial').then((r) => r.data),
   createConfig: (data: PayrollConfigIn) => api.post<PayrollConfig>('/payroll/config', data).then((r) => r.data),
+  calcularAguinaldo: (data: AguinaldoIn) => api.post<AguinaldoResultado>('/payroll/prestaciones/aguinaldo', data).then((r) => r.data),
+  calcularVacaciones: (data: VacacionesIn) => api.post<VacacionesResultado>('/payroll/prestaciones/vacaciones', data).then((r) => r.data),
+  calcularIndemnizacion: (data: IndemnizacionIn) => api.post<IndemnizacionResultado>('/payroll/prestaciones/indemnizacion', data).then((r) => r.data),
 }

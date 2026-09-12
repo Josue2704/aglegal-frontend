@@ -19,7 +19,8 @@ export function PayrollConfigDialog({ open, onClose }: { open: boolean; onClose:
 
   const [form, setForm] = useState({
     vigente_desde: today(), isss_tasa_empleado: '0.03', isss_tasa_patronal: '0.075', isss_tope_cotizable: '1000',
-    afp_tasa_empleado: '0.0725', afp_tasa_patronal: '0.0875', afp_tope_cotizable: '1000',
+    afp_tasa_empleado: '0.0725', afp_tasa_patronal: '0.0875', afp_tope_cotizable: '',
+    tope_salario_indemnizacion: '',
     recargo_hora_extra_pct: '0.5', recargo_nocturnidad_pct: '0.25', horas_jornada_mensual: '240', notas: '',
   })
   const [tramos, setTramos] = useState<TramoForm[]>([])
@@ -29,9 +30,10 @@ export function PayrollConfigDialog({ open, onClose }: { open: boolean; onClose:
     setForm({
       vigente_desde: today(),
       isss_tasa_empleado: String(vigente.isss_tasa_empleado), isss_tasa_patronal: String(vigente.isss_tasa_patronal),
-      isss_tope_cotizable: String(vigente.isss_tope_cotizable),
+      isss_tope_cotizable: vigente.isss_tope_cotizable != null ? String(vigente.isss_tope_cotizable) : '',
       afp_tasa_empleado: String(vigente.afp_tasa_empleado), afp_tasa_patronal: String(vigente.afp_tasa_patronal),
-      afp_tope_cotizable: String(vigente.afp_tope_cotizable),
+      afp_tope_cotizable: vigente.afp_tope_cotizable != null ? String(vigente.afp_tope_cotizable) : '',
+      tope_salario_indemnizacion: vigente.tope_salario_indemnizacion != null ? String(vigente.tope_salario_indemnizacion) : '',
       recargo_hora_extra_pct: String(vigente.recargo_hora_extra_pct), recargo_nocturnidad_pct: String(vigente.recargo_nocturnidad_pct),
       horas_jornada_mensual: String(vigente.horas_jornada_mensual), notas: '',
     })
@@ -45,9 +47,10 @@ export function PayrollConfigDialog({ open, onClose }: { open: boolean; onClose:
     mutationFn: () => payrollApi.createConfig({
       vigente_desde: form.vigente_desde,
       isss_tasa_empleado: Number(form.isss_tasa_empleado), isss_tasa_patronal: Number(form.isss_tasa_patronal),
-      isss_tope_cotizable: Number(form.isss_tope_cotizable),
+      isss_tope_cotizable: form.isss_tope_cotizable ? Number(form.isss_tope_cotizable) : null,
       afp_tasa_empleado: Number(form.afp_tasa_empleado), afp_tasa_patronal: Number(form.afp_tasa_patronal),
-      afp_tope_cotizable: Number(form.afp_tope_cotizable),
+      afp_tope_cotizable: form.afp_tope_cotizable ? Number(form.afp_tope_cotizable) : null,
+      tope_salario_indemnizacion: form.tope_salario_indemnizacion ? Number(form.tope_salario_indemnizacion) : null,
       recargo_hora_extra_pct: Number(form.recargo_hora_extra_pct), recargo_nocturnidad_pct: Number(form.recargo_nocturnidad_pct),
       horas_jornada_mensual: Number(form.horas_jornada_mensual), notas: form.notas,
       tramos_renta: tramos.map((t): PayrollConfigTramoRenta => ({
@@ -93,11 +96,24 @@ export function PayrollConfigDialog({ open, onClose }: { open: boolean; onClose:
 
             <div className="space-y-1"><Label>ISSS — tasa empleado</Label><Input type="number" step="0.0001" value={form.isss_tasa_empleado} onChange={(e) => setForm({ ...form, isss_tasa_empleado: e.target.value })} /></div>
             <div className="space-y-1"><Label>ISSS — tasa patronal</Label><Input type="number" step="0.0001" value={form.isss_tasa_patronal} onChange={(e) => setForm({ ...form, isss_tasa_patronal: e.target.value })} /></div>
-            <div className="space-y-1 col-span-2"><Label>ISSS — tope de cotización ($)</Label><Input type="number" step="0.01" value={form.isss_tope_cotizable} onChange={(e) => setForm({ ...form, isss_tope_cotizable: e.target.value })} /></div>
+            <div className="space-y-1 col-span-2">
+              <Label>ISSS — tope de cotización ($, vacío = sin tope)</Label>
+              <Input type="number" step="0.01" value={form.isss_tope_cotizable} onChange={(e) => setForm({ ...form, isss_tope_cotizable: e.target.value })} placeholder="1000.00" />
+            </div>
 
             <div className="space-y-1"><Label>AFP — tasa empleado</Label><Input type="number" step="0.0001" value={form.afp_tasa_empleado} onChange={(e) => setForm({ ...form, afp_tasa_empleado: e.target.value })} /></div>
             <div className="space-y-1"><Label>AFP — tasa patronal</Label><Input type="number" step="0.0001" value={form.afp_tasa_patronal} onChange={(e) => setForm({ ...form, afp_tasa_patronal: e.target.value })} /></div>
-            <div className="space-y-1 col-span-2"><Label>AFP — tope de cotización ($)</Label><Input type="number" step="0.01" value={form.afp_tope_cotizable} onChange={(e) => setForm({ ...form, afp_tope_cotizable: e.target.value })} /></div>
+            <div className="space-y-1 col-span-2">
+              <Label>AFP — tope de cotización ($, vacío = sin tope)</Label>
+              <Input type="number" step="0.01" value={form.afp_tope_cotizable} onChange={(e) => setForm({ ...form, afp_tope_cotizable: e.target.value })} placeholder="Sin tope (ley vigente)" />
+              <p className="text-[11px] text-muted-foreground">AFP no tiene tope de cotización desde la Ley Integral del Sistema de Pensiones — déjalo vacío salvo que la ley vuelva a cambiar.</p>
+            </div>
+
+            <div className="space-y-1 col-span-2">
+              <Label>Tope de salario para indemnización ($, vacío = sin tope)</Label>
+              <Input type="number" step="0.01" value={form.tope_salario_indemnizacion} onChange={(e) => setForm({ ...form, tope_salario_indemnizacion: e.target.value })} placeholder="Ej. 4x salario mínimo diario × 30" />
+              <p className="text-[11px] text-muted-foreground">Salario base máximo a considerar en el cálculo de indemnización por despido (Art. 58 CT) — ligado al salario mínimo vigente, verifícalo con tu contador.</p>
+            </div>
 
             <div className="space-y-1"><Label>Recargo hora extra (ej. 0.5 = 50%)</Label><Input type="number" step="0.01" value={form.recargo_hora_extra_pct} onChange={(e) => setForm({ ...form, recargo_hora_extra_pct: e.target.value })} /></div>
             <div className="space-y-1"><Label>Recargo nocturnidad (ej. 0.25 = 25%)</Label><Input type="number" step="0.01" value={form.recargo_nocturnidad_pct} onChange={(e) => setForm({ ...form, recargo_nocturnidad_pct: e.target.value })} /></div>

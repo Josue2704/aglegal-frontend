@@ -157,10 +157,12 @@ export const payrollHelp: HelpContent = {
     'Usa "Pago manual" solo para un bono suelto o ajuste que ya traes calculado — no pasa por el motor ni por las deducciones de ley.',
     'El ícono de flecha en cada fila calculada despliega el desglose completo. El lápiz permite corregir fecha, notas o el neto de un pago ya guardado, dejando registro de auditoría — para cambiar el salario base o las horas, elimina y vuelve a crear el pago.',
     '"Config. de ley" abre el historial versionado de tasas ISSS/AFP y la tabla de renta — cada cambio crea una versión nueva, nunca se sobrescribe la anterior, para que una planilla ya pagada conserve la tasa que aplicaba en ese momento.',
+    '"Prestaciones" abre una calculadora aparte de aguinaldo, vacaciones (15 días + 30%) e indemnización por despido — son cálculos anuales o de fin de relación laboral, no forman parte de la planilla mensual y no se guardan automáticamente.',
   ],
   tips: [
     'Una planilla calculada no se puede duplicar para la misma persona y el mismo período — evita el doble pago accidental. Un pago manual (bono) sí puede repetirse.',
     'Si la tabla de retención de renta está vacía, el motor calcula ISSS y AFP pero avisa que no retuvo renta — complétala en Configuración de ley antes de usarlo como planilla real.',
+    'AFP no tiene tope de cotización por ley — solo ISSS lo tiene. Déjalo vacío en Config. de ley salvo que confirmes que la ley cambió.',
   ],
 }
 

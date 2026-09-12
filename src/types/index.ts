@@ -841,10 +841,11 @@ export interface PayrollConfig {
   vigente_desde: string
   isss_tasa_empleado: number
   isss_tasa_patronal: number
-  isss_tope_cotizable: number
+  isss_tope_cotizable: number | null
   afp_tasa_empleado: number
   afp_tasa_patronal: number
-  afp_tope_cotizable: number
+  afp_tope_cotizable: number | null
+  tope_salario_indemnizacion: number | null
   tramos_renta: PayrollConfigTramoRenta[]
   recargo_hora_extra_pct: number
   recargo_nocturnidad_pct: number
@@ -853,6 +854,40 @@ export interface PayrollConfig {
   created_at: string
 }
 export type PayrollConfigIn = Omit<PayrollConfig, 'id' | 'created_at'>
+
+export interface AguinaldoIn {
+  salario_base: number
+  anios_antiguedad: number
+  dias_trabajados_en_anio?: number | null
+}
+export interface AguinaldoResultado {
+  dias_correspondientes: number
+  salario_diario: number
+  monto: number
+  proporcional: boolean
+  advertencias: string[]
+}
+export interface VacacionesIn {
+  salario_base: number
+  dias?: number
+}
+export interface VacacionesResultado {
+  salario_dias: number
+  recargo_30: number
+  total: number
+}
+export interface IndemnizacionIn {
+  salario_base: number
+  anios_servicio: number
+  fecha?: string
+}
+export interface IndemnizacionResultado {
+  salario_base_usado: number
+  tope_aplicado: boolean
+  anios_servicio: number
+  monto: number
+  advertencias: string[]
+}
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 export interface User {
