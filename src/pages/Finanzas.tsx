@@ -267,21 +267,22 @@ function PlanCuentasTab() {
 
 function PersonaDialog({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: Persona | null }) {
   const qc = useQueryClient()
-  const [form, setForm] = useState({ persona: '', cargo: '', monto_mensual: '', mes_inicio: currentMonth(), mes_fin: '', estado: 'Activo' as CatalogoEstado })
+  const [form, setForm] = useState({ persona: '', cargo: '', monto_mensual: '', mes_inicio: currentMonth(), mes_fin: '', account_id: '', estado: 'Activo' as CatalogoEstado })
+  const { data: cuentas = [] } = useQuery({ queryKey: ['finanzas-cuentas', 'Egreso'], queryFn: () => finanzasApi.listCuentas({ tipo: 'Egreso' }), enabled: open })
 
   useEffect(() => {
     if (!open) return
-    if (editing) setForm({ persona: editing.persona, cargo: editing.cargo ?? '', monto_mensual: String(editing.monto_mensual), mes_inicio: editing.mes_inicio, mes_fin: editing.mes_fin ?? '', estado: editing.estado })
-    else setForm({ persona: '', cargo: '', monto_mensual: '', mes_inicio: currentMonth(), mes_fin: '', estado: 'Activo' })
+    if (editing) setForm({ persona: editing.persona, cargo: editing.cargo ?? '', monto_mensual: String(editing.monto_mensual), mes_inicio: editing.mes_inicio, mes_fin: editing.mes_fin ?? '', account_id: editing.account_id ? String(editing.account_id) : '', estado: editing.estado })
+    else setForm({ persona: '', cargo: '', monto_mensual: '', mes_inicio: currentMonth(), mes_fin: '', account_id: '', estado: 'Activo' })
   }, [open, editing])
 
   const create = useMutation({
-    mutationFn: () => finanzasApi.createPersona({ persona: form.persona, cargo: form.cargo, monto_mensual: form.monto_mensual ? Number(form.monto_mensual) : null, mes_inicio: form.mes_inicio, mes_fin: form.mes_fin || null }),
+    mutationFn: () => finanzasApi.createPersona({ persona: form.persona, cargo: form.cargo, monto_mensual: form.monto_mensual ? Number(form.monto_mensual) : null, mes_inicio: form.mes_inicio, mes_fin: form.mes_fin || null, account_id: form.account_id ? Number(form.account_id) : null }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['finanzas-personal'] }); toast.success('Registrado'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
   const update = useMutation({
-    mutationFn: () => finanzasApi.updatePersona(editing!.id, { persona: form.persona, cargo: form.cargo, monto_mensual: form.monto_mensual ? Number(form.monto_mensual) : null, mes_inicio: form.mes_inicio, mes_fin: form.mes_fin || null, estado: form.estado }),
+    mutationFn: () => finanzasApi.updatePersona(editing!.id, { persona: form.persona, cargo: form.cargo, monto_mensual: form.monto_mensual ? Number(form.monto_mensual) : null, mes_inicio: form.mes_inicio, mes_fin: form.mes_fin || null, account_id: form.account_id ? Number(form.account_id) : null, estado: form.estado }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['finanzas-personal'] }); toast.success('Actualizado'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
@@ -301,6 +302,17 @@ function PersonaDialog({ open, onClose, editing }: { open: boolean; onClose: () 
           <div className="space-y-1"><Label>Persona <span className="text-destructive text-xs">*</span></Label><Input value={form.persona} onChange={(e) => setForm({ ...form, persona: e.target.value })} autoFocus /></div>
           <div className="space-y-1"><Label>Cargo</Label><Input value={form.cargo} onChange={(e) => setForm({ ...form, cargo: e.target.value })} placeholder="Ej: Abogada asociada" /></div>
           <div className="space-y-1"><Label>Monto mensual ($)</Label><Input type="number" step="0.01" min="0" value={form.monto_mensual} onChange={(e) => setForm({ ...form, monto_mensual: e.target.value })} placeholder="0.00" /></div>
+          <div className="space-y-1">
+            <Label>Cuenta contable de nómina</Label>
+            <Select value={form.account_id || '__none'} onValueChange={(v) => setForm({ ...form, account_id: v === '__none' ? '' : v })}>
+              <SelectTrigger><SelectValue placeholder="Sin enlazar" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none">Sin enlazar</SelectItem>
+                {cuentas.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.account_code} — {c.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Necesaria para registrar planilla calculada de esta persona en Nóminas — el gasto se enlaza aquí en vez de buscarlo por nombre.</p>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1"><Label>Mes inicio <span className="text-destructive text-xs">*</span></Label><Input type="month" value={form.mes_inicio} onChange={(e) => setForm({ ...form, mes_inicio: e.target.value })} /></div>
             <div className="space-y-1"><Label>Mes fin</Label><Input type="month" value={form.mes_fin} onChange={(e) => setForm({ ...form, mes_fin: e.target.value })} /></div>

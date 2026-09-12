@@ -146,17 +146,22 @@ export const invoicesHelp: HelpContent = {
 
 export const payrollHelp: HelpContent = {
   title: 'Planilla',
-  description: 'Registro de pagos a colaboradores del despacho (salarios y honorarios internos), organizado por período.',
+  description: 'Cálculo de planilla (ISSS, AFP, renta, horas extra, nocturnidad, descuentos) y registro de pagos a colaboradores, organizado por período.',
   before: [
-    'El colaborador, si ya existe en Finanzas → Personal (o su nombre y rol, si es alguien nuevo).',
-    'El período (mes), el monto y la fecha de pago.',
+    'El colaborador debe existir en Finanzas → Personal, con una cuenta contable de nómina enlazada (para planilla calculada).',
+    'Las tasas de ley vigentes en Configuración de nómina — ISSS, AFP y la tabla de retención de renta cambian con el tiempo, verifícalas con tu contador.',
   ],
   steps: [
-    'Pulsa "Nuevo pago" y elige el colaborador, o escribe su nombre y rol si no está en la lista.',
-    'Indica el período, el monto y la fecha de pago; agrega notas si hace falta.',
-    'Usa el filtro de mes en la parte superior para revisar los pagos de un período específico.',
+    'Pulsa "Nuevo pago" y elige "Planilla calculada" para un pago mensual real: selecciona al colaborador, el salario base se prellena desde Personal, y agrega horas extra, nocturnidad, bonos y descuentos (faltas, préstamos) del mes.',
+    'Usa "Calcular vista previa" para ver el desglose (ISSS, AFP, renta, neto) antes de guardar.',
+    'Usa "Pago manual" solo para un bono suelto o ajuste que ya traes calculado — no pasa por el motor ni por las deducciones de ley.',
+    'El ícono de flecha en cada fila calculada despliega el desglose completo. El lápiz permite corregir fecha, notas o el neto de un pago ya guardado, dejando registro de auditoría — para cambiar el salario base o las horas, elimina y vuelve a crear el pago.',
+    '"Config. de ley" abre el historial versionado de tasas ISSS/AFP y la tabla de renta — cada cambio crea una versión nueva, nunca se sobrescribe la anterior, para que una planilla ya pagada conserve la tasa que aplicaba en ese momento.',
   ],
-  tips: ['Para que un colaborador aparezca en la lista de selección, primero debe existir en Finanzas → Personal.'],
+  tips: [
+    'Una planilla calculada no se puede duplicar para la misma persona y el mismo período — evita el doble pago accidental. Un pago manual (bono) sí puede repetirse.',
+    'Si la tabla de retención de renta está vacía, el motor calcula ISSS y AFP pero avisa que no retuvo renta — complétala en Configuración de ley antes de usarlo como planilla real.',
+  ],
 }
 
 export const reportsHelp: HelpContent = {

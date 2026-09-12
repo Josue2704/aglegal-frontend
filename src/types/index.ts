@@ -439,6 +439,9 @@ export interface Persona {
   monto_mensual: number
   mes_inicio: string
   mes_fin: string | null
+  account_id: number | null
+  account_code: string | null
+  account_nombre: string | null
   estado: CatalogoEstado
   created_at: string
   updated_at: string
@@ -733,6 +736,7 @@ export interface ConversionComercial {
 }
 
 // ── Payroll ───────────────────────────────────────────────────────────────────
+export type PayrollModo = 'calculado' | 'manual'
 export interface PayrollEntry {
   id: number
   employee_name: string
@@ -744,17 +748,111 @@ export interface PayrollEntry {
   expense_id: number | null
   personal_id: number | null
   created_at: string
+  modo: PayrollModo
+  salario_base: number | null
+  horas_extra_cantidad: number
+  horas_extra_monto: number
+  nocturnidad_horas: number
+  nocturnidad_monto: number
+  bonificaciones: number
+  otros_ingresos: number
+  descuento_faltas: number
+  descuento_prestamos: number
+  otros_descuentos: number
+  isss_empleado: number
+  afp_empleado: number
+  renta: number
+  isss_patronal: number
+  afp_patronal: number
+  total_devengado: number
+  total_descuentos: number
 }
 export type Payroll = PayrollEntry
 export interface PayrollIn {
   employee_name?: string
   role?: string
   period: string
-  amount: number
   payment_date: string
   notes?: string
   personal_id?: number | null
+  modo: PayrollModo
+  amount?: number
+  salario_base?: number
+  horas_extra_cantidad?: number
+  nocturnidad_horas?: number
+  bonificaciones?: number
+  otros_ingresos?: number
+  descuento_faltas?: number
+  descuento_prestamos?: number
+  otros_descuentos?: number
 }
+export interface PayrollUpdate {
+  payment_date: string
+  notes?: string
+  amount: number
+}
+export interface PayrollAuditEntry {
+  id: number
+  payroll_id: number
+  campo: string
+  valor_anterior: string | null
+  valor_nuevo: string | null
+  username: string
+  changed_at: string
+}
+export interface PayrollPreviewIn {
+  salario_base: number
+  horas_extra_cantidad?: number
+  nocturnidad_horas?: number
+  bonificaciones?: number
+  otros_ingresos?: number
+  descuento_faltas?: number
+  descuento_prestamos?: number
+  otros_descuentos?: number
+  fecha?: string
+}
+export interface PayrollPreview {
+  salario_base: number
+  horas_extra_monto: number
+  nocturnidad_monto: number
+  bonificaciones: number
+  otros_ingresos: number
+  total_devengado: number
+  isss_empleado: number
+  afp_empleado: number
+  renta: number
+  descuento_faltas: number
+  descuento_prestamos: number
+  otros_descuentos: number
+  total_descuentos: number
+  isss_patronal: number
+  afp_patronal: number
+  neto: number
+  advertencias: string[]
+}
+export interface PayrollConfigTramoRenta {
+  sobre_exceso_de: number
+  hasta: number | null
+  cuota_fija: number
+  porcentaje_exceso: number
+}
+export interface PayrollConfig {
+  id: number
+  vigente_desde: string
+  isss_tasa_empleado: number
+  isss_tasa_patronal: number
+  isss_tope_cotizable: number
+  afp_tasa_empleado: number
+  afp_tasa_patronal: number
+  afp_tope_cotizable: number
+  tramos_renta: PayrollConfigTramoRenta[]
+  recargo_hora_extra_pct: number
+  recargo_nocturnidad_pct: number
+  horas_jornada_mensual: number
+  notas: string | null
+  created_at: string
+}
+export type PayrollConfigIn = Omit<PayrollConfig, 'id' | 'created_at'>
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 export interface User {

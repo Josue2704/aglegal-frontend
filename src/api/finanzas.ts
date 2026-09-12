@@ -22,6 +22,7 @@ export interface PersonaPayload {
   monto_mensual?: number | null
   mes_inicio: string
   mes_fin?: string | null
+  account_id?: number | null
   estado?: string
 }
 
