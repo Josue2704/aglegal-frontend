@@ -124,10 +124,14 @@ export default function Comisiones() {
                   return (
                     <tr key={c.id} className="border-t hover:bg-muted/30">
                       <td className="px-4 py-2.5">{c.persona_nombre}</td>
-                      <td className="px-4 py-2.5 max-w-[180px] truncate">{c.case_title}</td>
-                      <td className="px-4 py-2.5 text-muted-foreground text-xs">{c.income_date}</td>
+                      <td className="px-4 py-2.5 max-w-[180px] truncate">{c.case_title ?? '—'}</td>
+                      <td className="px-4 py-2.5 text-muted-foreground text-xs">
+                        {c.income_date ?? '—'}
+                        {c.income_id == null && <div className="text-[10px] text-destructive">Cobro eliminado</div>}
+                      </td>
                       <td className="px-4 py-2.5">
                         {isAjuste ? <Badge variant="outline" className="text-[10px]">Ajuste</Badge> : <Badge variant="secondary" className="text-[10px]">{c.tipo_origen}</Badge>}
+                        {isAjuste && c.motivo && <div className="text-[10px] text-muted-foreground mt-0.5 max-w-[160px]">{c.motivo}</div>}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-muted-foreground">{c.porcentaje_participacion.toFixed(1)}%</td>
                       <td className="px-4 py-2.5 text-right font-mono">{money(c.base_utilidad_directa)}</td>

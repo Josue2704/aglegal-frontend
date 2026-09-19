@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { Outlet, useLocation, Link, useNavigate } from 'react-router-dom'
-import { Sun, Moon, Search, X, User, Briefcase, CalendarDays, Menu, Receipt, CheckSquare, Target } from 'lucide-react'
+import { Sun, Moon, Search, X, User, Briefcase, CalendarDays, Menu, Receipt, CheckSquare, Target, Plus, UserPlus, FolderPlus, Wallet } from 'lucide-react'
 import { NotificationBell } from './NotificationBell'
 import { useQuery } from '@tanstack/react-query'
 import { Sidebar } from './Sidebar'
@@ -145,7 +145,7 @@ function GlobalSearch() {
                     {results!.cases.map((c) => (
                       <button
                         key={c.id}
-                        onClick={() => go(`/cases?search=${encodeURIComponent(c.title)}`)}
+                        onClick={() => go(`/cases?case_id=${c.id}`)}
                         className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left hover:bg-accent/8 transition-colors"
                       >
                         <div className="h-7 w-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'hsl(var(--accent) / 0.12)' }}>
@@ -208,7 +208,7 @@ function GlobalSearch() {
                     {results!.tasks.map((t) => (
                       <button
                         key={t.id}
-                        onClick={() => go(`/cases?search=${encodeURIComponent(t.case_title)}`)}
+                        onClick={() => go(`/cases?case_id=${t.case_id}&tab=tasks`)}
                         className="w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-left hover:bg-muted/50 transition-colors"
                       >
                         <div className="h-7 w-7 rounded-full flex items-center justify-center shrink-0" style={{ background: 'hsl(var(--c-surface-1))' }}>
@@ -246,6 +246,54 @@ function GlobalSearch() {
               </div>
             )}
           </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Crear algo nuevo desde cualquier pantalla ────────────────────────────────
+// Evita tener que navegar primero al módulo: cada opción abre directamente el
+// formulario correspondiente (las páginas leen ?new=1 / ?cobro=1).
+const NUEVO_ITEMS = [
+  { label: 'Cliente', to: '/clients?new=1', icon: UserPlus },
+  { label: 'Expediente', to: '/cases?new=1', icon: FolderPlus },
+  { label: 'Cita', to: '/sessions?new=1', icon: CalendarDays },
+  { label: 'Tarea', to: '/tasks?new=1', icon: CheckSquare },
+  { label: 'Cobro', to: '/cashflow?cobro=1', icon: Wallet },
+]
+
+function QuickCreate() {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    function onDown(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false) }
+    window.addEventListener('mousedown', onDown)
+    window.addEventListener('keydown', onKey)
+    return () => { window.removeEventListener('mousedown', onDown); window.removeEventListener('keydown', onKey) }
+  }, [open])
+
+  return (
+    <div className="relative" ref={ref}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="h-7 px-2.5 rounded-md inline-flex items-center gap-1 text-xs font-medium bg-primary text-primary-foreground hover:opacity-90"
+        title="Crear nuevo"
+      >
+        <Plus className="h-3.5 w-3.5" /><span className="hidden sm:inline">Nuevo</span>
+      </button>
+      {open && (
+        <div className="absolute right-0 mt-1 w-44 rounded-lg border shadow-lg z-50 py-1"
+          style={{ background: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))' }}>
+          {NUEVO_ITEMS.map(({ label, to, icon: Icon }) => (
+            <button key={to} onClick={() => { setOpen(false); navigate(to) }}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50 text-left">
+              <Icon className="h-4 w-4 text-muted-foreground" />{label}
+            </button>
+          ))}
         </div>
       )}
     </div>
@@ -298,6 +346,8 @@ export function Layout() {
 
           {/* Global search */}
           <GlobalSearch />
+
+          <QuickCreate />
 
           {/* Quick nav shortcuts */}
           <div className="hidden sm:flex items-center gap-1">

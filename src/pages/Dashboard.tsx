@@ -208,7 +208,7 @@ export default function Dashboard() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {criticalTasks.map((t) => (
-              <Link key={`critical-${t.id}`} to={`/cases?search=${encodeURIComponent(t.case_title)}`}
+              <Link key={`critical-${t.id}`} to={`/cases?case_id=${t.case_id}&tab=tasks`}
                 className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-red-500/10 transition-colors" style={{ border: '1px solid hsl(0 70% 55% / 0.2)' }}>
                 <AlertTriangle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" />
                 <div className="min-w-0">
@@ -231,7 +231,7 @@ export default function Dashboard() {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {overdueTasks.slice(0, 2).map((t) => (
-              <Link key={`task-${t.id}`} to={`/cases?search=${encodeURIComponent(t.case_title)}`}
+              <Link key={`task-${t.id}`} to={`/cases?case_id=${t.case_id}&tab=tasks`}
                 className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-amber-500/10 transition-colors">
                 <Clock className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
                 <div className="min-w-0">
@@ -242,7 +242,7 @@ export default function Dashboard() {
               </Link>
             ))}
             {staleCases.slice(0, 2).map((c) => (
-              <Link key={`stale-${c.id}`} to={`/cases?search=${encodeURIComponent(c.title)}`}
+              <Link key={`stale-${c.id}`} to={`/cases?case_id=${c.id}`}
                 className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-amber-500/10 transition-colors">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
                 <div className="min-w-0">
@@ -253,7 +253,7 @@ export default function Dashboard() {
               </Link>
             ))}
             {overdueBilling.slice(0, 2).map((c) => (
-              <Link key={`bill-${c.id}`} to={`/cases?search=${encodeURIComponent(c.title)}`}
+              <Link key={`bill-${c.id}`} to={`/cases?case_id=${c.id}`}
                 className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-amber-500/10 transition-colors">
                 <CircleDollarSign className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
                 <div className="min-w-0">

@@ -11,71 +11,35 @@ import { es } from 'date-fns/locale'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Trash2, Pencil, ChevronLeft, ChevronRight, CalendarDays,
-  X, CalendarRange, Paperclip, Clock, Search, AlertTriangle,
-  Circle, Timer, ArrowRight,
+  X, CalendarRange, Paperclip, Clock, Search,
+  Circle, ArrowRight,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { sessionsApi } from '@/api/sessions'
 import { googleCalApi } from '@/api/googleCal'
-import { clientsApi } from '@/api/clients'
-import { casesApi } from '@/api/cases'
 import type { Session, SessionIn, SessionStatus } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
+import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { formatDate, today } from '@/lib/utils'
 import { AttachmentsDialog } from '@/components/AttachmentsDialog'
+import { SessionDialog, SESSION_STATUSES, SESSION_STATUS_COLOR, timeToFrac, fracToTime, formatDuration } from '@/components/SessionDialog'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-const STATUSES: SessionStatus[] = ['Pendiente', 'En proceso', 'Finalizada']
-
-const STATUS_COLOR: Record<SessionStatus, string> = {
-  Pendiente: '#f59e0b',
-  'En proceso': '#3b82f6',
-  Finalizada: '#22c55e',
-}
+const STATUSES = SESSION_STATUSES
+const STATUS_COLOR = SESSION_STATUS_COLOR
 const STATUS_BADGE: Record<SessionStatus, 'warning' | 'info' | 'success'> = {
   Pendiente: 'warning', 'En proceso': 'info', Finalizada: 'success',
 }
-
-const CONSULT_PRESETS = [
-  'Consulta inicial', 'Revisión de contrato', 'Asesoría laboral',
-  'Defensa penal', 'Trámite civil', 'Audiencia', 'Seguimiento de caso',
-  'Notaría', 'Mediación', 'Otro',
-]
 
 const HOUR_H = 64
 const DAY_START = 7
 const DAY_END = 21
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
-function timeToFrac(t: string): number {
-  const [h, m] = t.split(':').map(Number)
-  return h + m / 60
-}
-
-function fracToTime(frac: number): string {
-  const h = Math.floor(frac)
-  const m = Math.round((frac - h) * 60)
-  return `${String(h).padStart(2, '0')}:${String(Math.min(m, 59)).padStart(2, '0')}`
-}
-
-function formatDuration(start: string, end: string): string {
-  const [sh, sm] = start.split(':').map(Number)
-  const [eh, em] = end.split(':').map(Number)
-  const mins = (eh * 60 + em) - (sh * 60 + sm)
-  if (mins <= 0) return ''
-  if (mins < 60) return `${mins}m`
-  const h = Math.floor(mins / 60)
-  const m = mins % 60
-  return m ? `${h}h ${m}m` : `${h}h`
-}
-
 function formatTimeRange(session: Pick<Session, 'start_time' | 'end_time'>) {
   if (session.start_time && session.end_time) return `${session.start_time} – ${session.end_time}`
   if (session.start_time) return session.start_time
@@ -85,229 +49,6 @@ function formatTimeRange(session: Pick<Session, 'start_time' | 'end_time'>) {
 function clientInitial(name: string | null): string {
   if (!name) return '?'
   return name.split(' ').map((w) => w[0]).slice(0, 2).join('').toUpperCase()
-}
-
-function hasConflict(
-  sessions: Session[],
-  session_date: string,
-  start: string,
-  end: string,
-  excludeId?: number,
-): Session | null {
-  const same = sessions.filter(
-    (s) => s.session_date === session_date && s.id !== excludeId && s.start_time && s.end_time,
-  )
-  for (const s of same) {
-    if (start < s.end_time! && end > s.start_time!) return s
-  }
-  return null
-}
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-type FormData = {
-  client_id: string; case_id: string; session_date: string
-  start_time: string; end_time: string; consult_type: string
-  notes: string; status: SessionStatus
-}
-const EMPTY: FormData = {
-  client_id: '', case_id: '', session_date: today(), start_time: '09:00', end_time: '10:00',
-  consult_type: '', notes: '', status: 'Pendiente',
-}
-
-// ─── Session Form Dialog ──────────────────────────────────────────────────────
-function SessionDialog({
-  open, onOpenChange, editing, initialDate, initialTime, clients, allSessions, onSave,
-}: {
-  open: boolean
-  onOpenChange: (v: boolean) => void
-  editing: Session | null
-  initialDate?: string
-  initialTime?: string
-  clients: { id: number; name?: string }[]
-  allSessions: Session[]
-  onSave: (editing: Session | null, payload: SessionIn) => void
-}) {
-  const [form, setForm] = useState<FormData>(() =>
-    editing ? {
-      client_id: editing.client_id ? String(editing.client_id) : '',
-      case_id: editing.case_id ? String(editing.case_id) : '',
-      session_date: editing.session_date,
-      start_time: editing.start_time ?? '09:00',
-      end_time: editing.end_time ?? '10:00',
-      consult_type: editing.consult_type,
-      notes: editing.notes ?? '',
-      status: editing.status,
-    } : {
-      ...EMPTY,
-      session_date: initialDate ?? today(),
-      start_time: initialTime ?? '09:00',
-      end_time: initialTime ? fracToTime(timeToFrac(initialTime) + 1) : '10:00',
-    }
-  )
-  const [typeInput, setTypeInput] = useState(form.consult_type)
-  const [showPresets, setShowPresets] = useState(false)
-  const [conflict, setConflict] = useState<Session | null>(null)
-
-  const { data: caseChoices = [] } = useQuery({
-    queryKey: ['case-choices', form.client_id],
-    queryFn: () => casesApi.choices(form.client_id ? Number(form.client_id) : undefined),
-  })
-
-  const f = (k: keyof FormData) => (v: string) => {
-    setForm((p) => {
-      const next = { ...p, [k]: v }
-      if ((k === 'start_time' || k === 'end_time' || k === 'session_date') && next.start_time && next.end_time) {
-        setConflict(hasConflict(allSessions, next.session_date, next.start_time, next.end_time, editing?.id))
-      }
-      return next
-    })
-  }
-
-  useEffect(() => {
-    setForm((p) => ({ ...p, consult_type: typeInput }))
-  }, [typeInput])
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    if (!form.client_id || !form.consult_type.trim()) return toast.error('Cliente y tipo de consulta son requeridos')
-    if (!form.session_date) return toast.error('La fecha es requerida')
-    if (form.end_time <= form.start_time) return toast.error('La hora fin debe ser mayor que la hora inicio')
-    onSave(editing, {
-      client_id: form.client_id ? Number(form.client_id) : null,
-      case_id: form.case_id ? Number(form.case_id) : null,
-      session_date: form.session_date,
-      start_time: form.start_time,
-      end_time: form.end_time,
-      consult_type: form.consult_type,
-      notes: form.notes,
-      status: form.status,
-    })
-  }
-
-  const filteredPresets = CONSULT_PRESETS.filter(
-    (p) => !typeInput || p.toLowerCase().includes(typeInput.toLowerCase())
-  )
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {editing ? <><Pencil className="h-4 w-4" />Editar sesión</> : <><Plus className="h-4 w-4" />Nueva sesión</>}
-          </DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Client & Case */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1 col-span-2">
-              <Label>Cliente <span className="text-destructive text-xs">*</span></Label>
-              <Select value={form.client_id} onValueChange={(v) => setForm({ ...form, client_id: v, case_id: '' })}>
-                <SelectTrigger><SelectValue placeholder="Seleccionar cliente..." /></SelectTrigger>
-                <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1 col-span-2">
-              <Label>Caso (opcional)</Label>
-              <Select value={form.case_id} onValueChange={f('case_id')}>
-                <SelectTrigger><SelectValue placeholder="Sin caso específico" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="">Sin caso específico</SelectItem>
-                  {caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Date & Time */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label>Fecha <span className="text-destructive text-xs">*</span></Label>
-              <Input type="date" value={form.session_date} onChange={(e) => f('session_date')(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Inicio</Label>
-              <Input type="time" value={form.start_time} onChange={(e) => f('start_time')(e.target.value)} />
-            </div>
-            <div className="space-y-1">
-              <Label>Fin</Label>
-              <Input type="time" value={form.end_time} onChange={(e) => f('end_time')(e.target.value)} />
-            </div>
-          </div>
-
-          {/* Duration & conflict feedback */}
-          <div className="flex items-center gap-2 -mt-2 min-h-[18px]">
-            {form.start_time && form.end_time && form.end_time > form.start_time && (
-              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                <Timer className="h-3 w-3" />
-                {formatDuration(form.start_time, form.end_time)}
-              </span>
-            )}
-            {conflict && (
-              <span className="text-xs text-amber-500 flex items-center gap-1 ml-auto">
-                <AlertTriangle className="h-3 w-3 shrink-0" />
-                Coincide con {conflict.client_name} ({conflict.start_time}–{conflict.end_time})
-              </span>
-            )}
-          </div>
-
-          {/* Consultation type with presets */}
-          <div className="space-y-1 relative">
-            <Label>Tipo de consulta <span className="text-destructive text-xs">*</span></Label>
-            <Input
-              value={typeInput}
-              onChange={(e) => { setTypeInput(e.target.value); setShowPresets(true) }}
-              onFocus={() => setShowPresets(true)}
-              onBlur={() => setTimeout(() => setShowPresets(false), 150)}
-              placeholder="Ej: Consulta inicial, Audiencia..."
-              autoComplete="off"
-            />
-            {showPresets && filteredPresets.length > 0 && (
-              <div className="absolute z-50 w-full rounded-lg border shadow-lg overflow-hidden mt-0.5"
-                style={{ background: 'hsl(var(--popover))', borderColor: 'hsl(var(--border))' }}>
-                {filteredPresets.map((p) => (
-                  <button
-                    key={p} type="button"
-                    className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 transition-colors"
-                    onMouseDown={() => { setTypeInput(p); setShowPresets(false) }}
-                  >{p}</button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Notes */}
-          <div className="space-y-1">
-            <Label>Notas</Label>
-            <Textarea rows={2} value={form.notes} onChange={(e) => f('notes')(e.target.value)} placeholder="Observaciones, temas a tratar..." />
-          </div>
-
-          {/* Status toggle */}
-          <div className="space-y-1">
-            <Label>Estado</Label>
-            <div className="flex gap-2">
-              {STATUSES.map((st) => (
-                <button
-                  key={st} type="button"
-                  onClick={() => f('status')(st)}
-                  className="flex-1 py-1.5 rounded-lg text-xs font-medium transition-all border"
-                  style={form.status === st
-                    ? { background: STATUS_COLOR[st], color: '#fff', borderColor: 'transparent' }
-                    : { borderColor: 'hsl(var(--border))', color: 'hsl(var(--muted-foreground))' }}
-                >
-                  {st}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit">{editing ? 'Guardar cambios' : 'Crear sesión'}</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-  )
 }
 
 // ─── Session Detail Panel ─────────────────────────────────────────────────────
@@ -358,7 +99,11 @@ function SessionDetailPanel({
           </div>
           <div className="min-w-0">
             <p className="font-semibold truncate">{session.client_name ?? 'Sin cliente'}</p>
-            {session.case_id && <p className="text-xs text-muted-foreground">Caso #{session.case_id}</p>}
+            {session.case_id && (
+              <Link to={`/cases?case_id=${session.case_id}`} className="text-xs text-muted-foreground hover:text-primary">
+                {session.case_title ?? `Expediente #${session.case_id}`}
+              </Link>
+            )}
           </div>
         </div>
 
@@ -1122,6 +867,12 @@ export default function Sessions() {
   const urlClientName = searchParams.get('client_name') ?? undefined
 
   useEffect(() => { if (urlClientId) setView('list') }, [urlClientId])
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setEditing(null); setNewDate(undefined); setNewTime(undefined); setDlg(true)
+      const next = new URLSearchParams(searchParams); next.delete('new'); setSearchParams(next, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
 
   const params = {
     client_id: urlClientId,
@@ -1139,15 +890,9 @@ export default function Sessions() {
     queryFn: () => sessionsApi.list(params),
     enabled: view === 'list',
   })
-  const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
 
   const invalidate = useCallback(() => qc.invalidateQueries({ queryKey: ['sessions'] }), [qc])
 
-  const create = useMutation({
-    mutationFn: (d: SessionIn) => sessionsApi.create(d),
-    onSuccess: () => { invalidate(); toast.success('Sesión creada'); setDlg(false) },
-    onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error'),
-  })
   const update = useMutation({
     mutationFn: ({ id, data }: { id: number; data: SessionIn }) => sessionsApi.update(id, data),
     onSuccess: (updated) => {
@@ -1173,9 +918,6 @@ export default function Sessions() {
   }
   function openEdit(s: Session) {
     setEditing(s); setNewDate(undefined); setNewTime(undefined); setDlg(true)
-  }
-  function handleSave(ed: Session | null, payload: SessionIn) {
-    ed ? update.mutate({ id: ed.id, data: payload }) : create.mutate(payload)
   }
   function handleReschedule(id: number, date: string, start: string, end: string | null) {
     const session = allSessions.find((s) => s.id === id)
@@ -1396,9 +1138,8 @@ export default function Sessions() {
           editing={editing}
           initialDate={newDate}
           initialTime={newTime}
-          clients={clients}
-          allSessions={allSessions}
-          onSave={handleSave}
+          initialClientId={urlClientId}
+          onSaved={(saved) => { if (editing) setSelectedSession(saved) }}
         />
       )}
 

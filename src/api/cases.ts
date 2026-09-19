@@ -4,6 +4,7 @@ import api from './client'
 export const casesApi = {
   list: (params?: { search?: string; status?: string; estado_cobro?: string; client_id?: number; category_id?: number; subcategory_id?: number; service_id?: number; archived?: boolean }) =>
     api.get<Case[]>('/cases', { params }).then((r) => r.data),
+  get: (id: number) => api.get<Case>(`/cases/${id}`).then((r) => r.data),
   tiemposAtencion: (params?: { category_id?: number; subcategory_id?: number; service_id?: number }) =>
     api.get<TiempoAtencion[]>('/cases/tiempos-atencion', { params }).then((r) => r.data),
   choices: (client_id?: number) =>

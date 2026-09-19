@@ -1,19 +1,16 @@
-import { useState, useMemo } from 'react'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { CheckCircle2, Circle, Clock, Search, Briefcase, AlertTriangle, ListChecks, X, Plus, User } from 'lucide-react'
-import { toast } from 'sonner'
-import { Link } from 'react-router-dom'
+import { useState, useMemo, useEffect } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { CheckCircle2, Clock, Search, Briefcase, AlertTriangle, ListChecks, X, Plus } from 'lucide-react'
+import { Link, useSearchParams } from 'react-router-dom'
 import { casesApi } from '@/api/cases'
 import { usersApi } from '@/api/users'
-import type { GlobalCaseTask, User as AppUser } from '@/types'
+import type { GlobalCaseTask } from '@/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
-import { formatDate, today } from '@/lib/utils'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { today } from '@/lib/utils'
+import { TaskForm, TaskItem } from '@/components/tasks'
 import { HelpButton } from '@/components/HelpButton'
 import { tasksHelp } from '@/lib/helpContent'
 
@@ -31,89 +28,33 @@ function isOverdue(task: GlobalCaseTask): boolean {
 }
 
 // ─── Nueva tarea (sin tener que entrar primero al expediente) ─────────────────
-function NewTaskDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const qc = useQueryClient()
-  const [caseId, setCaseId] = useState('')
-  const [title, setTitle] = useState('')
-  const [due, setDue] = useState('')
-  const [notes, setNotes] = useState('')
-  const [critico, setCritico] = useState(false)
-  const [responsible, setResponsible] = useState('')
-
-  const { data: caseChoices = [] } = useQuery({ queryKey: ['case-choices'], queryFn: () => casesApi.choices(), enabled: open })
-  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list, enabled: open })
-
-  const create = useMutation({
-    mutationFn: () => casesApi.createTask(Number(caseId), { title: title.trim(), due_date: due || null, notes: notes || null, es_critico: critico, responsible_username: responsible || undefined }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['all-tasks'] })
-      toast.success('Tarea creada')
-      setCaseId(''); setTitle(''); setDue(''); setNotes(''); setCritico(false); setResponsible('')
-      onClose()
-    },
-    onError: () => toast.error('Error al crear la tarea'),
-  })
-
+// Mismo formulario que la pestaña Tareas del expediente, con selector de expediente.
+function NewTaskDialog({ open, onClose, caseId }: { open: boolean; onClose: () => void; caseId?: number }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
       <DialogContent>
         <DialogHeader><DialogTitle>Nueva tarea</DialogTitle></DialogHeader>
-        <form onSubmit={(e) => { e.preventDefault(); if (!caseId || !title.trim()) return toast.error('Expediente y título son requeridos'); create.mutate() }} className="space-y-3">
-          <div className="space-y-1">
-            <Label>Expediente <span className="text-destructive text-xs">*</span></Label>
-            <Select value={caseId} onValueChange={setCaseId}>
-              <SelectTrigger><SelectValue placeholder="Seleccionar expediente..." /></SelectTrigger>
-              <SelectContent>{caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label>Título <span className="text-destructive text-xs">*</span></Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} autoFocus />
-          </div>
-          <div className="space-y-1">
-            <Label>Fecha de vencimiento</Label>
-            <Input type="date" value={due} onChange={(e) => setDue(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Notas</Label>
-            <Textarea rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} />
-          </div>
-          <div className="space-y-1">
-            <Label>Responsable</Label>
-            <Select value={responsible} onValueChange={setResponsible}>
-              <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Sin asignar</SelectItem>
-                {users.filter((u) => u.active).map((u) => (
-                  <SelectItem key={u.username} value={u.username}>
-                    {u.full_name ? `${u.full_name} (${u.username})` : u.username}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <label className="flex items-center gap-2 text-xs cursor-pointer select-none rounded-lg px-2.5 py-2"
-            style={{ background: critico ? 'hsl(0 70% 55% / 0.1)' : 'transparent', border: `1px solid ${critico ? 'hsl(0 70% 55% / 0.3)' : 'hsl(var(--border))'}` }}>
-            <input type="checkbox" checked={critico} onChange={(e) => setCritico(e.target.checked)} className="h-3.5 w-3.5" />
-            <AlertTriangle className={`h-3.5 w-3.5 ${critico ? 'text-destructive' : 'text-muted-foreground'}`} />
-            <span className={critico ? 'font-medium text-destructive' : 'text-muted-foreground'}>Plazo legal crítico</span>
-          </label>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={create.isPending}>{create.isPending ? 'Guardando...' : 'Crear tarea'}</Button>
-          </DialogFooter>
-        </form>
+        {open && <TaskForm caseId={caseId} onDone={onClose} />}
       </DialogContent>
     </Dialog>
   )
 }
 
 export default function Tasks() {
-  const qc = useQueryClient()
+  const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<FilterMode>('pending')
   const [responsableFilter, setResponsableFilter] = useState('')
   const [newDlg, setNewDlg] = useState(false)
+  // ?case=ID (desde notificaciones/expediente) filtra por expediente; ?new=1 abre el formulario.
+  const caseFilter = searchParams.get('case') ? Number(searchParams.get('case')) : undefined
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      setNewDlg(true)
+      const next = new URLSearchParams(searchParams); next.delete('new'); setSearchParams(next, { replace: true })
+    }
+  }, [searchParams, setSearchParams])
+  useEffect(() => { if (caseFilter) setFilter('all') }, [caseFilter])
 
   const { data: tasks = [], isLoading } = useQuery({
     queryKey: ['all-tasks'],
@@ -121,27 +62,13 @@ export default function Tasks() {
   })
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
 
-  const toggleDone = useMutation({
-    mutationFn: ({ id, done }: { id: number; done: boolean }) =>
-      casesApi.setTaskDone(id, done),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['all-tasks'] }),
-    onError: () => toast.error('Error al actualizar la tarea'),
-  })
-
-  const setResponsible = useMutation({
-    mutationFn: ({ id, username }: { id: number; username: string | null }) =>
-      casesApi.setTaskResponsible(id, username),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ['all-tasks'] }),
-    onError: () => toast.error('Error al asignar la tarea'),
-  })
-
   // Stats
   const pending  = tasks.filter((t) => !t.done && !isOverdue(t)).length
   const overdue  = tasks.filter(isOverdue).length
   const done     = tasks.filter((t) => t.done).length
 
   const filtered = useMemo(() => {
-    let list = tasks
+    let list = caseFilter ? tasks.filter((t) => t.case_id === caseFilter) : tasks
     if (filter === 'pending') list = list.filter((t) => !t.done && !isOverdue(t))
     else if (filter === 'overdue') list = list.filter(isOverdue)
     else if (filter === 'done') list = list.filter((t) => t.done)
@@ -162,7 +89,7 @@ export default function Tasks() {
       )
     }
     return list
-  }, [tasks, filter, search, responsableFilter])
+  }, [tasks, filter, search, responsableFilter, caseFilter])
 
   // Group by case
   const grouped = useMemo(() => {
@@ -197,7 +124,19 @@ export default function Tasks() {
         <Button onClick={() => setNewDlg(true)}><Plus className="h-4 w-4" />Nueva tarea</Button>
       </div>
 
-      <NewTaskDialog open={newDlg} onClose={() => setNewDlg(false)} />
+      <NewTaskDialog open={newDlg} onClose={() => setNewDlg(false)} caseId={caseFilter} />
+
+      {caseFilter && (
+        <div className="flex items-center justify-between px-4 py-2.5 rounded-xl text-sm"
+          style={{ background: 'hsl(var(--accent) / 0.08)', border: '1px solid hsl(var(--accent) / 0.2)' }}>
+          <span className="text-foreground/80">
+            Tareas del expediente: <strong>{tasks.find((t) => t.case_id === caseFilter)?.case_title ?? `#${caseFilter}`}</strong>
+          </span>
+          <button onClick={() => setSearchParams({})} className="text-muted-foreground hover:text-foreground" title="Ver todas">
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Stats bar */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -279,7 +218,7 @@ export default function Tasks() {
                 <Briefcase className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="flex-1 min-w-0">
                   <Link
-                    to={`/cases`}
+                    to={`/cases?case_id=${caseId}`}
                     className="font-semibold text-sm text-foreground hover:text-primary transition-colors truncate block"
                   >
                     {group.case_title}
@@ -295,17 +234,8 @@ export default function Tasks() {
               </div>
 
               {/* Tasks */}
-              <div className="divide-y" style={{ '--tw-divide-opacity': 1 } as React.CSSProperties}>
-                {group.tasks.map((task) => (
-                  <TaskRow
-                    key={task.id}
-                    task={task}
-                    users={users}
-                    onToggle={() => toggleDone.mutate({ id: task.id, done: !task.done })}
-                    isPending={toggleDone.isPending}
-                    onAssign={(username) => setResponsible.mutate({ id: task.id, username })}
-                  />
-                ))}
+              <div className="p-2 space-y-1.5" style={{ background: 'hsl(var(--background))' }}>
+                {group.tasks.map((task) => <TaskItem key={task.id} task={task} />)}
               </div>
             </div>
           ))}
@@ -325,71 +255,6 @@ function StatCard({ icon, label, value, color }: { icon: React.ReactNode; label:
       <div>
         <p className={`text-xl font-bold ${color}`}>{value}</p>
         <p className="text-xs text-muted-foreground">{label}</p>
-      </div>
-    </div>
-  )
-}
-
-function TaskRow({ task, users, onToggle, isPending, onAssign }: {
-  task: GlobalCaseTask; users: AppUser[]; onToggle: () => void; isPending: boolean; onAssign: (username: string | null) => void
-}) {
-  const overdue = isOverdue(task)
-  const responsable = users.find((u) => u.username === task.responsible_username)
-
-  return (
-    <div
-      className={`flex items-center gap-3 px-4 py-3 transition-all ${task.done ? 'opacity-60' : ''}`}
-      style={{ background: 'hsl(var(--background))' }}
-    >
-      <button
-        onClick={onToggle}
-        disabled={isPending}
-        className="shrink-0 text-muted-foreground hover:text-primary transition-colors disabled:opacity-50"
-      >
-        {task.done
-          ? <CheckCircle2 className="h-4.5 w-4.5 text-green-500" style={{ height: '1.125rem', width: '1.125rem' }} />
-          : <Circle className="h-4.5 w-4.5" style={{ height: '1.125rem', width: '1.125rem' }} />}
-      </button>
-
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm flex items-center gap-1.5 ${task.done ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-          {task.es_critico && (
-            <span className="inline-flex items-center gap-0.5 px-1.5 py-0 rounded text-[9px] font-bold uppercase tracking-wide text-destructive"
-              style={{ background: 'hsl(0 70% 55% / 0.12)', border: '1px solid hsl(0 70% 55% / 0.3)' }}>
-              <AlertTriangle className="h-2.5 w-2.5" />Crítico
-            </span>
-          )}
-          {task.title}
-        </p>
-        {task.notes && (
-          <p className="text-[11px] text-muted-foreground/70 truncate mt-0.5 italic">{task.notes}</p>
-        )}
-      </div>
-
-      <div className="flex items-center gap-2 shrink-0">
-        <Select value={task.responsible_username ?? '__sin_asignar__'} onValueChange={(v) => onAssign(v === '__sin_asignar__' ? null : v)}>
-          <SelectTrigger className="h-6 text-[11px] px-2 gap-1 border-none shadow-none bg-transparent hover:bg-muted/50 w-auto max-w-[140px]">
-            <User className="h-3 w-3 text-muted-foreground shrink-0" />
-            <span className={`truncate ${responsable ? '' : 'text-muted-foreground'}`}>{responsable?.full_name || responsable?.username || 'Sin asignar'}</span>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__sin_asignar__">Sin asignar</SelectItem>
-            {users.filter((u) => u.active).map((u) => (
-              <SelectItem key={u.username} value={u.username}>{u.full_name || u.username}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        {task.due_date && (
-          <span
-            className={`inline-flex items-center gap-1 text-[11px] font-medium ${
-              overdue ? 'text-red-400' : task.done ? 'text-muted-foreground' : 'text-muted-foreground'
-            }`}
-          >
-            <Clock className="h-3 w-3" />
-            {formatDate(task.due_date)}
-            {overdue && <Badge variant="destructive" className="text-[10px] px-1.5 py-0 h-4 ml-0.5">Vencida</Badge>}
-          </span>
-        )}
       </div>
     </div>
   )

@@ -239,6 +239,7 @@ export interface Session {
   client_id: number | null
   client_name: string | null
   case_id: number | null
+  case_title: string | null
   session_date: string
   start_time: string | null
   end_time: string | null
@@ -284,6 +285,7 @@ export interface Income {
   monto_reembolsable: number
   monto_fondos_terceros: number
   monto_neto_operativo: number
+  es_ajuste: boolean
 }
 export interface IncomeIn {
   amount: number
@@ -297,6 +299,7 @@ export interface IncomeIn {
   monto_iva?: number | null
   monto_reembolsable?: number | null
   monto_fondos_terceros?: number | null
+  es_ajuste?: boolean
 }
 
 // ── Expenses ──────────────────────────────────────────────────────────────────
@@ -623,10 +626,10 @@ export interface TramoComision {
 }
 export interface Comision {
   id: number
-  income_id: number
-  income_date: string
+  income_id: number | null
+  income_date: string | null
   case_id: number
-  case_title: string
+  case_title: string | null
   personal_id: number
   person_code: string
   persona_nombre: string
@@ -636,6 +639,7 @@ export interface Comision {
   comision: number
   mes_reconocimiento: string
   ajusta_a_commission_id: number | null
+  motivo: string | null
   tramos: TramoComision[]
   created_at: string
 }

@@ -1,7 +1,7 @@
-﻿import { useState } from 'react'
+﻿import { useEffect, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Pencil, TrendingUp, TrendingDown, Users, ArrowUpDown, Download, Paperclip, Search } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { incomesApi } from '@/api/incomes'
 import { expensesApi } from '@/api/expenses'
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
@@ -117,8 +118,12 @@ function IvaSvButton({ bruto, onFill }: { bruto: string; onFill: (v: string) => 
 type IncomeForm = {
   amount: string; date: string; client_id: string; case_id: string; detail: string
   account_id: string; service_id: string; monto_iva: string; monto_reembolsable: string; monto_fondos_terceros: string
+  es_ajuste: boolean
 }
-const EMPTY_INC: IncomeForm = { amount: '', date: today(), client_id: '', case_id: '', detail: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '', monto_fondos_terceros: '' }
+const EMPTY_INC: IncomeForm = { amount: '', date: today(), client_id: '', case_id: '', detail: '', account_id: '', service_id: '', monto_iva: '', monto_reembolsable: '', monto_fondos_terceros: '', es_ajuste: false }
+
+const netoDe = (bruto: string, iva: string, reembolsable: string, fondos: string) =>
+  (Number(bruto) || 0) - (Number(iva) || 0) - (Number(reembolsable) || 0) - (Number(fondos) || 0)
 
 function IncomesTab({ start, end }: { start: string; end: string }) {
   const qc = useQueryClient()
@@ -131,6 +136,33 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
   const { data: incomes = [] } = useQuery({ queryKey: ['incomes', params], queryFn: () => incomesApi.list(params) })
   const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
   const { data: caseChoices = [] } = useQuery({ queryKey: ['case-choices'], queryFn: () => casesApi.choices() })
+  // Expedientes completos: saldo pendiente, servicio y categoría para completar el cobro.
+  const { data: casos = [] } = useQuery({ queryKey: ['cases', 'para-cobro'], queryFn: () => casesApi.list(), enabled: dlg })
+  const { data: cuentasIngreso = [] } = useQuery({ queryKey: ['finanzas-cuentas', 'Ingreso'], queryFn: () => finanzasApi.listCuentas({ tipo: 'Ingreso' }) })
+  const casoSel = casos.find((c) => String(c.id) === form.case_id)
+  // Al editar, el saldo del expediente ya descuenta este mismo cobro — se le suma de vuelta.
+  const saldoDisponible = casoSel
+    ? casoSel.saldo_pendiente + (editing && editing.case_id === casoSel.id ? editing.monto_neto_operativo : 0)
+    : null
+  const netoForm = netoDe(form.amount, form.monto_iva, form.monto_reembolsable, form.monto_fondos_terceros)
+  const excedeSaldo = saldoDisponible != null && netoForm > saldoDisponible + 0.005
+
+  // "Registrar cobro": el usuario elige el expediente y el sistema completa cliente, servicio y cuenta sugerida.
+  function onCaseChange(v: string) {
+    const caso = casos.find((c) => String(c.id) === v)
+    if (!caso) { setForm((p) => ({ ...p, case_id: v })); return }
+    const cuenta = cuentasIngreso.find((c) => c.estado === 'Activo' && c.category_code && c.category_code === caso.category_code)
+    setForm((p) => ({
+      ...p,
+      case_id: v,
+      client_id: p.client_id || String(caso.client_id),
+      service_id: p.service_id || (caso.service_id ? String(caso.service_id) : ''),
+      account_id: p.account_id || (cuenta ? String(cuenta.id) : ''),
+    }))
+    if (!form.service_id && caso.service_id && caso.service_code && caso.service_nombre) {
+      setSelectedService({ service_code: caso.service_code, nombre: caso.service_nombre })
+    }
+  }
 
   const toPayload = (): IncomeIn => ({
     amount: Number(form.amount),
@@ -143,6 +175,7 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
     monto_iva: form.monto_iva ? Number(form.monto_iva) : null,
     monto_reembolsable: form.monto_reembolsable ? Number(form.monto_reembolsable) : null,
     monto_fondos_terceros: form.monto_fondos_terceros ? Number(form.monto_fondos_terceros) : null,
+    es_ajuste: form.es_ajuste,
   })
 
   const createInc = useMutation({
@@ -161,6 +194,23 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
   })
 
   function openNew() { setEditing(null); setForm(EMPTY_INC); setSelectedService(null); setDlg(true) }
+
+  // "Registrar cobro" desde el expediente: /cashflow?cobro=1&case_id=ID abre el formulario
+  // con ese expediente ya elegido (y con él cliente, servicio, cuenta sugerida y saldo).
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [cobroCaseId, setCobroCaseId] = useState<string | null>(null)
+  useEffect(() => {
+    if (searchParams.get('cobro') === '1') {
+      openNew()
+      setCobroCaseId(searchParams.get('case_id'))
+      const next = new URLSearchParams(searchParams); next.delete('cobro'); next.delete('case_id'); setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+  useEffect(() => {
+    if (cobroCaseId && casos.length && cuentasIngreso.length) { onCaseChange(cobroCaseId); setCobroCaseId(null) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cobroCaseId, casos, cuentasIngreso])
   function openEdit(i: Income) {
     setEditing(i)
     setForm({
@@ -168,6 +218,7 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
       account_id: i.account_id ? String(i.account_id) : '', service_id: i.service_id ? String(i.service_id) : '',
       monto_iva: i.monto_iva ? String(i.monto_iva) : '', monto_reembolsable: i.monto_reembolsable ? String(i.monto_reembolsable) : '',
       monto_fondos_terceros: i.monto_fondos_terceros ? String(i.monto_fondos_terceros) : '',
+      es_ajuste: i.es_ajuste,
     })
     setSelectedService(i.service_id && i.service_code && i.service_nombre ? { service_code: i.service_code, nombre: i.service_nombre } : null)
     setDlg(true)
@@ -178,6 +229,7 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
     if (!form.date) return toast.error('La fecha es requerida')
     if (!form.amount || Number(form.amount) <= 0) return toast.error('El monto debe ser mayor a 0')
     if (!form.account_id) return toast.error('La cuenta contable es requerida')
+    if (excedeSaldo && !form.es_ajuste) return toast.error('El cobro excede el saldo pendiente del expediente. Márcalo como ajuste si es correcto.')
     editing ? update.mutate(editing.id) : createInc.mutate()
   }
 
@@ -233,6 +285,11 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
                   <td className="px-4 py-2.5 max-w-[200px]">
                     <div className="flex items-center gap-1.5 min-w-0">
                       <span className="truncate">{i.detail || i.concept}</span>
+                      {i.es_ajuste && (
+                        <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600" title="Cobro registrado como ajuste: excede el saldo del expediente">
+                          Ajuste
+                        </span>
+                      )}
                       {i.invoice_number && (
                         <span className="shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-medium bg-blue-500/10 text-blue-500">
                           {i.invoice_number}
@@ -268,7 +325,21 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
               <div className="space-y-1"><Label>Monto <span className="text-destructive text-xs">*</span></Label><Input type="number" step="0.01" placeholder="0.00" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value })} /></div>
               <div className="space-y-1"><Label>Fecha <span className="text-destructive text-xs">*</span></Label><Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></div>
               <div className="space-y-1"><Label>Cliente</Label><Select value={form.client_id} onValueChange={f('client_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select></div>
-              <div className="space-y-1"><Label>Caso</Label><Select value={form.case_id} onValueChange={f('case_id')}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}</SelectContent></Select></div>
+              <div className="space-y-1"><Label>Caso</Label><Select value={form.case_id} onValueChange={onCaseChange}><SelectTrigger><SelectValue placeholder="Ninguno" /></SelectTrigger><SelectContent><SelectItem value="">Ninguno</SelectItem>{caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}</SelectContent></Select></div>
+              {casoSel && (
+                <div className="col-span-2 rounded-md border px-3 py-2 text-xs space-y-1.5">
+                  <div className="flex justify-between text-muted-foreground">
+                    <span>Honorarios contratados: <span className="font-mono">{formatCurrency(casoSel.honorarios_contratados)}</span></span>
+                    <span>Saldo pendiente: <span className={`font-mono font-semibold ${excedeSaldo ? 'text-destructive' : 'text-foreground'}`}>{formatCurrency(saldoDisponible ?? 0)}</span></span>
+                  </div>
+                  {(excedeSaldo || form.es_ajuste) && (
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <Checkbox checked={form.es_ajuste} onCheckedChange={(v) => setForm({ ...form, es_ajuste: v === true })} />
+                      <span>Es un ajuste: el cobro puede exceder el saldo del expediente</span>
+                    </label>
+                  )}
+                </div>
+              )}
               <div className="space-y-1 col-span-2"><Label>Detalle</Label><Input value={form.detail} onChange={(e) => setForm({ ...form, detail: e.target.value })} placeholder="Descripción del ingreso" /></div>
               <div className="col-span-2"><CuentaSelect tipo="Ingreso" value={form.account_id} onChange={f('account_id')} /></div>
               <div className="col-span-2">

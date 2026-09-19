@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Megaphone, Search, ArrowRight, Trophy, XCircle, FileText } from 'lucide-react'
 import { toast } from 'sonner'
+import { Link, useNavigate } from 'react-router-dom'
 import { pipelineApi } from '@/api/pipeline'
 import { catalogoApi } from '@/api/catalogo'
 import { clientsApi } from '@/api/clients'
@@ -248,10 +249,11 @@ function OportunidadCard({ op, onEdit, onCotizar, onGanar, onPerder }: {
         {op.estado === 'Perdido' && op.motivo_perdida && (
           <div className="text-xs text-destructive/80 border-t pt-1.5 mt-1.5" style={{ borderColor: 'hsl(var(--border))' }}>{op.motivo_perdida}</div>
         )}
-        {op.estado === 'Ganado' && op.case_internal_ref && (
-          <div className="text-xs flex items-center gap-1 border-t pt-1.5 mt-1.5" style={{ borderColor: 'hsl(var(--border))', color: 'hsl(142 70% 45%)' }}>
-            <FileText className="h-3 w-3" /><span className="font-mono">{op.case_internal_ref}</span>
-          </div>
+        {op.estado === 'Ganado' && op.case_id && (
+          <Link to={`/cases?case_id=${op.case_id}`} onClick={(e) => e.stopPropagation()}
+            className="text-xs flex items-center gap-1 border-t pt-1.5 mt-1.5 hover:underline" style={{ borderColor: 'hsl(var(--border))', color: 'hsl(142 70% 45%)' }}>
+            <FileText className="h-3 w-3" /><span className="font-mono">{op.case_internal_ref ?? 'Ver expediente'}</span>
+          </Link>
         )}
         {(op.estado === 'Prospecto' || op.estado === 'Cotizado') && (
           <div className="flex gap-1 pt-1" onClick={(e) => e.stopPropagation()}>
@@ -271,6 +273,7 @@ function OportunidadCard({ op, onEdit, onCotizar, onGanar, onPerder }: {
 
 export default function Pipeline() {
   const qc = useQueryClient()
+  const navigate = useNavigate()
   const [dlg, setDlg] = useState(false)
   const [editing, setEditing] = useState<Oportunidad | null>(null)
   const [perdiendo, setPerdiendo] = useState<Oportunidad | null>(null)
@@ -288,7 +291,10 @@ export default function Pipeline() {
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['oportunidades'] })
       qc.invalidateQueries({ queryKey: ['oportunidades-conversion'] })
-      toast.success(res.case_internal_ref ? `¡Ganado! Expediente ${res.case_internal_ref} creado` : 'Marcada como ganada')
+      toast.success(res.case_internal_ref ? `¡Ganado! Expediente ${res.case_internal_ref} creado` : 'Marcada como ganada', {
+        action: res.case_id ? { label: 'Abrir expediente', onClick: () => navigate(`/cases?case_id=${res.case_id}`) } : undefined,
+        duration: 8000,
+      })
     },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })

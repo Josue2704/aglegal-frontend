@@ -1,11 +1,11 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Search, Trash2, Pencil, History, CalendarDays, Briefcase,
   Download, Paperclip, User, Building2, Upload, FileText,
-  TrendingUp, TrendingDown, Scale, CheckCircle2, Clock, AlertCircle, Repeat,
+  TrendingUp, TrendingDown, Scale, CheckCircle2, Clock, AlertCircle, Repeat, FolderPlus,
 } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { clientsApi } from '@/api/clients'
 import { attachmentsApi } from '@/api/attachments'
@@ -361,14 +361,27 @@ function InlineAttachments({ clientId }: { clientId: number }) {
 
 export default function Clients() {
   const qc = useQueryClient()
-  const [search, setSearch] = useState('')
+  const navigate = useNavigate()
+  const [searchParams, setSearchParams] = useSearchParams()
+  // ?search= viene de la búsqueda global y del panel de expediente; ?new=1 del botón "+ Nuevo".
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const [showArchived, setShowArchived] = useState(false)
+  const [siguiente, setSiguiente] = useState<Client | null>(null)
   const [dlg, setDlg] = useState<'form' | 'history' | null>(null)
   const [editing, setEditing] = useState<Client | null>(null)
   const [form, setForm] = useState<ClientIn>(EMPTY)
   const [historyId, setHistoryId] = useState<number | null>(null)
   const [docsClient, setDocsClient] = useState<Client | null>(null)
   const [statementClient, setStatementClient] = useState<Client | null>(null)
+
+  useEffect(() => { const q = searchParams.get('search'); if (q !== null) setSearch(q) }, [searchParams])
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      openNew()
+      const next = new URLSearchParams(searchParams); next.delete('new'); setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   const { data: clients = [], isLoading } = useQuery({
     queryKey: ['clients', search, showArchived],
@@ -390,10 +403,11 @@ export default function Clients() {
     mutationFn: clientsApi.create,
     onSuccess: (newClient) => {
       qc.invalidateQueries({ queryKey: ['clients'] })
+      qc.invalidateQueries({ queryKey: ['client-choices'] })
       toast.success('Cliente creado')
       setDlg(null)
-      // Auto-open docs dialog so user can immediately attach files
-      setDocsClient(newClient)
+      // En vez de dejar al usuario en la lista, le ofrece el siguiente paso habitual.
+      setSiguiente(newClient)
     },
     onError: (e: { response?: { data?: { detail?: string } } }) =>
       toast.error(e.response?.data?.detail ?? 'Error al crear cliente'),
@@ -601,6 +615,10 @@ export default function Clients() {
                             </>
                           ) : (
                             <>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-primary" title="Nuevo expediente para este cliente"
+                                onClick={() => navigate(`/cases?new=1&client_id=${c.id}`)}>
+                                <FolderPlus className="h-3.5 w-3.5" />
+                              </Button>
                               <Button size="icon" variant="ghost" className="h-7 w-7" title="Estado de cuenta" onClick={() => setStatementClient(c)}>
                                 <FileText className="h-3.5 w-3.5" />
                               </Button>
@@ -796,6 +814,27 @@ export default function Clients() {
           onClose={() => setDocsClient(null)}
         />
       )}
+
+      {/* ¿Qué sigue? — tras registrar un cliente */}
+      <Dialog open={!!siguiente} onOpenChange={(o) => !o && setSiguiente(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{siguiente?.name} quedó registrado</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">¿Qué quieres hacer ahora?</p>
+          <div className="grid gap-2">
+            <Button className="justify-start gap-2" onClick={() => navigate(`/cases?new=1&client_id=${siguiente!.id}`)}>
+              <FolderPlus className="h-4 w-4" />Abrir un expediente
+            </Button>
+            <Button variant="outline" className="justify-start gap-2"
+              onClick={() => navigate(`/sessions?new=1&client_id=${siguiente!.id}&client_name=${encodeURIComponent(siguiente!.name)}`)}>
+              <CalendarDays className="h-4 w-4" />Agendar una cita
+            </Button>
+            <Button variant="outline" className="justify-start gap-2" onClick={() => { setDocsClient(siguiente); setSiguiente(null) }}>
+              <Paperclip className="h-4 w-4" />Adjuntar documentos (DUI, poderes...)
+            </Button>
+            <Button variant="ghost" onClick={() => setSiguiente(null)}>Listo por ahora</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Statement Dialog */}
       {statementClient && (

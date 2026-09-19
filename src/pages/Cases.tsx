@@ -1,7 +1,7 @@
 ﻿import { useState, useEffect, useMemo } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Trash2, Pencil, Search, CalendarDays, X, LayoutList, AlertTriangle, Download } from 'lucide-react'
+import { Plus, Trash2, Pencil, Search, CalendarDays, X, LayoutList, AlertTriangle, Download, UserPlus } from 'lucide-react'
 import { toast } from 'sonner'
 import { casesApi } from '@/api/cases'
 import { clientsApi } from '@/api/clients'
@@ -24,7 +24,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { formatDate, today, exportCsv } from '@/lib/utils'
-import CaseDetailPanel from '@/components/CaseDetailPanel'
+import CaseDetailPanel, { type Tab } from '@/components/CaseDetailPanel'
+import { QuickClientForm } from '@/components/QuickClientForm'
 
 const STATUSES = ['Abierto', 'En trámite', 'En pausa', 'Cerrado'] as const
 const PRIORITIES = ['Baja', 'Media', 'Alta'] as const
@@ -131,7 +132,8 @@ function OriginadoresEditor({ caseId }: { caseId: number }) {
 export default function Cases() {
   const qc = useQueryClient()
   const [searchParams, setSearchParams] = useSearchParams()
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
+  const [nuevoCliente, setNuevoCliente] = useState(false)
   const [statusFilter, setStatusFilter] = useState('Todos')
   const [showArchived, setShowArchived] = useState(false)
 
@@ -141,10 +143,38 @@ export default function Cases() {
   const [editing, setEditing] = useState<Case | null>(null)
   const [form, setForm] = useState<FormData>(EMPTY_FORM)
   const [detailCase, setDetailCase] = useState<Case | null>(null)
+  const [detailTab, setDetailTab] = useState<Tab | undefined>()
   const [serviceSearch, setServiceSearch] = useState('')
   const [selectedService, setSelectedService] = useState<{ id: number; service_code: string; nombre: string; category_code?: string; subcategory_code?: string } | null>(null)
   const [tareasIniciales, setTareasIniciales] = useState<{ titulo: string; due_date: string; es_critico: boolean; incluida: boolean }[]>([])
   const [nuevaTareaInicial, setNuevaTareaInicial] = useState('')
+
+  // Enlaces desde búsqueda global, alertas, tareas, agenda y clientes:
+  //   ?case_id=ID            → abre el detalle de ese expediente
+  //   ?new=1[&client_id=ID]  → abre "Nuevo expediente" (con el cliente ya elegido)
+  //   ?search=texto          → filtra la lista
+  const urlCaseId = searchParams.get('case_id') ? Number(searchParams.get('case_id')) : undefined
+  const { data: urlCase } = useQuery({
+    queryKey: ['cases', 'detalle', urlCaseId],
+    queryFn: () => casesApi.get(urlCaseId!),
+    enabled: !!urlCaseId,
+  })
+  useEffect(() => {
+    if (urlCase) {
+      setDetailTab((searchParams.get('tab') as Tab | null) ?? undefined)
+      setDetailCase(urlCase)
+      const next = new URLSearchParams(searchParams); next.delete('case_id'); next.delete('tab'); setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [urlCase])
+  useEffect(() => {
+    if (searchParams.get('new') === '1') {
+      openNew(searchParams.get('client_id') ?? '')
+      const next = new URLSearchParams(searchParams); next.delete('new'); setSearchParams(next, { replace: true })
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
+  useEffect(() => { const q = searchParams.get('search'); if (q !== null) setSearch(q) }, [searchParams])
 
   const { data: cases = [], isLoading } = useQuery({
     queryKey: ['cases', search, statusFilter, urlClientId, showArchived],
@@ -197,12 +227,18 @@ export default function Cases() {
 
   const createCase = useMutation({
     mutationFn: (d: CaseIn) => casesApi.create(d),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['cases'] }); toast.success('Caso creado'); setDlg(false) },
+    onSuccess: (nuevo) => {
+      qc.invalidateQueries({ queryKey: ['cases'] })
+      qc.invalidateQueries({ queryKey: ['case-choices'] })
+      toast.success('Expediente creado — sigue con citas, tareas o cobros desde aquí')
+      setDlg(false)
+      setDetailCase(nuevo)
+    },
     onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error'),
   })
   const updateCase = useMutation({
     mutationFn: ({ id, data }: { id: number; data: CaseUpdate }) => casesApi.update(id, data),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['cases'] }); toast.success('Caso actualizado'); setDlg(false) },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['cases'] }); toast.success('Expediente actualizado'); setDlg(false) },
     onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error'),
   })
   const archiveCase = useMutation({
@@ -219,7 +255,10 @@ export default function Cases() {
     onError: () => toast.error('No se pudo borrar el expediente'),
   })
 
-  function openNew() { setEditing(null); setForm(EMPTY_FORM); setSelectedService(null); setServiceSearch(''); setTareasIniciales([]); setNuevaTareaInicial(''); setDlg(true) }
+  function openNew(clientId = '') {
+    setEditing(null); setForm({ ...EMPTY_FORM, client_id: clientId || (urlClientId ? String(urlClientId) : '') })
+    setSelectedService(null); setServiceSearch(''); setTareasIniciales([]); setNuevaTareaInicial(''); setNuevoCliente(false); setDlg(true)
+  }
   function openEdit(c: Case) {
     setEditing(c)
     setForm({
@@ -245,7 +284,8 @@ export default function Cases() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.client_id || !form.title.trim()) return toast.error('Cliente y título son requeridos')
+    if (!form.client_id) return toast.error('Selecciona o registra el cliente')
+    if (!form.title.trim()) return toast.error('El título es requerido')
     const payload = {
       client_id: Number(form.client_id), title: form.title,
       status: form.status as CaseIn['status'], priority: form.priority as CaseIn['priority'],
@@ -319,7 +359,7 @@ export default function Cases() {
           >
             <Download className="h-4 w-4" />CSV
           </Button>
-          {!showArchived && <Button onClick={openNew}><Plus className="h-4 w-4" />Nuevo expediente</Button>}
+          {!showArchived && <Button onClick={() => openNew()}><Plus className="h-4 w-4" />Nuevo expediente</Button>}
         </div>
       </div>
 
@@ -445,7 +485,7 @@ export default function Cases() {
 
       {/* Case Detail Panel */}
       {detailCase && (
-        <CaseDetailPanel kase={detailCase} onClose={() => setDetailCase(null)} />
+        <CaseDetailPanel key={detailCase.id} kase={detailCase} initialTab={detailTab} onClose={() => { setDetailCase(null); setDetailTab(undefined) }} onEdit={openEdit} />
       )}
 
       {/* Form Dialog */}
@@ -455,13 +495,31 @@ export default function Cases() {
           <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
             {/* Datos generales */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1 col-span-2"><Label>Título <span className="text-destructive text-xs">*</span></Label><Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></div>
-              <div className="space-y-1">
-                <Label>Cliente <span className="text-destructive text-xs">*</span></Label>
-                <Select value={form.client_id} onValueChange={f('client_id')}>
-                  <SelectTrigger><SelectValue placeholder="Seleccionar..." /></SelectTrigger>
-                  <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
-                </Select>
+              <div className="space-y-1 col-span-2">
+                <div className="flex items-center justify-between">
+                  <Label>Cliente <span className="text-destructive text-xs">*</span></Label>
+                  {!editing && !nuevoCliente && (
+                    <button type="button" className="text-xs text-primary hover:underline inline-flex items-center gap-1" onClick={() => setNuevoCliente(true)}>
+                      <UserPlus className="h-3 w-3" />Cliente nuevo
+                    </button>
+                  )}
+                </div>
+                {nuevoCliente ? (
+                  <QuickClientForm
+                    onCancel={() => setNuevoCliente(false)}
+                    onCreated={(c) => { setForm((p) => ({ ...p, client_id: String(c.id) })); setNuevoCliente(false) }}
+                  />
+                ) : (
+                  <Select value={form.client_id} onValueChange={f('client_id')} disabled={!!editing}>
+                    <SelectTrigger><SelectValue placeholder="Seleccionar cliente existente..." /></SelectTrigger>
+                    <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
+              </div>
+              <div className="space-y-1 col-span-2">
+                <Label>Título <span className="text-destructive text-xs">*</span></Label>
+                <Input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  placeholder="Se completa al elegir el servicio — ej. Aceptación de herencia — María Rivas" />
               </div>
               <div className="space-y-1">
                 <Label>Estado</Label>
@@ -502,7 +560,12 @@ export default function Cases() {
                   <div className="border rounded-md max-h-48 overflow-y-auto mt-1" style={{ borderColor: 'hsl(var(--border))' }}>
                     {serviceMatches.map((s) => (
                       <button type="button" key={s.id} className="w-full text-left px-2.5 py-1.5 text-xs hover:bg-muted/50 flex flex-col gap-0.5"
-                        onClick={() => { setSelectedService({ id: s.id, service_code: s.service_code, nombre: s.nombre, category_code: s.category_code, subcategory_code: s.subcategory_code }); setForm({ ...form, service_id: String(s.id) }); setServiceSearch('') }}>
+                        onClick={() => {
+                          setSelectedService({ id: s.id, service_code: s.service_code, nombre: s.nombre, category_code: s.category_code, subcategory_code: s.subcategory_code })
+                          const clientName = clients.find((c) => String(c.id) === form.client_id)?.name
+                          setForm({ ...form, service_id: String(s.id), title: form.title.trim() ? form.title : `${s.nombre}${clientName ? ` — ${clientName}` : ''}` })
+                          setServiceSearch('')
+                        }}>
                         <span className="flex gap-2"><span className="font-mono text-muted-foreground">{s.service_code}</span><span>{s.nombre}</span></span>
                         <span className="text-[10px] text-muted-foreground/70">{s.category_code} › {s.subcategory_code}</span>
                       </button>

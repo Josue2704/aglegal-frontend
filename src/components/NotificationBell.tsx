@@ -125,7 +125,7 @@ export function NotificationBell() {
                 {data!.stale_cases.map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => go(`/cases?search=${encodeURIComponent(c.title)}`)}
+                    onClick={() => go(`/cases?case_id=${c.id}`)}
                     className="w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-muted/40"
                   >
                     <FolderOpen className="h-4 w-4 shrink-0 mt-0.5 text-blue-500" />
@@ -153,7 +153,7 @@ export function NotificationBell() {
                 {data!.overdue_billing.map((c) => (
                   <button
                     key={c.id}
-                    onClick={() => go(`/cases?search=${encodeURIComponent(c.title)}`)}
+                    onClick={() => go(`/cases?case_id=${c.id}`)}
                     className="w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-destructive/5"
                   >
                     <CircleDollarSign className="h-4 w-4 shrink-0 mt-0.5 text-red-500" />
