@@ -1,4 +1,4 @@
-import type { CarteraPonderada, CumplimientoFamilia, Cuenta, Forecast, ForecastIn, ForecastUpdate, GastoFijo, Persona, ProyeccionCierreMes, PuntoEquilibrio, Supuestos, UtilidadOperativaReal } from '@/types'
+import type { AgingCartera, CarteraPonderada, CumplimientoFamilia, Cuenta, DiasCobro, Forecast, ForecastIn, ForecastUpdate, GastoFijo, IngresoPorOrigen, Persona, ProyeccionCierreMes, PuntoEquilibrio, ResumenMensual, Supuestos, TicketAgrupacion, TicketPromedio, UtilidadOperativaReal } from '@/types'
 import api from './client'
 
 export interface CuentaPayload {
@@ -82,4 +82,24 @@ export const finanzasApi = {
   // Utilidad operativa real del despacho (Fase 9) — exacta solo a nivel de despacho, no por familia
   utilidadOperativaReal: (mes: string) =>
     api.get<UtilidadOperativaReal>('/finanzas/utilidad-operativa-real', { params: { mes } }).then((r) => r.data),
+
+  // Resumen mensual consolidado — hoja 17 del Archivo Maestro
+  resumenMensual: (desde: string, hasta: string) =>
+    api.get<ResumenMensual>('/finanzas/resumen-mensual', { params: { desde, hasta } }).then((r) => r.data),
+
+  // KPI-009 · ticket promedio por expediente cobrado
+  ticketPromedio: (desde: string, hasta: string, agrupar_por: TicketAgrupacion = 'servicio') =>
+    api.get<TicketPromedio>('/finanzas/ticket-promedio', { params: { desde, hasta, agrupar_por } }).then((r) => r.data),
+
+  // KPI-015 · ingresos y utilidad directa por origen del negocio
+  ingresosPorOrigen: (desde: string, hasta: string) =>
+    api.get<IngresoPorOrigen[]>('/finanzas/ingresos-por-origen', { params: { desde, hasta } }).then((r) => r.data),
+
+  // KPI-016 · días promedio entre la facturación (o el cierre) y el cobro
+  diasCobro: (desde: string, hasta: string) =>
+    api.get<DiasCobro>('/finanzas/dias-cobro', { params: { desde, hasta } }).then((r) => r.data),
+
+  // Antigüedad del saldo por cobrar
+  agingCartera: (fecha_corte?: string) =>
+    api.get<AgingCartera>('/finanzas/aging-cartera', { params: { fecha_corte } }).then((r) => r.data),
 }

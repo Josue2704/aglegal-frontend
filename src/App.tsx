@@ -25,6 +25,7 @@ import Invoices from './pages/Invoices'
 import Tasks from './pages/Tasks'
 import Roles from './pages/Roles'
 import Reports from './pages/Reports'
+import ResumenMensual from './pages/ResumenMensual'
 
 const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } })
 
@@ -108,6 +109,7 @@ export default function App() {
               <Route path="roles" element={<AdminRoute><Roles /></AdminRoute>} />
               <Route path="settings" element={<AdminRoute><Settings /></AdminRoute>} />
               <Route path="reports" element={<PermissionRoute permission="flujo_caja.ver"><Reports /></PermissionRoute>} />
+              <Route path="resumen-mensual" element={<PermissionRoute permission="finanzas.ver"><ResumenMensual /></PermissionRoute>} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
