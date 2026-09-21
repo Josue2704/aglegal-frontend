@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   TrendingUp, TrendingDown, Users, CalendarDays, Scale, Wallet, AlertTriangle, Clock, ChevronRight,
-  Target, Briefcase, Percent, Gauge, CircleDollarSign,
+  Target, Briefcase, Percent, Gauge, CircleDollarSign, Sun,
 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import {
@@ -14,15 +14,17 @@ import { pipelineApi } from '@/api/pipeline'
 import { casesApi } from '@/api/cases'
 import { finanzasApi } from '@/api/finanzas'
 import { comisionesApi } from '@/api/comisiones'
+import { sessionsApi } from '@/api/sessions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { formatCurrency, formatDate } from '@/lib/utils'
+import { formatCurrency, formatDate, today } from '@/lib/utils'
 import { HelpButton } from '@/components/HelpButton'
 import { OnboardingTour } from '@/components/OnboardingTour'
 import { dashboardHelp } from '@/lib/helpContent'
-import type { GrossProfitItem, Semaforo } from '@/types'
+import type { GrossProfitItem, Semaforo, Session } from '@/types'
+import { useSoloMio } from '@/hooks/useSoloMio'
 
 const COLORS = ['#2563eb', '#0ea5e9', '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981', '#ef4444']
 const GREEN = '#16a34a'
@@ -150,6 +152,7 @@ export default function Dashboard() {
   const { data: rentabilidad = [] } = useQuery({ queryKey: ['dashboard-rentabilidad'], queryFn: () => dashboardApi.rentabilidadAbogado() })
   const { data: upcoming = [] } = useQuery({ queryKey: ['dashboard-upcoming'], queryFn: () => dashboardApi.upcomingSessions() })
   const { data: alertsData } = useQuery({ queryKey: ['dashboard-alerts'], queryFn: () => dashboardApi.alerts({ stale_days: 15 }) })
+  const { soloMio, setSoloMio, esMio } = useSoloMio()
 
   const { data: puntoEquilibrio, isError: peError } = useQuery({ queryKey: ['dashboard-pe', mes], queryFn: () => finanzasApi.puntoEquilibrio(mes), retry: false })
   const { data: proyeccion } = useQuery({ queryKey: ['dashboard-proyeccion', mes], queryFn: () => finanzasApi.proyeccionCierreMes(mes) })
@@ -163,6 +166,15 @@ export default function Dashboard() {
 
   // ── Operativo ──
   const { data: allCases = [] } = useQuery({ queryKey: ['dashboard-cases'], queryFn: () => casesApi.list() })
+  const hoyIso = today()
+  const { data: citasDelDia = [] } = useQuery({
+    queryKey: ['sessions', { dia: hoyIso }],
+    queryFn: (): Promise<Session[]> => sessionsApi.list({ start_date: hoyIso, end_date: hoyIso }),
+  })
+  const responsablePorCaso = new Map(allCases.map((c) => [c.id, c.responsible_username]))
+  const citasHoy = citasDelDia
+    .filter((s) => esMio(s.case_id ? responsablePorCaso.get(s.case_id) : null))
+    .sort((a, b) => (a.start_time ?? '99:99').localeCompare(b.start_time ?? '99:99'))
   const { data: tiempos = [] } = useQuery({ queryKey: ['dashboard-tiempos'], queryFn: () => casesApi.tiemposAtencion() })
   const { data: cumplimiento = [] } = useQuery({ queryKey: ['dashboard-cumplimiento', mes], queryFn: () => finanzasApi.cumplimientoFamilia(mes) })
 
@@ -174,10 +186,12 @@ export default function Dashboard() {
   const pieData = topExpenses?.slice(0, 6).map((e) => ({ name: e.name, value: e.amount })) ?? []
   const balance = kpis?.balance ?? 0
 
-  const overdueTasks = alertsData?.overdue_tasks ?? []
-  const criticalTasks = alertsData?.critical_tasks ?? []
-  const staleCases = alertsData?.stale_cases ?? []
-  const overdueBilling = alertsData?.overdue_billing ?? []
+  // "Solo lo mío" filtra por el abogado responsable: del expediente, o de la tarea si la tiene.
+  const overdueTasks = (alertsData?.overdue_tasks ?? []).filter((t) => esMio(t.responsible_username, t.case_responsible_username))
+  const criticalTasks = (alertsData?.critical_tasks ?? []).filter((t) => esMio(t.responsible_username, t.case_responsible_username))
+  const staleCases = (alertsData?.stale_cases ?? []).filter((c) => esMio(c.responsible_username))
+  const overdueBilling = (alertsData?.overdue_billing ?? []).filter((c) => esMio(c.responsible_username))
+  const seguimientoVencido = (alertsData?.seguimiento_vencido ?? []).filter((o) => esMio(o.responsable_username))
   const budgetDeviation = alertsData?.budget_deviation ?? []
   const totalAlerts = overdueTasks.length + staleCases.length + overdueBilling.length + budgetDeviation.length
 
@@ -189,12 +203,25 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <OnboardingTour />
-      <div>
-        <div className="flex items-center gap-2">
-          <h1 className="text-2xl font-bold">Dashboard</h1>
-          <HelpButton content={dashboardHelp} />
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-bold">Inicio</h1>
+            <HelpButton content={dashboardHelp} />
+          </div>
+          <p className="text-muted-foreground text-sm">Tu día, y el pulso comercial, operativo y financiero del despacho</p>
         </div>
-        <p className="text-muted-foreground text-sm">Resumen comercial, operativo y financiero</p>
+        <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-table-border-h))' }}>
+          {[{ v: true, label: 'Solo lo mío' }, { v: false, label: 'Todo el despacho' }].map((o) => (
+            <button
+              key={o.label}
+              onClick={() => setSoloMio(o.v)}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${soloMio === o.v ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}
+            >
+              {o.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* ── Plazos legales críticos — separados del resto, no se mezclan con pendientes normales ── */}
@@ -278,12 +305,135 @@ export default function Dashboard() {
         </div>
       )}
 
-      <Tabs defaultValue="comercial">
+      <Tabs defaultValue="mi-dia">
         <TabsList>
+          <TabsTrigger value="mi-dia" className="gap-1.5"><Sun className="h-3.5 w-3.5" />Mi día</TabsTrigger>
           <TabsTrigger value="comercial" className="gap-1.5"><Target className="h-3.5 w-3.5" />Comercial</TabsTrigger>
           <TabsTrigger value="operativo" className="gap-1.5"><Briefcase className="h-3.5 w-3.5" />Operativo</TabsTrigger>
           <TabsTrigger value="financiero" className="gap-1.5"><Wallet className="h-3.5 w-3.5" />Financiero</TabsTrigger>
         </TabsList>
+
+        {/* ══════════════════════ MI DÍA ══════════════════════ */}
+        <TabsContent value="mi-dia" className="mt-4 space-y-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <KpiCard title="Citas de hoy" value={String(citasHoy.length)} sub={citasHoy[0] ? `Próxima: ${citasHoy[0].start_time ?? 'sin hora'}` : 'Sin citas'} icon={CalendarDays} />
+            <KpiCard title="Plazos críticos" value={String(criticalTasks.length)} sub="Vencidos o en 3 días" icon={AlertTriangle} color={criticalTasks.length ? 'text-red-500' : undefined} />
+            <KpiCard title="Tareas vencidas" value={String(overdueTasks.length)} icon={Clock} color={overdueTasks.length ? 'text-amber-500' : undefined} />
+            <KpiCard title="Cobros vencidos" value={money(overdueBilling.reduce((t, c) => t + c.saldo_pendiente_cents / 100, 0))} sub={`${overdueBilling.length} expediente${overdueBilling.length === 1 ? '' : 's'}`} icon={CircleDollarSign} color={overdueBilling.length ? 'text-amber-500' : undefined} />
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader className="flex-row items-center justify-between py-3">
+                <CardTitle className="text-base">Seguimiento comercial vencido</CardTitle>
+                <Link to="/pipeline" className="text-xs text-primary hover:underline">Ver pipeline →</Link>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {seguimientoVencido.slice(0, 5).map((o) => (
+                  <Link key={`seg-${o.id}`} to="/pipeline"
+                    className="flex items-center gap-2 p-2.5 rounded-lg hover:bg-muted/40 transition-colors" style={{ border: '1px solid hsl(var(--c-inner-border))' }}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm truncate">{o.nombre ?? 'Oportunidad'}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">
+                        {o.proxima_accion ?? 'Sin próximo paso'} · venció {formatDate(o.fecha_proxima_accion)}
+                      </p>
+                    </div>
+                    {o.honorarios_estimados_cents != null && (
+                      <span className="text-xs font-mono text-muted-foreground shrink-0">{money(o.honorarios_estimados_cents / 100)}</span>
+                    )}
+                  </Link>
+                ))}
+                {!seguimientoVencido.length && <p className="text-muted-foreground text-sm py-6 text-center">Nada pendiente de llamar</p>}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex-row items-center justify-between py-3">
+                <CardTitle className="text-base">Agenda de hoy</CardTitle>
+                <Link to="/sessions" className="text-xs text-primary hover:underline">Ver agenda →</Link>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {citasHoy.map((s) => (
+                  <Link key={s.id} to={s.case_id ? `/cases?case_id=${s.case_id}` : '/sessions'}
+                    className="flex items-center gap-3 p-2.5 rounded-lg hover:bg-muted/40 transition-colors"
+                    style={{ border: '1px solid hsl(var(--c-inner-border))' }}>
+                    <span className="text-xs font-mono text-muted-foreground w-24 shrink-0">
+                      {s.start_time ? `${s.start_time}${s.end_time ? `–${s.end_time}` : ''}` : 'Sin hora'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm truncate">{s.consult_type}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{s.client_name ?? 'Sin cliente'}{s.case_title ? ` · ${s.case_title}` : ''}</p>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground shrink-0">{s.status}</span>
+                  </Link>
+                ))}
+                {!citasHoy.length && <p className="text-muted-foreground text-sm py-6 text-center">Sin citas para hoy</p>}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex-row items-center justify-between py-3">
+                <CardTitle className="text-base">Pendientes de atender</CardTitle>
+                <Link to="/tasks" className="text-xs text-primary hover:underline">Ver tareas →</Link>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {[...criticalTasks, ...overdueTasks.filter((t) => !criticalTasks.some((c) => c.id === t.id))].slice(0, 8).map((t) => {
+                  const critico = criticalTasks.some((c) => c.id === t.id)
+                  return (
+                    <Link key={`pend-${t.id}`} to={`/cases?case_id=${t.case_id}&tab=tasks`}
+                      className="flex items-start gap-2.5 p-2.5 rounded-lg hover:bg-muted/40 transition-colors"
+                      style={{ border: `1px solid ${critico ? 'hsl(0 70% 55% / 0.3)' : 'hsl(var(--c-inner-border))'}` }}>
+                      {critico ? <AlertTriangle className="h-3.5 w-3.5 text-destructive mt-0.5 shrink-0" /> : <Clock className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm truncate">{t.title}</p>
+                        <p className="text-[11px] text-muted-foreground truncate">{t.case_title} · vence {formatDate(t.due_date)}</p>
+                      </div>
+                    </Link>
+                  )
+                })}
+                {!criticalTasks.length && !overdueTasks.length && <p className="text-muted-foreground text-sm py-6 text-center">Nada vencido. Todo al día.</p>}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader className="py-3"><CardTitle className="text-base">Expedientes sin movimiento</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {staleCases.slice(0, 5).map((c) => (
+                  <Link key={`sm-${c.id}`} to={`/cases?case_id=${c.id}`}
+                    className="flex items-center gap-2 p-2.5 rounded-lg hover:bg-muted/40 transition-colors" style={{ border: '1px solid hsl(var(--c-inner-border))' }}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm truncate">{c.title}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{c.client_name} · {c.last_session ? `última cita ${formatDate(c.last_session)}` : 'sin citas'}</p>
+                    </div>
+                  </Link>
+                ))}
+                {!staleCases.length && <p className="text-muted-foreground text-sm py-6 text-center">Todos con movimiento reciente</p>}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader className="flex-row items-center justify-between py-3">
+                <CardTitle className="text-base">Cobros vencidos</CardTitle>
+                <Link to="/cashflow" className="text-xs text-primary hover:underline">Flujo de caja →</Link>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {overdueBilling.slice(0, 5).map((c) => (
+                  <Link key={`cv-${c.id}`} to={`/cases?case_id=${c.id}`}
+                    className="flex items-center gap-2 p-2.5 rounded-lg hover:bg-muted/40 transition-colors" style={{ border: '1px solid hsl(var(--c-inner-border))' }}>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm truncate">{c.title}</p>
+                      <p className="text-[11px] text-muted-foreground truncate">{c.client_name} · esperado {c.mes_cobro_esperado}</p>
+                    </div>
+                    <span className="text-xs font-mono text-amber-500 shrink-0">{money(c.saldo_pendiente_cents / 100)}</span>
+                  </Link>
+                ))}
+                {!overdueBilling.length && <p className="text-muted-foreground text-sm py-6 text-center">Sin cobros vencidos</p>}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         {/* ══════════════════════ COMERCIAL ══════════════════════ */}
         <TabsContent value="comercial" className="mt-4 space-y-6">

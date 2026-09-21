@@ -171,6 +171,7 @@ export interface GlobalCaseTask extends CaseTask {
   case_status: string
   client_name: string | null
   client_id: number
+  case_responsible_username: string | null
 }
 export interface CaseTaskIn {
   title: string
@@ -601,6 +602,107 @@ export interface UtilidadOperativaReal {
   margen_operativo_real_pct: number | null
 }
 
+// ── Resumen mensual consolidado (hoja 17 del Archivo Maestro) ─────────────────
+export interface ResumenMes {
+  mes: string
+  meta_ingresos: number
+  ingresos_reales: number
+  cumplimiento_ingresos_pct: number | null
+  meta_utilidad_directa: number
+  utilidad_directa_real: number
+  cumplimiento_utilidad_directa_pct: number | null
+  gastos_fijos: number
+  comisiones: number
+  utilidad_operativa_real: number
+  utilidad_operativa_minima: number
+  margen_operativo_real_pct: number | null
+  margen_operativo_minimo_pct: number
+  brecha_utilidad_minima: number
+  semaforo_general: Semaforo | null
+}
+
+export interface ResumenMensual {
+  desde: string
+  hasta: string
+  meses: ResumenMes[]
+  totales: ResumenMes
+}
+
+// ── KPI-009 · ticket promedio ─────────────────────────────────────────────────
+export type TicketAgrupacion = 'servicio' | 'categoria' | 'familia'
+
+export interface TicketPromedioItem {
+  codigo: string
+  nombre: string
+  ingresos: number
+  casos_cobrados: number
+  ticket_promedio: number | null
+}
+
+export interface TicketPromedio {
+  desde: string
+  hasta: string
+  agrupar_por: TicketAgrupacion
+  ingresos: number
+  casos_cobrados: number
+  ticket_promedio: number | null
+  detalle: TicketPromedioItem[]
+}
+
+// ── KPI-015 · ingresos y utilidad por origen del negocio ──────────────────────
+export interface IngresoPorOrigen {
+  origen: string
+  tipo_origen: string
+  casos: number
+  ingresos: number
+  costos_directos: number
+  utilidad_directa: number
+  margen_pct: number | null
+}
+
+// ── KPI-016 · días promedio de cobro ──────────────────────────────────────────
+export interface DiasCobroItem {
+  codigo: string
+  nombre: string
+  promedio_dias: number
+  cobros_medidos: number
+}
+
+export interface DiasCobro {
+  desde: string
+  hasta: string
+  promedio_dias: number | null
+  maximo_dias: number | null
+  cobros_medidos: number
+  sin_referencia: number
+  detalle: DiasCobroItem[]
+}
+
+// ── Aging de cartera ──────────────────────────────────────────────────────────
+export interface AgingTramo {
+  tramo: string
+  saldo: number
+  casos: number
+}
+
+export interface AgingCaso {
+  case_id: number
+  title: string
+  client_name: string | null
+  estado_cobro: string
+  mes_cobro_esperado: string | null
+  saldo_pendiente: number
+  dias_atraso: number
+  tramo: string
+}
+
+export interface AgingCartera {
+  fecha_corte: string
+  total_pendiente: number
+  tramos: AgingTramo[]
+  casos: AgingCaso[]
+}
+
 // ── Comisión multi-originador (Fase 8) ────────────────────────────────────────
 export const TIPO_ORIGEN_VALUES = ['Cliente nuevo', 'Venta cruzada'] as const
 export type TipoOrigen = typeof TIPO_ORIGEN_VALUES[number]
@@ -762,6 +864,11 @@ export interface Oportunidad {
   fecha_prospecto: string
   fecha_cotizado: string | null
   fecha_cierre: string | null
+  responsable_username: string | null
+  proxima_accion: string | null
+  fecha_proxima_accion: string | null
+  motivo_perdida_tipo: string | null
+  dias_en_etapa: number | null
   created_at: string
   updated_at: string
 }

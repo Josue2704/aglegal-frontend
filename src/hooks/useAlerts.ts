@@ -25,6 +25,7 @@ export function useAlerts() {
     (data?.overdue_tasks.length ?? 0) +
     (data?.stale_cases.length ?? 0) +
     (data?.overdue_billing.length ?? 0) +
+    (data?.seguimiento_vencido?.length ?? 0) +
     (data?.budget_deviation.length ?? 0)
 
   return { ...query, totalCount }

@@ -21,10 +21,11 @@ export const dashboardApi = {
     ).then((r) => r.data),
   alerts: (params?: { stale_days?: number }) =>
     api.get<{
-      overdue_tasks: { id: number; title: string; due_date: string; case_id: number; case_title: string; client_name: string | null; es_critico?: boolean }[]
-      critical_tasks: { id: number; title: string; due_date: string; case_id: number; case_title: string; client_name: string | null }[]
-      stale_cases: { id: number; title: string; status: string; client_name: string | null; last_session: string | null }[]
-      overdue_billing: { id: number; title: string; client_name: string | null; mes_cobro_esperado: string; estado_cobro: string; saldo_pendiente_cents: number }[]
+      overdue_tasks: { id: number; title: string; due_date: string; case_id: number; case_title: string; client_name: string | null; es_critico?: boolean; responsible_username: string | null; case_responsible_username: string | null }[]
+      critical_tasks: { id: number; title: string; due_date: string; case_id: number; case_title: string; client_name: string | null; responsible_username: string | null; case_responsible_username: string | null }[]
+      stale_cases: { id: number; title: string; status: string; client_name: string | null; last_session: string | null; responsible_username: string | null }[]
+      overdue_billing: { id: number; title: string; client_name: string | null; mes_cobro_esperado: string; estado_cobro: string; saldo_pendiente_cents: number; responsible_username: string | null }[]
+      seguimiento_vencido: { id: number; nombre: string | null; estado: string; proxima_accion: string | null; fecha_proxima_accion: string; responsable_username: string | null; honorarios_estimados_cents: number | null }[]
       budget_deviation: { mes: string; cobrado_mes_cents: number; cartera_ponderada_mes_cents: number; proyeccion_cierre_cents: number; meta_ingresos_cents: number; cumplimiento_proyectado_pct: number | null }[]
     }>('/dashboard/alerts', { params }).then((r) => r.data),
   rentabilidadAbogado: (params?: { start_date?: string; end_date?: string }) =>

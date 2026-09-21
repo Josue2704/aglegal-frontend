@@ -27,6 +27,8 @@ import { Dialog, DialogContent } from '@/components/ui/dialog'
 import { formatDate, today } from '@/lib/utils'
 import { AttachmentsDialog } from '@/components/AttachmentsDialog'
 import { SessionDialog, SESSION_STATUSES, SESSION_STATUS_COLOR, timeToFrac, fracToTime, formatDuration } from '@/components/SessionDialog'
+import { casesApi } from '@/api/cases'
+import { useSoloMio } from '@/hooks/useSoloMio'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUSES = SESSION_STATUSES
@@ -849,12 +851,20 @@ export default function Sessions() {
   const [editing, setEditing] = useState<Session | null>(null)
   const [newDate, setNewDate] = useState<string | undefined>()
   const [newTime, setNewTime] = useState<string | undefined>()
-  // En pantallas angostas el mes/semana en cuadrícula queda demasiado apretado para
-  // usarse (columnas de ~50px) — arranca en Lista, que sí es legible en un teléfono.
-  // Sigue siendo elección del usuario cambiar a Mes/Semana/Día en cualquier momento.
-  const [view, setView] = useState<'calendar' | 'week' | 'day' | 'list'>(
-    () => (typeof window !== 'undefined' && window.innerWidth < 768 ? 'list' : 'calendar')
-  )
+  // Abre en el día de hoy, que es lo que se mira al llegar, y recuerda la última vista
+  // elegida. En pantallas angostas el mes/semana en cuadrícula queda ilegible (columnas de
+  // ~50px), así que ahí arranca en Lista.
+  const [view, setViewState] = useState<'calendar' | 'week' | 'day' | 'list'>(() => {
+    try {
+      const guardada = localStorage.getItem('ag_agenda_vista')
+      if (guardada === 'calendar' || guardada === 'week' || guardada === 'day' || guardada === 'list') return guardada
+    } catch { /* sin persistencia */ }
+    return typeof window !== 'undefined' && window.innerWidth < 768 ? 'list' : 'day'
+  })
+  const setView = useCallback((v: 'calendar' | 'week' | 'day' | 'list') => {
+    setViewState(v)
+    try { localStorage.setItem('ag_agenda_vista', v) } catch { /* sin persistencia */ }
+  }, [])
   const [dayDate, setDayDate] = useState(new Date())
   const [selectedSession, setSelectedSession] = useState<Session | null>(null)
   const [attachmentSession, setAttachmentSession] = useState<Session | null>(null)
@@ -881,15 +891,22 @@ export default function Sessions() {
     end_date: endDate || undefined,
   }
 
-  const { data: allSessions = [] } = useQuery({
+  const { soloMio, setSoloMio, esMio } = useSoloMio()
+  const { data: casosParaFiltro = [] } = useQuery({ queryKey: ['cases'], queryFn: () => casesApi.list() })
+  const responsablePorCaso = new Map(casosParaFiltro.map((c) => [c.id, c.responsible_username]))
+  const mia = (s: Session) => esMio(s.case_id ? responsablePorCaso.get(s.case_id) : null)
+
+  const { data: allSessionsRaw = [] } = useQuery({
     queryKey: ['sessions', { client_id: urlClientId }],
     queryFn: () => sessionsApi.list({ client_id: urlClientId }),
   })
-  const { data: filteredSessions = [] } = useQuery({
+  const allSessions = allSessionsRaw.filter(mia)
+  const { data: filteredSessionsRaw = [] } = useQuery({
     queryKey: ['sessions', params],
     queryFn: () => sessionsApi.list(params),
     enabled: view === 'list',
   })
+  const filteredSessions = filteredSessionsRaw.filter(mia)
 
   const invalidate = useCallback(() => qc.invalidateQueries({ queryKey: ['sessions'] }), [qc])
 
@@ -1033,6 +1050,16 @@ export default function Sessions() {
           <Button variant="outline" size="sm" onClick={() => importGoogle.mutate()} disabled={importGoogle.isPending} className="hidden sm:flex">
             <CalendarDays className="h-4 w-4" />Google
           </Button>
+
+          {/* Solo mis citas / todas */}
+          <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-inner-border))' }}>
+            {[{ v: true, label: 'Mías' }, { v: false, label: 'Todas' }].map((o) => (
+              <button key={o.label} onClick={() => setSoloMio(o.v)}
+                className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${soloMio === o.v ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+                {o.label}
+              </button>
+            ))}
+          </div>
 
           {/* View toggle */}
           <div className="flex rounded-lg overflow-hidden" style={{ border: '1px solid hsl(var(--c-inner-border))' }}>

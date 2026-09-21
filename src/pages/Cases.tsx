@@ -26,6 +26,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { formatDate, today, exportCsv } from '@/lib/utils'
 import CaseDetailPanel, { type Tab } from '@/components/CaseDetailPanel'
 import { QuickClientForm } from '@/components/QuickClientForm'
+import { useSoloMio } from '@/hooks/useSoloMio'
 
 const STATUSES = ['Abierto', 'En trámite', 'En pausa', 'Cerrado'] as const
 const PRIORITIES = ['Baja', 'Media', 'Alta'] as const
@@ -134,6 +135,7 @@ export default function Cases() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const [nuevoCliente, setNuevoCliente] = useState(false)
+  const { soloMio, setSoloMio, esMio } = useSoloMio()
   const [statusFilter, setStatusFilter] = useState('Todos')
   const [showArchived, setShowArchived] = useState(false)
 
@@ -142,8 +144,9 @@ export default function Cases() {
   const [dlg, setDlg] = useState(false)
   const [editing, setEditing] = useState<Case | null>(null)
   const [form, setForm] = useState<FormData>(EMPTY_FORM)
-  const [detailCase, setDetailCase] = useState<Case | null>(null)
-  const [detailTab, setDetailTab] = useState<Tab | undefined>()
+  // El expediente abierto vive en la dirección (?case_id=&tab=): recargar lo mantiene,
+  // Atrás lo cierra y el enlace se puede pasar a un colega.
+  const [detailSeed, setDetailSeed] = useState<Case | null>(null)
   const [serviceSearch, setServiceSearch] = useState('')
   const [selectedService, setSelectedService] = useState<{ id: number; service_code: string; nombre: string; category_code?: string; subcategory_code?: string } | null>(null)
   const [tareasIniciales, setTareasIniciales] = useState<{ titulo: string; due_date: string; es_critico: boolean; incluida: boolean }[]>([])
@@ -159,14 +162,23 @@ export default function Cases() {
     queryFn: () => casesApi.get(urlCaseId!),
     enabled: !!urlCaseId,
   })
-  useEffect(() => {
-    if (urlCase) {
-      setDetailTab((searchParams.get('tab') as Tab | null) ?? undefined)
-      setDetailCase(urlCase)
-      const next = new URLSearchParams(searchParams); next.delete('case_id'); next.delete('tab'); setSearchParams(next, { replace: true })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlCase])
+  // Al abrir desde la tabla ya tenemos la fila: se muestra de inmediato mientras llega el dato fresco.
+  const detailCase = urlCaseId ? (urlCase ?? (detailSeed?.id === urlCaseId ? detailSeed : null)) : null
+  const detailTab = (searchParams.get('tab') as Tab | null) ?? undefined
+
+  function abrirDetalle(c: Case, tab?: Tab) {
+    setDetailSeed(c)
+    const next = new URLSearchParams(searchParams)
+    next.set('case_id', String(c.id))
+    if (tab) next.set('tab', tab); else next.delete('tab')
+    setSearchParams(next)
+  }
+  function cerrarDetalle() {
+    const next = new URLSearchParams(searchParams)
+    next.delete('case_id'); next.delete('tab')
+    setSearchParams(next)
+    setDetailSeed(null)
+  }
   useEffect(() => {
     if (searchParams.get('new') === '1') {
       openNew(searchParams.get('client_id') ?? '')
@@ -191,7 +203,9 @@ export default function Cases() {
     staleTime: 5_000,
   })
   const hayConflicto = !!conflicto && (conflicto.clientes.length > 0 || conflicto.casos.length > 0)
-  const { sorted: sortedCases, sortKey, sortDir, toggle } = useSortable(cases as unknown as Record<string, unknown>[], 'opened_at', 'desc')
+  // "Míos": expedientes donde soy el abogado responsable (y los que aún no tienen uno).
+  const casesVisibles = useMemo(() => cases.filter((c) => esMio(c.responsible_username)), [cases, esMio])
+  const { sorted: sortedCases, sortKey, sortDir, toggle } = useSortable(casesVisibles as unknown as Record<string, unknown>[], 'opened_at', 'desc')
   const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
   const { data: allServicios = [] } = useQuery({
@@ -212,8 +226,17 @@ export default function Cases() {
     queryFn: () => catalogoApi.listPlantillaTareas(selectedService!.id),
     enabled: dlg && !editing && !!selectedService,
   })
+  // `plantilla` llega como arreglo nuevo en cada render mientras la consulta está
+  // deshabilitada, así que el efecto no puede depender de su identidad ni escribir un
+  // arreglo nuevo a ciegas: eso dejaba la pantalla en bucle de renders ("Maximum update
+  // depth exceeded") y la tumbaba al abrir Expedientes.
+  const plantillaFirma = plantilla.map((p) => p.id).join(',')
   useEffect(() => {
-    if (editing || !selectedService || !plantilla.length) { if (!selectedService) setTareasIniciales([]); return }
+    if (editing || !selectedService) {
+      setTareasIniciales((prev) => (prev.length ? [] : prev))
+      return
+    }
+    if (!plantilla.length) return
     setTareasIniciales(plantilla.map((p) => ({
       titulo: p.titulo,
       due_date: p.dias_plazo_relativo != null
@@ -223,7 +246,7 @@ export default function Cases() {
       incluida: true,
     })))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [plantilla, selectedService, editing])
+  }, [plantillaFirma, selectedService?.id, editing])
 
   const createCase = useMutation({
     mutationFn: (d: CaseIn) => casesApi.create(d),
@@ -232,7 +255,7 @@ export default function Cases() {
       qc.invalidateQueries({ queryKey: ['case-choices'] })
       toast.success('Expediente creado — sigue con citas, tareas o cobros desde aquí')
       setDlg(false)
-      setDetailCase(nuevo)
+      abrirDetalle(nuevo)
     },
     onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error'),
   })
@@ -338,9 +361,17 @@ export default function Cases() {
             <h1 className="text-2xl font-bold">Expedientes</h1>
             <HelpButton content={casesHelp} />
           </div>
-          <p className="text-muted-foreground text-sm">{cases.length} caso{cases.length !== 1 ? 's' : ''}{showArchived ? ' en la papelera' : ''}</p>
+          <p className="text-muted-foreground text-sm">{casesVisibles.length} expediente{casesVisibles.length !== 1 ? 's' : ''}{soloMio ? ' a mi cargo' : ''}{showArchived ? ' en la papelera' : ''}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+        <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-table-border-h))' }}>
+          {[{ v: true, label: 'Míos' }, { v: false, label: 'Todos' }].map((o) => (
+            <button key={o.label} onClick={() => setSoloMio(o.v)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${soloMio === o.v ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+              {o.label}
+            </button>
+          ))}
+        </div>
           <Button variant={showArchived ? 'default' : 'outline'} onClick={() => setShowArchived((v) => !v)}>
             <Trash2 className="h-4 w-4" />{showArchived ? 'Viendo papelera' : 'Papelera'}
           </Button>
@@ -405,7 +436,7 @@ export default function Cases() {
                       <td className="px-4 py-3 text-xs font-mono text-muted-foreground whitespace-nowrap">{c.internal_ref ?? '—'}</td>
                       <td className="px-4 py-3 max-w-[200px]">
                         <button
-                          onClick={() => setDetailCase(c)}
+                          onClick={() => abrirDetalle(c)}
                           className="text-left font-medium text-foreground hover:text-primary transition-colors truncate block w-full"
                           title="Ver detalle del expediente"
                         >
@@ -431,7 +462,7 @@ export default function Cases() {
                       <td className="px-4 py-3">
                         <div className="flex gap-1.5">
                           <button
-                            onClick={() => setDetailCase(c)}
+                            onClick={() => abrirDetalle(c)}
                             className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium"
                             style={{ color: 'hsl(var(--accent))', background: 'hsl(var(--accent) / 0.1)', border: '1px solid hsl(var(--accent) / 0.2)' }}
                             title="Ver detalle (sesiones, docs, tareas)"
@@ -485,7 +516,7 @@ export default function Cases() {
 
       {/* Case Detail Panel */}
       {detailCase && (
-        <CaseDetailPanel key={detailCase.id} kase={detailCase} initialTab={detailTab} onClose={() => { setDetailCase(null); setDetailTab(undefined) }} onEdit={openEdit} />
+        <CaseDetailPanel key={detailCase.id} kase={detailCase} initialTab={detailTab} onClose={cerrarDetalle} onEdit={openEdit} />
       )}
 
       {/* Form Dialog */}

@@ -7,17 +7,7 @@ import { Sidebar } from './Sidebar'
 import { Toaster } from 'sonner'
 import { useSettingsStore } from '@/store/settings'
 import { dashboardApi } from '@/api/dashboard'
-
-const BREADCRUMB: Record<string, { label: string; parent?: string }> = {
-  '/':           { label: 'Dashboard' },
-  '/clients':    { label: 'Clientes' },
-  '/cases':      { label: 'Expedientes', parent: 'Gestión' },
-  '/sessions':   { label: 'Agenda', parent: 'Gestión' },
-  '/cashflow':   { label: 'Flujo de Caja', parent: 'Finanzas' },
-  '/payroll':    { label: 'Nóminas', parent: 'Finanzas' },
-  '/users':      { label: 'Usuarios', parent: 'Sistema' },
-  '/settings':   { label: 'Configuración', parent: 'Sistema' },
-}
+import { navCrumb } from '@/lib/nav'
 
 // ─── Global Search ────────────────────────────────────────────────────────────
 function GlobalSearch() {
@@ -303,7 +293,7 @@ function QuickCreate() {
 // ─── Layout ───────────────────────────────────────────────────────────────────
 export function Layout() {
   const { pathname } = useLocation()
-  const crumb = BREADCRUMB[pathname] ?? { label: pathname.slice(1) }
+  const crumb = navCrumb(pathname)
   const { theme, toggleTheme } = useSettingsStore()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 

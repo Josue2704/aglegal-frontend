@@ -86,6 +86,28 @@ export function NotificationBell() {
               </div>
             )}
 
+            {/* Seguimiento comercial vencido */}
+            {(data?.seguimiento_vencido?.length ?? 0) > 0 && (
+              <div>
+                <p className="px-4 py-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground sticky top-0"
+                  style={{ background: 'hsl(var(--c-panel-bg))' }}>
+                  Seguimiento comercial vencido
+                </p>
+                {data!.seguimiento_vencido.map((o) => (
+                  <button key={`seg-${o.id}`} onClick={() => go('/pipeline')}
+                    className="w-full flex items-start gap-3 px-4 py-2.5 text-left transition-colors hover:bg-amber-500/5">
+                    <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5 text-amber-500" />
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-foreground truncate">{o.nombre ?? 'Oportunidad'}</p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {o.proxima_accion ?? 'Sin próximo paso'} · Venció {formatDate(o.fecha_proxima_accion)}
+                      </p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Overdue tasks */}
             {(data?.overdue_tasks.length ?? 0) > 0 && (
               <div>

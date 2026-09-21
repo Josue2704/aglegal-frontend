@@ -20,6 +20,7 @@ import { Badge } from '@/components/ui/badge'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { AttachmentsDialog } from '@/components/AttachmentsDialog'
+import ClientDetailPanel from '@/components/ClientDetailPanel'
 import { formatDate, exportCsv, today } from '@/lib/utils'
 import { useSortable } from '@/hooks/useSortable'
 import { SortableTh } from '@/components/ui/sortable-th'
@@ -367,6 +368,9 @@ export default function Clients() {
   const [search, setSearch] = useState(() => searchParams.get('search') ?? '')
   const [showArchived, setShowArchived] = useState(false)
   const [siguiente, setSiguiente] = useState<Client | null>(null)
+  // La ficha abierta vive en la dirección (?client_id=), igual que el expediente.
+  const urlClientId = searchParams.get('client_id') ? Number(searchParams.get('client_id')) : undefined
+  const [fichaSeed, setFichaSeed] = useState<Client | null>(null)
   const [dlg, setDlg] = useState<'form' | 'history' | null>(null)
   const [editing, setEditing] = useState<Client | null>(null)
   const [form, setForm] = useState<ClientIn>(EMPTY)
@@ -375,6 +379,14 @@ export default function Clients() {
   const [statementClient, setStatementClient] = useState<Client | null>(null)
 
   useEffect(() => { const q = searchParams.get('search'); if (q !== null) setSearch(q) }, [searchParams])
+
+  function abrirFicha(c: Client) {
+    setFichaSeed(c)
+    const next = new URLSearchParams(searchParams); next.set('client_id', String(c.id)); setSearchParams(next)
+  }
+  function cerrarFicha() {
+    const next = new URLSearchParams(searchParams); next.delete('client_id'); setSearchParams(next); setFichaSeed(null)
+  }
   useEffect(() => {
     if (searchParams.get('new') === '1') {
       openNew()
@@ -566,7 +578,9 @@ export default function Clients() {
                             size={34}
                           />
                           <div className="min-w-0">
-                            <p className="font-medium text-foreground">{c.name}</p>
+                            <button onClick={() => abrirFicha(c)} className="font-medium text-foreground hover:text-primary transition-colors text-left truncate block w-full" title="Ver ficha completa">
+                              {c.name}
+                            </button>
                             {c.id_number && (
                               <p className="text-xs text-muted-foreground font-mono">{c.id_number}</p>
                             )}
@@ -835,6 +849,16 @@ export default function Clients() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Ficha completa del cliente */}
+      {urlClientId && ((clients as Client[]).find((c) => c.id === urlClientId) ?? (fichaSeed?.id === urlClientId ? fichaSeed : null)) && (
+        <ClientDetailPanel
+          key={urlClientId}
+          client={((clients as Client[]).find((c) => c.id === urlClientId) ?? fichaSeed) as Client}
+          onClose={cerrarFicha}
+          onEdit={(c) => { cerrarFicha(); openEdit(c) }}
+        />
+      )}
 
       {/* Statement Dialog */}
       {statementClient && (

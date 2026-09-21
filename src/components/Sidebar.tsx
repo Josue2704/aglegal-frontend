@@ -1,96 +1,67 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
-import {
-  LayoutDashboard, Users, Briefcase, CalendarDays,
-  TrendingUp, Wallet, UserCog, LogOut, Settings,
-  ChevronRight, Receipt, ListChecks, Shield, X, BarChart2, FolderTree, Landmark, Target, Percent, ShieldCheck,
-} from 'lucide-react'
+import { ChevronRight, ChevronDown, LogOut, X } from 'lucide-react'
 import { useAuthStore } from '@/store/auth'
 import { authApi } from '@/api/auth'
+import { useAlerts } from '@/hooks/useAlerts'
+import { NAV_GROUPS, visibleItems, type NavGroup } from '@/lib/nav'
 import { cn } from '@/lib/utils'
 import { EntityAvatar } from './EntityAvatar'
 
-type NavItem = { to: string; icon: React.ElementType; label: string; perm?: string; adminOnly?: boolean }
-type NavGroup = { label: string; items: NavItem[] }
+const COLAPSADOS_KEY = 'ag_nav_colapsados'
 
-const NAV_GROUPS: NavGroup[] = [
-  {
-    label: 'Principal',
-    items: [
-      { to: '/', icon: LayoutDashboard, label: 'Dashboard', perm: 'dashboard.ver' },
-    ],
-  },
-  {
-    label: 'Gestión',
-    items: [
-      { to: '/clients',  icon: Users,        label: 'Clientes',     perm: 'clientes.ver' },
-      { to: '/pipeline', icon: Target,       label: 'Pipeline Comercial', perm: 'pipeline.ver' },
-      { to: '/cases',    icon: Briefcase,    label: 'Expedientes',  perm: 'expedientes.ver' },
-      { to: '/tasks',    icon: ListChecks,   label: 'Tareas',       perm: 'tareas.ver' },
-      { to: '/sessions', icon: CalendarDays, label: 'Agenda',       perm: 'agenda.ver' },
-    ],
-  },
-  {
-    label: 'Finanzas',
-    items: [
-      { to: '/cashflow',   icon: TrendingUp, label: 'Flujo de Caja', perm: 'flujo_caja.ver' },
-      { to: '/invoices',   icon: Receipt,    label: 'Facturas',       perm: 'facturas.ver' },
-      { to: '/payroll',    icon: Wallet,     label: 'Nóminas',        perm: 'nominas.ver' },
-      { to: '/reports',    icon: BarChart2,  label: 'Reportes',       perm: 'flujo_caja.ver' },
-      { to: '/catalogo',   icon: FolderTree, label: 'Catálogo Maestro', perm: 'catalogo.ver' },
-      { to: '/finanzas',   icon: Landmark,   label: 'Finanzas',         perm: 'finanzas.ver' },
-      { to: '/comisiones', icon: Percent,    label: 'Comisiones',       perm: 'comisiones.ver' },
-      { to: '/gobierno-catalogo', icon: ShieldCheck, label: 'Gobierno del Catálogo', perm: 'gobierno_catalogo.ver' },
-    ],
-  },
-  {
-    label: 'Sistema',
-    items: [
-      // Las 3 rutas de este grupo están protegidas en App.tsx con AdminRoute (exige
-      // is_admin, ignora el arreglo de permisos) — adminOnly evita que el menú muestre
-      // un enlace que un rol no-admin con estos permisos igual no puede abrir de verdad.
-      { to: '/users',    icon: UserCog, label: 'Usuarios',      perm: 'usuarios.ver', adminOnly: true },
-      { to: '/roles',    icon: Shield,  label: 'Roles',          perm: 'roles.ver', adminOnly: true },
-      { to: '/settings', icon: Settings, label: 'Configuración', perm: 'configuracion.ver', adminOnly: true },
-    ],
-  },
-]
+function leerColapsados(): string[] {
+  try { return JSON.parse(localStorage.getItem(COLAPSADOS_KEY) ?? '[]') } catch { return [] }
+}
 
-function NavGroupSection({ group, userPerms, isAdmin, onNav }: {
+function NavGroupSection({ group, userPerms, isAdmin, onNav, badges, colapsado, onToggle }: {
   group: NavGroup; userPerms: string[]; isAdmin: boolean; onNav: () => void
+  badges: Record<string, number>; colapsado: boolean; onToggle: () => void
 }) {
-  const visibleItems = group.items.filter(item =>
-    item.adminOnly ? isAdmin : (!item.perm || isAdmin || userPerms.includes(item.perm))
-  )
-  if (!visibleItems.length) return null
+  const items = visibleItems(group, isAdmin, userPerms)
+  if (!items.length) return null
 
   return (
     <div>
-      <p className="section-label">{group.label}</p>
-      {visibleItems.map(({ to, icon: Icon, label }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={to === '/'}
-          onClick={onNav}
-          className={({ isActive }) =>
-            cn(
-              'group flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5',
-              isActive ? 'nav-item-active' : 'nav-item-inactive'
-            )
-          }
-        >
-          {({ isActive }) => (
-            <>
-              <div className="flex items-center gap-2.5">
-                <Icon className={cn('h-4 w-4 shrink-0 transition-colors', isActive ? 'text-yellow-400' : '')} />
-                {label}
-              </div>
-              {isActive && <ChevronRight className="h-3 w-3 opacity-60" style={{ color: 'hsl(43 65% 60%)' }} />}
-            </>
-          )}
-        </NavLink>
-      ))}
+      <button onClick={onToggle} className="section-label flex items-center gap-1 w-full hover:text-white/70 transition-colors">
+        <ChevronDown className={cn('h-3 w-3 transition-transform', colapsado && '-rotate-90')} />
+        {group.label}
+      </button>
+      {!colapsado && items.map(({ to, icon: Icon, label, badge }) => {
+        const count = badge ? badges[badge] ?? 0 : 0
+        return (
+          <NavLink
+            key={to}
+            to={to}
+            end={to === '/'}
+            onClick={onNav}
+            className={({ isActive }) =>
+              cn(
+                'group flex items-center justify-between px-3 py-2 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5',
+                isActive ? 'nav-item-active' : 'nav-item-inactive'
+              )
+            }
+          >
+            {({ isActive }) => (
+              <>
+                <div className="flex items-center gap-2.5">
+                  <Icon className={cn('h-4 w-4 shrink-0 transition-colors', isActive ? 'text-yellow-400' : '')} />
+                  {label}
+                </div>
+                {count > 0 ? (
+                  <span
+                    className="min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center"
+                    style={{ background: 'hsl(0 70% 55% / 0.15)', color: 'hsl(0 70% 62%)', border: '1px solid hsl(0 70% 55% / 0.35)' }}
+                    title={`${count} tarea${count === 1 ? '' : 's'} vencida${count === 1 ? '' : 's'}`}
+                  >
+                    {count}
+                  </span>
+                ) : isActive && <ChevronRight className="h-3 w-3 opacity-60" style={{ color: 'hsl(43 65% 60%)' }} />}
+              </>
+            )}
+          </NavLink>
+        )
+      })}
     </div>
   )
 }
@@ -107,6 +78,17 @@ export function Sidebar({ open, onClose }: SidebarProps) {
 
   const isAdmin = user?.is_admin ?? false
   const permissions = user?.permissions ?? []
+  const { data: alerts } = useAlerts()
+  const badges = { 'tareas-vencidas': alerts?.overdue_tasks.length ?? 0 }
+  const [colapsados, setColapsados] = useState<string[]>(leerColapsados)
+
+  function toggleGrupo(label: string) {
+    setColapsados((prev) => {
+      const next = prev.includes(label) ? prev.filter((g) => g !== label) : [...prev, label]
+      try { localStorage.setItem(COLAPSADOS_KEY, JSON.stringify(next)) } catch { /* sin persistencia */ }
+      return next
+    })
+  }
 
   function onNav() {
     if (window.innerWidth < 768) onClose()
@@ -179,6 +161,9 @@ export function Sidebar({ open, onClose }: SidebarProps) {
               userPerms={permissions}
               isAdmin={isAdmin}
               onNav={onNav}
+              badges={badges}
+              colapsado={colapsados.includes(group.label)}
+              onToggle={() => toggleGrupo(group.label)}
             />
           ))}
         </nav>

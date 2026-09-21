@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { today } from '@/lib/utils'
 import { TaskForm, TaskItem } from '@/components/tasks'
+import { useSoloMio } from '@/hooks/useSoloMio'
 import { HelpButton } from '@/components/HelpButton'
 import { tasksHelp } from '@/lib/helpContent'
 
@@ -46,6 +47,7 @@ export default function Tasks() {
   const [filter, setFilter] = useState<FilterMode>('pending')
   const [responsableFilter, setResponsableFilter] = useState('')
   const [newDlg, setNewDlg] = useState(false)
+  const { soloMio, setSoloMio, esMio } = useSoloMio()
   // ?case=ID (desde notificaciones/expediente) filtra por expediente; ?new=1 abre el formulario.
   const caseFilter = searchParams.get('case') ? Number(searchParams.get('case')) : undefined
   useEffect(() => {
@@ -69,6 +71,8 @@ export default function Tasks() {
 
   const filtered = useMemo(() => {
     let list = caseFilter ? tasks.filter((t) => t.case_id === caseFilter) : tasks
+    // "Míos": tareas asignadas a mí, o de expedientes a mi cargo (y las que nadie ha tomado).
+    list = list.filter((t) => esMio(t.responsible_username, t.case_responsible_username))
     if (filter === 'pending') list = list.filter((t) => !t.done && !isOverdue(t))
     else if (filter === 'overdue') list = list.filter(isOverdue)
     else if (filter === 'done') list = list.filter((t) => t.done)
@@ -89,7 +93,7 @@ export default function Tasks() {
       )
     }
     return list
-  }, [tasks, filter, search, responsableFilter, caseFilter])
+  }, [tasks, filter, search, responsableFilter, caseFilter, esMio])
 
   // Group by case
   const grouped = useMemo(() => {
@@ -121,7 +125,17 @@ export default function Tasks() {
           </div>
           <p className="text-muted-foreground text-sm">Checklist global de todos los expedientes</p>
         </div>
-        <Button onClick={() => setNewDlg(true)}><Plus className="h-4 w-4" />Nueva tarea</Button>
+        <div className="flex items-center gap-2">
+        <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-table-border-h))' }}>
+          {[{ v: true, label: 'Míos' }, { v: false, label: 'Todos' }].map((o) => (
+            <button key={o.label} onClick={() => setSoloMio(o.v)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${soloMio === o.v ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+          <Button onClick={() => setNewDlg(true)}><Plus className="h-4 w-4" />Nueva tarea</Button>
+        </div>
       </div>
 
       <NewTaskDialog open={newDlg} onClose={() => setNewDlg(false)} caseId={caseFilter} />
