@@ -1,4 +1,4 @@
-import type { Case, CaseIn, CaseUpdate, CaseTask, CaseTaskIn, GlobalCaseTask, Choice, Session, TiempoAtencion, CaseTimeEntry, CaseTimeEntryIn, ConflictoInteres, CaseHonorariosLogEntry } from '@/types'
+import type { Case, CaseIn, CaseUpdate, CaseTask, CaseTaskIn, CaseTaskUpdate, GlobalCaseTask, Choice, Session, TiempoAtencion, CaseTimeEntry, CaseTimeEntryIn, ConflictoInteres, CaseHonorariosLogEntry } from '@/types'
 import api from './client'
 
 export const casesApi = {
@@ -22,6 +22,8 @@ export const casesApi = {
   listTasks: (caseId: number) => api.get<CaseTask[]>(`/cases/${caseId}/tasks`).then((r) => r.data),
   createTask: (caseId: number, data: CaseTaskIn) =>
     api.post<CaseTask>(`/cases/${caseId}/tasks`, data).then((r) => r.data),
+  updateTask: (taskId: number, data: CaseTaskUpdate) =>
+    api.put<CaseTask>(`/cases/tasks/${taskId}`, data).then((r) => r.data),
   setTaskDone: (taskId: number, done: boolean, completed_notes?: string | null) =>
     api.patch<CaseTask>(`/cases/tasks/${taskId}/done`, { done, completed_notes }).then((r) => r.data),
   updateTaskNotes: (taskId: number, notes: string | null, completed_notes: string | null) =>

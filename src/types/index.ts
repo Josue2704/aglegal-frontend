@@ -106,6 +106,7 @@ export interface Case {
   honorarios_contratados: number
   costos_directos_estimados: number
   saldo_pendiente: number
+  costos_directos_reales: number
   mes_cobro_esperado: string | null
   estado_cobro: CaseEstadoCobro
   fecha_cierre_estimada: string | null
@@ -162,7 +163,18 @@ export interface CaseTask {
   responsible_username: string | null
   es_critico: boolean
   origen: TareaOrigen
+  /** Honorario extra que se le cobra al cliente: sube los honorarios del expediente. */
   monto_adicional: number
+  autorizado_por: string | null
+  fecha_autorizacion: string | null
+  /** Lo que costó hacerla: genera el costo directo del expediente. */
+  costo_real: number
+  costo_account_id: number | null
+  costo_es_reembolsable: boolean
+  cost_id: number | null
+  completed_at: string | null
+  completed_by: string | null
+  invoice_id: number | null
   created_at: string
 }
 
@@ -180,6 +192,15 @@ export interface CaseTaskIn {
   responsible_username?: string
   es_critico?: boolean
   monto_adicional?: number
+  autorizado_por?: string
+  fecha_autorizacion?: string | null
+  costo_real?: number
+  costo_account_id?: number | null
+  costo_es_reembolsable?: boolean
+}
+
+export interface CaseTaskUpdate extends CaseTaskIn {
+  completed_at?: string | null
 }
 
 export interface CaseHonorariosLogEntry {
@@ -200,6 +221,8 @@ export interface PlantillaTarea {
   orden: number
   dias_plazo_relativo: number | null
   es_critico_default: boolean
+  costo_estimado: number
+  honorario_sugerido: number
   created_at: string
   updated_at: string
 }
@@ -208,6 +231,8 @@ export interface PlantillaTareaIn {
   orden?: number
   dias_plazo_relativo?: number | null
   es_critico_default?: boolean
+  costo_estimado?: number
+  honorario_sugerido?: number
 }
 
 export interface CaseTimeEntry {
@@ -1177,6 +1202,12 @@ export interface UnbilledTask {
   due_date: string | null
   case_title: string | null
   case_id: number | null
+  /** Honorario adicional ya acordado: el precio de la partida sale de aquí. */
+  monto_adicional_cents: number
+  completed_at: string | null
+  completed_notes: string | null
+  costo_real_cents: number
+  costo_es_reembolsable: boolean
 }
 
 export interface UnbilledCost {

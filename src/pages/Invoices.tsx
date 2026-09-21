@@ -366,6 +366,14 @@ function UnbilledPicker({
       else next.add(k)
       return next
     })
+    // La tarea trae su precio: es el honorario adicional que ya se acordó con el cliente
+    // (antes la partida salía en blanco y había que recordarlo de memoria).
+    const [tipo, id] = k.split(':')
+    if (tipo === 'task') {
+      const t = tasks.find((x) => x.id === Number(id))
+      const acordado = (t?.monto_adicional_cents ?? 0) / 100
+      if (acordado > 0) setPrices((p) => (p[k] ? p : { ...p, [k]: acordado }))
+    }
   }
 
   function addSelected() {
@@ -500,6 +508,12 @@ function UnbilledPicker({
                 <span className="flex-1 text-xs">
                   <span className="font-medium">{t.title}</span>
                   {t.case_title && <span className="text-muted-foreground"> — {t.case_title}</span>}
+                  {t.monto_adicional_cents > 0 && (
+                    <span className="text-amber-600"> · acordado {formatCurrency(t.monto_adicional_cents / 100)}</span>
+                  )}
+                  {t.costo_es_reembolsable && t.costo_real_cents > 0 && (
+                    <span className="text-blue-400"> · reembolsable {formatCurrency(t.costo_real_cents / 100)}</span>
+                  )}
                 </span>
                 {sel.has(k) && <PriceInput k={k} />}
               </label>

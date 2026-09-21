@@ -604,11 +604,12 @@ export default function CaseDetailPanel({ kase: initial, onClose, onEdit, initia
           </div>
 
           {/* Resumen de cobro */}
-          <div className="grid grid-cols-3 gap-2 text-xs">
+          <div className="grid grid-cols-4 gap-2 text-xs">
             {[
               { label: 'Honorarios', value: kase.honorarios_contratados, cls: 'text-foreground' },
               { label: 'Cobrado', value: cobrado, cls: 'text-green-500' },
               { label: 'Saldo pendiente', value: kase.saldo_pendiente, cls: kase.saldo_pendiente > 0 ? 'text-amber-500' : 'text-muted-foreground' },
+              { label: 'Costos del caso', value: kase.costos_directos_reales, cls: kase.costos_directos_reales > 0 ? 'text-red-400' : 'text-muted-foreground' },
             ].map((x) => (
               <div key={x.label} className="rounded-lg px-3 py-2" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-inner-border))' }}>
                 <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{x.label}</p>
