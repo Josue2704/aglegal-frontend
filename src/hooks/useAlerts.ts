@@ -26,6 +26,7 @@ export function useAlerts() {
     (data?.stale_cases.length ?? 0) +
     (data?.overdue_billing.length ?? 0) +
     (data?.seguimiento_vencido?.length ?? 0) +
+    (data?.casos_sin_originador?.length ?? 0) +
     (data?.budget_deviation.length ?? 0)
 
   return { ...query, totalCount }

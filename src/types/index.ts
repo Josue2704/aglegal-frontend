@@ -521,6 +521,10 @@ export interface GastoFijo {
   estado: CatalogoEstado
   created_at: string
   updated_at: string
+  /** Cuenta de egreso por la que se paga: enlazarla permite comparar plan contra pagado. */
+  account_id: number | null
+  account_code: string | null
+  account_nombre: string | null
 }
 export interface Supuestos {
   id: number
@@ -545,6 +549,28 @@ export interface PuntoEquilibrio {
   ingresos_reales: number
   avance_pct: number | null
   falta_para_equilibrio: number
+}
+
+export interface ComparativoGastoFijo {
+  id: number
+  expense_code: string
+  concepto: string
+  tipo: string
+  account_code: string | null
+  account_nombre: string | null
+  presupuestado: number
+  /** null cuando el gasto fijo no tiene cuenta enlazada: no hay con qué compararlo. */
+  pagado: number | null
+  brecha: number | null
+}
+
+export interface ComparativoGastos {
+  mes: string
+  total_presupuestado: number
+  total_pagado: number
+  brecha: number
+  conceptos: ComparativoGastoFijo[]
+  no_presupuestado: { account_code: string; account_nombre: string; pagado: number }[]
 }
 
 export interface CentroCostoCuenta {

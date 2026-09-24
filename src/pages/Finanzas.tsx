@@ -382,21 +382,25 @@ function PersonalTab() {
 
 function GastoFijoDialog({ open, onClose, editing }: { open: boolean; onClose: () => void; editing: GastoFijo | null }) {
   const qc = useQueryClient()
-  const [form, setForm] = useState({ concepto: '', tipo: 'Fijo', monto_mensual: '', mes_inicio: currentMonth(), mes_fin: '', estado: 'Activo' as CatalogoEstado })
+  const [form, setForm] = useState({ concepto: '', tipo: 'Fijo', monto_mensual: '', mes_inicio: currentMonth(), mes_fin: '', account_id: '', estado: 'Activo' as CatalogoEstado })
+  const { data: cuentasEgreso = [] } = useQuery({
+    queryKey: ['finanzas-cuentas', 'Egreso', 'Activo'],
+    queryFn: () => finanzasApi.listCuentas({ tipo: 'Egreso', estado: 'Activo' }),
+  })
 
   useEffect(() => {
     if (!open) return
-    if (editing) setForm({ concepto: editing.concepto, tipo: editing.tipo, monto_mensual: String(editing.monto_mensual), mes_inicio: editing.mes_inicio, mes_fin: editing.mes_fin ?? '', estado: editing.estado })
-    else setForm({ concepto: '', tipo: 'Fijo', monto_mensual: '', mes_inicio: currentMonth(), mes_fin: '', estado: 'Activo' })
+    if (editing) setForm({ concepto: editing.concepto, tipo: editing.tipo, monto_mensual: String(editing.monto_mensual), mes_inicio: editing.mes_inicio, mes_fin: editing.mes_fin ?? '', account_id: editing.account_id ? String(editing.account_id) : '', estado: editing.estado })
+    else setForm({ concepto: '', tipo: 'Fijo', monto_mensual: '', mes_inicio: currentMonth(), mes_fin: '', account_id: '', estado: 'Activo' })
   }, [open, editing])
 
   const create = useMutation({
-    mutationFn: () => finanzasApi.createGastoFijo({ concepto: form.concepto, tipo: form.tipo, monto_mensual: form.monto_mensual ? Number(form.monto_mensual) : null, mes_inicio: form.mes_inicio, mes_fin: form.mes_fin || null }),
+    mutationFn: () => finanzasApi.createGastoFijo({ concepto: form.concepto, tipo: form.tipo, monto_mensual: form.monto_mensual ? Number(form.monto_mensual) : null, mes_inicio: form.mes_inicio, mes_fin: form.mes_fin || null, account_id: form.account_id ? Number(form.account_id) : null }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['finanzas-gastos-fijos'] }); toast.success('Gasto fijo creado'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
   const update = useMutation({
-    mutationFn: () => finanzasApi.updateGastoFijo(editing!.id, { concepto: form.concepto, tipo: form.tipo, monto_mensual: form.monto_mensual ? Number(form.monto_mensual) : null, mes_inicio: form.mes_inicio, mes_fin: form.mes_fin || null, estado: form.estado }),
+    mutationFn: () => finanzasApi.updateGastoFijo(editing!.id, { concepto: form.concepto, tipo: form.tipo, monto_mensual: form.monto_mensual ? Number(form.monto_mensual) : null, mes_inicio: form.mes_inicio, mes_fin: form.mes_fin || null, account_id: form.account_id ? Number(form.account_id) : null, estado: form.estado }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['finanzas-gastos-fijos'] }); toast.success('Actualizado'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
@@ -428,6 +432,17 @@ function GastoFijoDialog({ open, onClose, editing }: { open: boolean; onClose: (
             <div className="space-y-1"><Label>Mes inicio <span className="text-destructive text-xs">*</span></Label><Input type="month" value={form.mes_inicio} onChange={(e) => setForm({ ...form, mes_inicio: e.target.value })} /></div>
             <div className="space-y-1"><Label>Mes fin</Label><Input type="month" value={form.mes_fin} onChange={(e) => setForm({ ...form, mes_fin: e.target.value })} /></div>
           </div>
+          <div className="space-y-1">
+            <Label>Cuenta por la que se paga</Label>
+            <Select value={form.account_id || '_none'} onValueChange={(v) => setForm({ ...form, account_id: v === '_none' ? '' : v })}>
+              <SelectTrigger><SelectValue placeholder="Sin enlazar" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_none">Sin enlazar</SelectItem>
+                {cuentasEgreso.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.account_code} — {c.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <p className="text-[11px] text-muted-foreground">Enlazarla permite comparar este presupuesto con lo que realmente se pagó.</p>
+          </div>
           {editing && (
             <div className="space-y-1">
               <Label>Estado</Label>
@@ -450,12 +465,40 @@ function GastoFijoDialog({ open, onClose, editing }: { open: boolean; onClose: (
 function GastosFijosTab() {
   const [dlg, setDlg] = useState(false)
   const [editing, setEditing] = useState<GastoFijo | null>(null)
+  const [mes, setMes] = useState(currentMonth())
   const { data: gastos = [] } = useQuery({ queryKey: ['finanzas-gastos-fijos'], queryFn: () => finanzasApi.listGastosFijos() })
+  // Lo pagado de verdad en el mes, cuenta por cuenta: sin esto el presupuesto es una
+  // lista de buenos propósitos que nadie contrasta con la realidad.
+  const { data: comp } = useQuery({
+    queryKey: ['finanzas-comparativo-gastos', mes],
+    queryFn: () => finanzasApi.comparativoGastosFijos(mes),
+  })
+  const pagadoPorGasto = new Map((comp?.conceptos ?? []).map((c) => [c.id, c]))
 
   return (
     <div className="space-y-4">
       <InfoBanner>Catálogo de costos fijos con vigencia — no una sola cifra manual. Alimenta el cálculo del punto de equilibrio.</InfoBanner>
-      <div className="flex justify-end"><Button size="sm" onClick={() => { setEditing(null); setDlg(true) }}><Plus className="h-4 w-4" />Nuevo gasto fijo</Button></div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Label className="text-sm">Comparar con lo pagado en</Label>
+          <Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-40" />
+        </div>
+        <Button size="sm" onClick={() => { setEditing(null); setDlg(true) }}><Plus className="h-4 w-4" />Nuevo gasto fijo</Button>
+      </div>
+
+      {comp && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Presupuestado</div><div className="text-xl font-semibold font-mono mt-1">{money(comp.total_presupuestado)}</div></CardContent></Card>
+          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Pagado</div><div className="text-xl font-semibold font-mono mt-1">{money(comp.total_pagado)}</div></CardContent></Card>
+          <Card><CardContent className="p-4">
+            <div className="text-xs text-muted-foreground">Diferencia</div>
+            <div className={`text-xl font-semibold font-mono mt-1 ${comp.brecha > 0 ? 'text-destructive' : 'text-green-600'}`}>
+              {comp.brecha > 0 ? '+' : ''}{money(comp.brecha)}
+            </div>
+            <div className="text-[11px] text-muted-foreground mt-0.5">{comp.brecha > 0 ? 'por encima del plan' : 'dentro del plan'}</div>
+          </CardContent></Card>
+        </div>
+      )}
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <table className="w-full text-sm">
@@ -464,6 +507,8 @@ function GastosFijosTab() {
               <th className="text-left px-3 py-2.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Concepto</th>
               <th className="text-left px-3 py-2.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Tipo</th>
               <th className="text-right px-3 py-2.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Monto mensual</th>
+              <th className="text-left px-3 py-2.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Cuenta</th>
+              <th className="text-right px-3 py-2.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Pagado en {mes}</th>
               <th className="text-left px-3 py-2.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Vigencia</th>
               <th className="text-left px-3 py-2.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">Estado</th>
               <th className="w-12" />
@@ -475,6 +520,25 @@ function GastosFijosTab() {
                   <td className="px-3 py-2 font-medium">{g.concepto}</td>
                   <td className="px-3 py-2 text-muted-foreground">{g.tipo}</td>
                   <td className="px-3 py-2 text-right font-mono">{money(g.monto_mensual)}</td>
+                  <td className="px-3 py-2 text-[11px] font-mono text-muted-foreground">
+                    {g.account_code ?? <span className="text-amber-600 font-sans">Sin enlazar</span>}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono">
+                    {(() => {
+                      const c = pagadoPorGasto.get(g.id)
+                      if (!c || c.pagado == null) return <span className="text-muted-foreground">—</span>
+                      return (
+                        <>
+                          {money(c.pagado)}
+                          {c.brecha !== null && c.brecha !== 0 && (
+                            <span className={`ml-1.5 text-[11px] ${c.brecha > 0 ? 'text-destructive' : 'text-green-600'}`}>
+                              {c.brecha > 0 ? '+' : ''}{money(c.brecha)}
+                            </span>
+                          )}
+                        </>
+                      )
+                    })()}
+                  </td>
                   <td className="px-3 py-2"><Vigencia inicio={g.mes_inicio} fin={g.mes_fin} /></td>
                   <td className="px-3 py-2"><EstadoBadge estado={g.estado} /></td>
                   <td className="px-3 py-2"><Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(g); setDlg(true) }}><Pencil className="h-3.5 w-3.5" /></Button></td>
@@ -484,6 +548,26 @@ function GastosFijosTab() {
           </table>
         </CardContent>
       </Card>
+      {comp && comp.no_presupuestado.length > 0 && (
+        <Card>
+          <CardContent className="p-4 space-y-2">
+            <p className="text-sm font-medium">Pagado en {mes} sin estar presupuestado</p>
+            <div className="rounded-lg divide-y" style={{ border: '1px solid hsl(var(--c-inner-border))' }}>
+              {comp.no_presupuestado.map((x) => (
+                <div key={x.account_code} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                  <span className="font-mono text-xs text-muted-foreground">{x.account_code}</span>
+                  <span className="flex-1 truncate">{x.account_nombre}</span>
+                  <span className="font-mono">{money(x.pagado)}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-muted-foreground">
+              Son cuentas con movimiento este mes que ningún gasto fijo contempla. Si son recurrentes, conviene presupuestarlas.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <GastoFijoDialog open={dlg} onClose={() => setDlg(false)} editing={editing} />
     </div>
   )

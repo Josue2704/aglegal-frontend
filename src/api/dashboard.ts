@@ -27,6 +27,8 @@ export const dashboardApi = {
       overdue_billing: { id: number; title: string; client_name: string | null; mes_cobro_esperado: string; estado_cobro: string; saldo_pendiente_cents: number; responsible_username: string | null }[]
       seguimiento_vencido: { id: number; nombre: string | null; estado: string; proxima_accion: string | null; fecha_proxima_accion: string; responsable_username: string | null; honorarios_estimados_cents: number | null }[]
       budget_deviation: { mes: string; cobrado_mes_cents: number; cartera_ponderada_mes_cents: number; proyeccion_cierre_cents: number; meta_ingresos_cents: number; cumplimiento_proyectado_pct: number | null }[]
+      /** Expedientes que ya cobraron sin originadores configurados: no generan comisión. */
+      casos_sin_originador: { id: number; title: string; client_name: string | null; cobrado_cents: number; ultimo_cobro: string | null }[]
     }>('/dashboard/alerts', { params }).then((r) => r.data),
   rentabilidadAbogado: (params?: { start_date?: string; end_date?: string }) =>
     api.get<{ responsable: string; ingresos: number; costos: number; utilidad_directa: number; margen_pct: number | null }[]>(
