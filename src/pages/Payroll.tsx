@@ -149,6 +149,7 @@ export default function Payroll() {
 
   const f = (k: keyof FormData) => (v: string) => { setForm((p) => ({ ...p, [k]: v })); setPreview(null) }
   const total = entries.reduce((s, e) => s + e.amount, 0)
+  const totalCosto = entries.reduce((s, e) => s + (e.costo_empresa || e.amount), 0)
 
   return (
     <div className="space-y-5">
@@ -172,6 +173,7 @@ export default function Payroll() {
       <div className="grid grid-cols-2 gap-4">
         <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">Registros en período</p><p className="text-xl font-bold mt-1">{entries.length}</p></CardContent></Card>
         <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">Total pagado (neto)</p><p className="text-xl font-bold mt-1 text-red-600">{formatCurrency(total)}</p></CardContent></Card>
+        <Card><CardContent className="pt-5"><p className="text-xs text-muted-foreground">Costo para el despacho</p><p className="text-xl font-bold mt-1 text-red-600">{formatCurrency(totalCosto)}</p><p className="text-[11px] text-muted-foreground mt-0.5">Devengado + aporte patronal</p></CardContent></Card>
       </div>
 
       {isLoading ? <p className="text-muted-foreground text-sm">Cargando...</p> : (
@@ -179,7 +181,7 @@ export default function Payroll() {
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-muted/50">
-                <tr>{['', 'Fecha', 'Colaborador', 'Rol', 'Período', 'Modo', 'Neto', ''].map((h) => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>)}</tr>
+                <tr>{['', 'Fecha', 'Colaborador', 'Rol', 'Período', 'Modo', 'Neto', 'Costo despacho', ''].map((h) => <th key={h} className="text-left px-4 py-3 font-medium text-muted-foreground">{h}</th>)}</tr>
               </thead>
               <tbody>
                 {entries.map((e) => (
@@ -202,6 +204,9 @@ export default function Payroll() {
                         </span>
                       </td>
                       <td className="px-4 py-3 font-semibold">{formatCurrency(e.amount)}</td>
+                      <td className="px-4 py-3 font-semibold" title="Devengado + aporte patronal: es lo que sale de la caja y llega a Flujo de caja">
+                        {formatCurrency(e.costo_empresa || e.amount)}
+                      </td>
                       <td className="px-4 py-3 flex gap-1">
                         <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => { setEditing(e); setEditForm({ payment_date: e.payment_date, notes: e.notes ?? '', amount: String(e.amount) }) }}><Pencil className="h-3.5 w-3.5" /></Button>
                         <Button size="icon" variant="ghost" className="text-destructive h-7 w-7" onClick={() => { if (confirm('¿Eliminar registro? Se borrará también el gasto asociado.')) remove.mutate(e.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
@@ -224,7 +229,9 @@ export default function Payroll() {
                             <div><span className="text-muted-foreground">Otros descuentos:</span> {money(e.otros_descuentos)}</div>
                             <div className="font-medium">Total descuentos: {money(e.total_descuentos)}</div>
                             <div className="col-span-2 md:col-span-4 pt-1 border-t text-[11px] text-muted-foreground">
-                              Costo patronal adicional (no incluido en el neto): ISSS {money(e.isss_patronal)} + AFP {money(e.afp_patronal)} = {money(e.isss_patronal + e.afp_patronal)}
+                              Aporte patronal (no incluido en el neto): ISSS {money(e.isss_patronal)} + AFP {money(e.afp_patronal)} = {money(e.isss_patronal + e.afp_patronal)}.
+                              {' '}El gasto que llega a Flujo de caja es el costo para el despacho: devengado {money(e.total_devengado)} + patronal = <span className="font-medium">{money(e.costo_empresa || e.amount)}</span>,
+                              porque lo retenido a la persona también lo desembolsa la firma (hacia ISSS, AFP y Hacienda).
                             </div>
                           </div>
                         </td>

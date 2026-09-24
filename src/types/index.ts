@@ -540,6 +540,33 @@ export interface PuntoEquilibrio {
   punto_equilibrio: number
   meta_segura: number
   ventas_margen_meta: number | null
+  /** Lo que de verdad se pagó ese mes, frente al gasto fijo presupuestado. */
+  gastos_reales: number
+  ingresos_reales: number
+  avance_pct: number | null
+  falta_para_equilibrio: number
+}
+
+export interface CentroCostoCuenta {
+  account_code: string
+  cuenta: string
+  total: number
+}
+
+export interface CentroCosto {
+  centro_costo: string
+  total: number
+  gastos_operativos: number
+  costos_directos: number
+  porcentaje: number | null
+  cuentas: CentroCostoCuenta[]
+}
+
+export interface CentrosCosto {
+  desde: string
+  hasta: string
+  total: number
+  centros: CentroCosto[]
 }
 
 // ── Presupuesto por familia (forecast) y proyección de cierre de mes ─────────
@@ -637,8 +664,13 @@ export interface ResumenMes {
   utilidad_directa_real: number
   cumplimiento_utilidad_directa_pct: number | null
   gastos_fijos: number
+  /** Gasto operativo realmente registrado en el mes (tabla de gastos). */
+  gastos_reales: number
+  brecha_gastos: number
   comisiones: number
   utilidad_operativa_real: number
+  /** Con el gasto real en lugar del presupuestado. */
+  utilidad_operativa_caja: number
   utilidad_operativa_minima: number
   margen_operativo_real_pct: number | null
   margen_operativo_minimo_pct: number
@@ -937,6 +969,9 @@ export interface PayrollEntry {
   afp_patronal: number
   total_devengado: number
   total_descuentos: number
+  /** Lo que la planilla le cuesta al despacho: devengado + aporte patronal. Es el monto
+   *  que llega a Flujo de caja, no el neto que recibe la persona. */
+  costo_empresa: number
 }
 export type Payroll = PayrollEntry
 export interface PayrollIn {

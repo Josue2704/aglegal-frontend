@@ -1,4 +1,4 @@
-import type { AgingCartera, CarteraPonderada, CumplimientoFamilia, Cuenta, DiasCobro, Forecast, ForecastIn, ForecastUpdate, GastoFijo, IngresoPorOrigen, Persona, ProyeccionCierreMes, PuntoEquilibrio, ResumenMensual, Supuestos, TicketAgrupacion, TicketPromedio, UtilidadOperativaReal } from '@/types'
+import type { AgingCartera, CarteraPonderada, CentrosCosto, CumplimientoFamilia, Cuenta, DiasCobro, Forecast, ForecastIn, ForecastUpdate, GastoFijo, IngresoPorOrigen, Persona, ProyeccionCierreMes, PuntoEquilibrio, ResumenMensual, Supuestos, TicketAgrupacion, TicketPromedio, UtilidadOperativaReal } from '@/types'
 import api from './client'
 
 export interface CuentaPayload {
@@ -82,6 +82,10 @@ export const finanzasApi = {
   // Utilidad operativa real del despacho (Fase 9) — exacta solo a nivel de despacho, no por familia
   utilidadOperativaReal: (mes: string) =>
     api.get<UtilidadOperativaReal>('/finanzas/utilidad-operativa-real', { params: { mes } }).then((r) => r.data),
+
+  // En qué centro de costo se fue el dinero del período (gastos + costos directos)
+  centrosCosto: (desde: string, hasta: string) =>
+    api.get<CentrosCosto>('/finanzas/centros-costo', { params: { desde, hasta } }).then((r) => r.data),
 
   // Resumen mensual consolidado — hoja 17 del Archivo Maestro
   resumenMensual: (desde: string, hasta: string) =>

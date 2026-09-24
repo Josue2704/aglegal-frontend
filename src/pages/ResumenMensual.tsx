@@ -70,11 +70,13 @@ function ResumenTab() {
     exportCsv(
       `resumen_mensual_${today()}.csv`,
       ['Mes', 'Meta ingresos', 'Ingresos reales', 'Cumplimiento ingresos %', 'Meta utilidad directa',
-       'Utilidad directa real', 'Gastos fijos', 'Comisiones', 'Utilidad operativa real',
+       'Utilidad directa real', 'Gastos fijos presupuestados', 'Gastos reales pagados', 'Brecha de gastos',
+       'Comisiones', 'Utilidad operativa (presupuesto)', 'Utilidad operativa (caja real)',
        'Utilidad operativa mínima', 'Margen operativo real %', 'Brecha utilidad mínima', 'Semáforo'],
       [...data.meses, data.totales].map((r) => [
         r.mes, r.meta_ingresos, r.ingresos_reales, r.cumplimiento_ingresos_pct, r.meta_utilidad_directa,
-        r.utilidad_directa_real, r.gastos_fijos, r.comisiones, r.utilidad_operativa_real,
+        r.utilidad_directa_real, r.gastos_fijos, r.gastos_reales, r.brecha_gastos, r.comisiones,
+        r.utilidad_operativa_real, r.utilidad_operativa_caja,
         r.utilidad_operativa_minima, r.margen_operativo_real_pct, r.brecha_utilidad_minima, r.semaforo_general,
       ]),
     )
@@ -103,9 +105,11 @@ function ResumenTab() {
                   <th className="text-right p-3">Cobrado</th>
                   <th className="text-right p-3">Cumpl.</th>
                   <th className="text-right p-3">Ut. directa</th>
-                  <th className="text-right p-3">Gastos fijos</th>
+                  <th className="text-right p-3" title="Lo presupuestado en Gastos Fijos">Gasto plan</th>
+                  <th className="text-right p-3" title="Lo que realmente se pagó y quedó registrado en Flujo de caja">Gasto real</th>
                   <th className="text-right p-3">Comisiones</th>
-                  <th className="text-right p-3">Ut. operativa</th>
+                  <th className="text-right p-3" title="Con el gasto presupuestado (hoja 17 del Archivo Maestro)">Ut. operativa</th>
+                  <th className="text-right p-3" title="Con el gasto realmente pagado">Ut. de caja</th>
                   <th className="text-right p-3">Ut. mínima</th>
                   <th className="text-right p-3">Brecha</th>
                   <th className="text-center p-3">Semáforo</th>
@@ -119,9 +123,18 @@ function ResumenTab() {
                     <td className="p-3 text-right">{money(m.ingresos_reales)}</td>
                     <td className="p-3 text-right">{pct(m.cumplimiento_ingresos_pct)}</td>
                     <td className="p-3 text-right"><Cifra valor={m.utilidad_directa_real} /></td>
-                    <td className="p-3 text-right">{money(m.gastos_fijos)}</td>
+                    <td className="p-3 text-right text-muted-foreground">{money(m.gastos_fijos)}</td>
+                    <td className="p-3 text-right">
+                      {money(m.gastos_reales)}
+                      {m.brecha_gastos !== 0 && (
+                        <span className={`ml-1.5 text-[11px] ${m.brecha_gastos > 0 ? 'text-destructive' : 'text-green-600'}`}>
+                          {m.brecha_gastos > 0 ? '+' : ''}{money(m.brecha_gastos)}
+                        </span>
+                      )}
+                    </td>
                     <td className="p-3 text-right">{money(m.comisiones)}</td>
-                    <td className="p-3 text-right"><Cifra valor={m.utilidad_operativa_real} /></td>
+                    <td className="p-3 text-right text-muted-foreground"><Cifra valor={m.utilidad_operativa_real} /></td>
+                    <td className="p-3 text-right font-medium"><Cifra valor={m.utilidad_operativa_caja} /></td>
                     <td className="p-3 text-right text-muted-foreground">{money(m.utilidad_operativa_minima)}</td>
                     <td className="p-3 text-right"><Cifra valor={m.brecha_utilidad_minima} /></td>
                     <td className="p-3 text-center"><SemaforoBadge valor={m.semaforo_general} /></td>
@@ -133,9 +146,11 @@ function ResumenTab() {
                   <td className="p-3 text-right">{money(data.totales.ingresos_reales)}</td>
                   <td className="p-3 text-right">{pct(data.totales.cumplimiento_ingresos_pct)}</td>
                   <td className="p-3 text-right"><Cifra valor={data.totales.utilidad_directa_real} /></td>
-                  <td className="p-3 text-right">{money(data.totales.gastos_fijos)}</td>
+                  <td className="p-3 text-right text-muted-foreground">{money(data.totales.gastos_fijos)}</td>
+                  <td className="p-3 text-right">{money(data.totales.gastos_reales)}</td>
                   <td className="p-3 text-right">{money(data.totales.comisiones)}</td>
-                  <td className="p-3 text-right"><Cifra valor={data.totales.utilidad_operativa_real} /></td>
+                  <td className="p-3 text-right text-muted-foreground"><Cifra valor={data.totales.utilidad_operativa_real} /></td>
+                  <td className="p-3 text-right"><Cifra valor={data.totales.utilidad_operativa_caja} /></td>
                   <td className="p-3 text-right text-muted-foreground">{money(data.totales.utilidad_operativa_minima)}</td>
                   <td className="p-3 text-right"><Cifra valor={data.totales.brecha_utilidad_minima} /></td>
                   <td className="p-3 text-center"><SemaforoBadge valor={data.totales.semaforo_general} /></td>
@@ -148,6 +163,10 @@ function ResumenTab() {
       <p className="text-xs text-muted-foreground">
         La utilidad mínima es la meta de ingresos por el margen operativo meta configurado en Finanzas → Punto de Equilibrio.
         Un mes está en verde solo si llega a la meta de ingresos <em>y</em> deja esa utilidad.
+      </p>
+      <p className="text-xs text-muted-foreground">
+        <strong>Ut. operativa</strong> descuenta el gasto <em>presupuestado</em> y las comisiones devengadas, como la hoja 17 del Archivo Maestro.
+        {' '}<strong>Ut. de caja</strong> descuenta lo que realmente se pagó y quedó registrado en Flujo de caja —incluida la planilla—, sin restar las comisiones devengadas para no contarlas dos veces cuando se paguen.
       </p>
     </div>
   )

@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, Info, Wallet, Users, Receipt, Gauge, Search, Target } from 'lucide-react'
+import { Plus, Pencil, Trash2, Info, Wallet, Users, Receipt, Gauge, Search, Target, PieChart } from 'lucide-react'
 import { toast } from 'sonner'
 import { finanzasApi } from '@/api/finanzas'
 import { HelpButton } from '@/components/HelpButton'
@@ -740,6 +740,85 @@ function PresupuestoTab() {
   )
 }
 
+/** En qué se fue la plata, por centro de costo. Cada cuenta del plan ya traía su centro
+ *  (Operación jurídica, Administración, Comercial, Tecnología) y nadie los sumaba. */
+function CentrosCostoTab() {
+  const [desde, setDesde] = useState(currentMonth())
+  const [hasta, setHasta] = useState(currentMonth())
+  const [abierto, setAbierto] = useState<string | null>(null)
+  const { data, isLoading } = useQuery({
+    queryKey: ['finanzas-centros-costo', desde, hasta],
+    queryFn: () => finanzasApi.centrosCosto(desde, hasta),
+  })
+
+  return (
+    <div className="space-y-4">
+      <InfoBanner>
+        Gastos operativos y costos directos del período, agrupados por el centro de costo de su cuenta contable.
+        Sirve para responder cuánto pesa cada área, no solo cuánto se gastó en total.
+      </InfoBanner>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <Label className="text-sm">Desde</Label>
+        <Input type="month" value={desde} onChange={(e) => setDesde(e.target.value)} className="w-40" />
+        <Label className="text-sm">Hasta</Label>
+        <Input type="month" value={hasta} onChange={(e) => setHasta(e.target.value)} className="w-40" />
+      </div>
+
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground py-8 text-center">Cargando…</div>
+      ) : !data || data.centros.length === 0 ? (
+        <div className="text-sm text-muted-foreground py-8 text-center">Sin gastos ni costos registrados en el período.</div>
+      ) : (
+        <>
+          <Card>
+            <CardContent className="p-4">
+              <div className="text-xs text-muted-foreground uppercase tracking-wider">Total del período</div>
+              <div className="text-2xl font-semibold font-mono">{money(data.total)}</div>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-2">
+            {data.centros.map((c) => (
+              <Card key={c.centro_costo}>
+                <CardContent className="p-4 space-y-3">
+                  <button className="w-full text-left" onClick={() => setAbierto(abierto === c.centro_costo ? null : c.centro_costo)}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="font-medium">{c.centro_costo}</span>
+                      <span className="font-mono font-semibold">{money(c.total)}</span>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full overflow-hidden" style={{ background: 'hsl(var(--c-inner-border))' }}>
+                      <div className="h-full rounded-full" style={{ width: `${(c.porcentaje ?? 0) * 100}%`, background: 'hsl(var(--primary))' }} />
+                    </div>
+                    <div className="mt-1.5 flex flex-wrap gap-x-4 text-[11px] text-muted-foreground">
+                      <span>{c.porcentaje != null ? pct(c.porcentaje) : '—'} del gasto total</span>
+                      <span>Gastos operativos {money(c.gastos_operativos)}</span>
+                      <span>Costos de expedientes {money(c.costos_directos)}</span>
+                      <span className="text-primary">{abierto === c.centro_costo ? 'Ocultar cuentas' : `Ver ${c.cuentas.length} cuentas`}</span>
+                    </div>
+                  </button>
+
+                  {abierto === c.centro_costo && (
+                    <div className="rounded-lg divide-y" style={{ border: '1px solid hsl(var(--c-inner-border))' }}>
+                      {c.cuentas.map((x) => (
+                        <div key={x.account_code} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                          <span className="font-mono text-xs text-muted-foreground">{x.account_code}</span>
+                          <span className="flex-1 truncate">{x.cuenta}</span>
+                          <span className="font-mono">{money(x.total)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 function PuntoEquilibrioTab() {
   const [mes, setMes] = useState(currentMonth())
   const [dlg, setDlg] = useState(false)
@@ -797,12 +876,54 @@ function PuntoEquilibrioTab() {
       ) : isError ? (
         <div className="text-sm text-destructive py-4">No se pudo calcular el punto de equilibrio para este mes.</div>
       ) : calc ? (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Gastos fijos del mes</div><div className="text-xl font-semibold font-mono mt-1">{money(calc.gastos_fijos)}</div></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Punto de equilibrio</div><div className="text-xl font-semibold font-mono mt-1">{money(calc.punto_equilibrio)}</div></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Meta con margen de seguridad</div><div className="text-xl font-semibold font-mono mt-1">{money(calc.meta_segura)}</div></CardContent></Card>
-          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Ventas para margen meta</div><div className="text-xl font-semibold font-mono mt-1">{calc.ventas_margen_meta != null ? money(calc.ventas_margen_meta) : '—'}</div></CardContent></Card>
-        </div>
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Gastos fijos del mes</div><div className="text-xl font-semibold font-mono mt-1">{money(calc.gastos_fijos)}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Punto de equilibrio</div><div className="text-xl font-semibold font-mono mt-1">{money(calc.punto_equilibrio)}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Meta con margen de seguridad</div><div className="text-xl font-semibold font-mono mt-1">{money(calc.meta_segura)}</div></CardContent></Card>
+            <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Ventas para margen meta</div><div className="text-xl font-semibold font-mono mt-1">{calc.ventas_margen_meta != null ? money(calc.ventas_margen_meta) : '—'}</div></CardContent></Card>
+          </div>
+
+          {/* La pregunta que se hace quien abre esta pantalla es "¿ya lo pasé?" — antes
+              había que ir a buscar lo cobrado a otra pantalla y restar de memoria. */}
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <div className="text-xs text-muted-foreground uppercase tracking-wider">Cobrado del mes</div>
+                  <div className="text-2xl font-semibold font-mono">{money(calc.ingresos_reales)}</div>
+                </div>
+                <div className="text-right">
+                  {calc.falta_para_equilibrio > 0 ? (
+                    <>
+                      <div className="text-xs text-muted-foreground">Falta para el equilibrio</div>
+                      <div className="text-lg font-semibold font-mono text-amber-600">{money(calc.falta_para_equilibrio)}</div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-xs text-muted-foreground">Punto de equilibrio superado</div>
+                      <div className="text-lg font-semibold font-mono text-green-600">+{money(calc.ingresos_reales - calc.punto_equilibrio)}</div>
+                    </>
+                  )}
+                </div>
+              </div>
+              <div className="h-2 rounded-full overflow-hidden" style={{ background: 'hsl(var(--c-inner-border))' }}>
+                <div className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, (calc.avance_pct ?? 0) * 100)}%`,
+                    background: (calc.avance_pct ?? 0) >= 1 ? 'hsl(142 70% 45%)' : 'hsl(43 90% 50%)',
+                  }} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {calc.avance_pct != null ? `${(calc.avance_pct * 100).toFixed(0)}% del punto de equilibrio.` : 'Sin cobros registrados en el mes.'}
+                {' '}Gasto realmente pagado en el mes: <span className="font-mono">{money(calc.gastos_reales)}</span>
+                {calc.gastos_reales > calc.gastos_fijos && (
+                  <span className="text-destructive"> — {money(calc.gastos_reales - calc.gastos_fijos)} por encima de lo presupuestado.</span>
+                )}
+              </p>
+            </CardContent>
+          </Card>
+        </>
       ) : null}
 
       <SupuestosDialog open={dlg} onClose={() => setDlg(false)} existing={supuestosCoinciden ? supuestos : null} defaultPeriodo={periodoActual} />
@@ -829,12 +950,14 @@ export default function Finanzas() {
           <TabsTrigger value="gastos" className="gap-1.5"><Receipt className="h-3.5 w-3.5" />Gastos Fijos</TabsTrigger>
           <TabsTrigger value="equilibrio" className="gap-1.5"><Gauge className="h-3.5 w-3.5" />Punto de Equilibrio</TabsTrigger>
           <TabsTrigger value="presupuesto" className="gap-1.5"><Target className="h-3.5 w-3.5" />Presupuesto</TabsTrigger>
+          <TabsTrigger value="centros" className="gap-1.5"><PieChart className="h-3.5 w-3.5" />Centros de Costo</TabsTrigger>
         </TabsList>
         <TabsContent value="cuentas" className="mt-4"><PlanCuentasTab /></TabsContent>
         <TabsContent value="personal" className="mt-4"><PersonalTab /></TabsContent>
         <TabsContent value="gastos" className="mt-4"><GastosFijosTab /></TabsContent>
         <TabsContent value="equilibrio" className="mt-4"><PuntoEquilibrioTab /></TabsContent>
         <TabsContent value="presupuesto" className="mt-4"><PresupuestoTab /></TabsContent>
+        <TabsContent value="centros" className="mt-4"><CentrosCostoTab /></TabsContent>
       </Tabs>
     </div>
   )
