@@ -285,6 +285,8 @@ export interface SessionIn {
   notes?: string
   status: SessionStatus
   monto_adicional?: number
+  /** El usuario ya vio el aviso de cruce de horario y decidió agendarla igual. */
+  permitir_solape?: boolean
 }
 
 // ── Incomes ───────────────────────────────────────────────────────────────────

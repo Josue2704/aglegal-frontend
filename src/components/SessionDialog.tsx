@@ -146,6 +146,9 @@ export function SessionDialog({
       notes: form.notes,
       status: form.status,
       monto_adicional: !editing && form.case_id && form.monto_adicional ? Number(form.monto_adicional) : undefined,
+      // El aviso de cruce ya está a la vista en el formulario: si aun así guarda, es su
+      // decisión y el backend no tiene que volver a frenarla.
+      permitir_solape: Boolean(conflict),
     })
   }
 

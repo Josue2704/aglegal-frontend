@@ -451,8 +451,14 @@ export function TaskItem({ task, caseLink }: {
             className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-muted/50 text-muted-foreground hover:text-foreground">
             <ChevronDown className={`h-3 w-3 transition-transform ${expanded ? 'rotate-180' : ''}`} />
           </button>
-          <button onClick={() => { if (confirm('¿Eliminar tarea?')) remove.mutate() }} title="Eliminar"
-            className="h-6 w-6 inline-flex items-center justify-center rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity">
+          {/* Una tarea ya cobrada no se borra: dejaría a la factura cobrando algo inexistente. */}
+          <button onClick={() => {
+            if (task.invoice_id) return toast.error('Esta tarea ya está facturada. Quítala de la factura o cancélala antes de borrarla.')
+            if (confirm('¿Eliminar tarea?')) remove.mutate()
+          }}
+            title={task.invoice_id ? 'Ya facturada — no se puede eliminar' : 'Eliminar'}
+            className={`h-6 w-6 inline-flex items-center justify-center rounded text-muted-foreground transition-opacity ${
+              task.invoice_id ? 'opacity-30 cursor-not-allowed' : 'hover:bg-destructive/10 hover:text-destructive opacity-0 group-hover:opacity-100'}`}>
             <Trash2 className="h-3 w-3" />
           </button>
         </div>
@@ -488,8 +494,15 @@ export function TaskItem({ task, caseLink }: {
               </div>
             )}
           </div>
-          <DineroTarea valores={dinero} onChange={(v) => setDinero((p) => ({ ...p, ...v }))} />
-          {dineroCambiado && (
+          {task.invoice_id ? (
+            <div className="rounded-lg p-3 text-xs" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-inner-border))' }}>
+              Esta tarea ya está cobrada en una factura: su monto no se puede cambiar desde aquí.
+              Corrige la factura si el cobro cambió.
+            </div>
+          ) : (
+            <DineroTarea valores={dinero} onChange={(v) => setDinero((p) => ({ ...p, ...v }))} />
+          )}
+          {dineroCambiado && !task.invoice_id && (
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDinero({
                 monto: task.monto_adicional ? String(task.monto_adicional) : '',

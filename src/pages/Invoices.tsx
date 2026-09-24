@@ -876,21 +876,36 @@ export default function Invoices() {
     queryFn: () => invoicesApi.list(),
   })
 
+  // Dejar de estar pagada (o borrarla) devuelve el cobro que la factura había generado,
+  // así que hay que refrescar también la caja, el expediente y las comisiones.
+  const refrescarTodo = () => {
+    for (const key of [['invoices'], ['incomes'], ['cashflow'], ['dashboard'], ['cases'], ['comisiones']]) {
+      qc.invalidateQueries({ queryKey: key })
+    }
+  }
+  const errMsg = (e: unknown, fallback: string) =>
+    toast.error((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? fallback)
+
   const updateStatus = useMutation({
     mutationFn: ({ id, status }: { id: number; status: string; invoice: Invoice }) =>
       invoicesApi.updateStatus(id, status),
     onSuccess: (_, { status }) => {
-      qc.invalidateQueries({ queryKey: ['invoices'] })
-      toast.success(status === 'Pagada' ? 'Factura pagada — ingreso registrado automáticamente en Flujo de Caja' : 'Estado actualizado')
+      refrescarTodo()
+      toast.success(
+        status === 'Pagada' ? 'Factura pagada — ingreso registrado automáticamente en Flujo de Caja'
+          : status === 'Cancelada' ? 'Factura cancelada — si estaba pagada, su ingreso se revirtió'
+            : 'Estado actualizado')
     },
+    onError: (e) => errMsg(e, 'No se pudo cambiar el estado'),
   })
 
   const del = useMutation({
     mutationFn: (id: number) => invoicesApi.delete(id),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['invoices'] })
-      toast.success('Factura eliminada')
+      refrescarTodo()
+      toast.success('Factura eliminada — su ingreso, si lo tenía, se revirtió')
     },
+    onError: (e) => errMsg(e, 'No se pudo eliminar la factura'),
   })
 
   const visible = filter === 'all' ? invoices : invoices.filter((i) => i.status === filter)
