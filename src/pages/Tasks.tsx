@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Clock, Search, Briefcase, AlertTriangle, ListChecks, X, Plus } from 'lucide-react'
+import { CheckCircle2, Clock, Search, Briefcase, AlertTriangle, ListChecks, X, Plus, LayoutGrid, List, Tag } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { casesApi } from '@/api/cases'
 import { usersApi } from '@/api/users'
@@ -11,6 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { today } from '@/lib/utils'
 import { TaskForm, TaskItem } from '@/components/tasks'
+import { TaskBoard } from '@/components/TaskBoard'
+import { EtiquetasDialog } from '@/components/EtiquetasDialog'
 import { useSoloMio } from '@/hooks/useSoloMio'
 import { HelpButton } from '@/components/HelpButton'
 import { tasksHelp } from '@/lib/helpContent'
@@ -47,7 +49,16 @@ export default function Tasks() {
   const [filter, setFilter] = useState<FilterMode>('pending')
   const [responsableFilter, setResponsableFilter] = useState('')
   const [newDlg, setNewDlg] = useState(false)
-  const { soloMio, setSoloMio, esMio } = useSoloMio()
+  const [etiquetasDlg, setEtiquetasDlg] = useState(false)
+  const [detalle, setDetalle] = useState<GlobalCaseTask | null>(null)
+  const vista = searchParams.get('vista') === 'tablero' ? 'tablero' : 'lista'
+  const setVista = (v: 'lista' | 'tablero') => {
+    const next = new URLSearchParams(searchParams)
+    if (v === 'tablero') next.set('vista', 'tablero')
+    else next.delete('vista')
+    setSearchParams(next, { replace: true })
+  }
+  const { soloMio, setSoloMio, esMio, username } = useSoloMio()
   // ?case=ID (desde notificaciones/expediente) filtra por expediente; ?new=1 abre el formulario.
   const caseFilter = searchParams.get('case') ? Number(searchParams.get('case')) : undefined
   useEffect(() => {
@@ -71,8 +82,9 @@ export default function Tasks() {
 
   const filtered = useMemo(() => {
     let list = caseFilter ? tasks.filter((t) => t.case_id === caseFilter) : tasks
-    // "Míos": tareas asignadas a mí, o de expedientes a mi cargo (y las que nadie ha tomado).
-    list = list.filter((t) => esMio(t.responsible_username, t.case_responsible_username))
+    // "Míos": lo que respondo, lo que trabajo con alguien más, o los expedientes a mi cargo.
+    list = list.filter((t) => esMio(t.responsible_username, t.case_responsible_username)
+      || (soloMio && !!username && t.asignados.includes(username)))
     if (filter === 'pending') list = list.filter((t) => !t.done && !isOverdue(t))
     else if (filter === 'overdue') list = list.filter(isOverdue)
     else if (filter === 'done') list = list.filter((t) => t.done)
@@ -93,7 +105,7 @@ export default function Tasks() {
       )
     }
     return list
-  }, [tasks, filter, search, responsableFilter, caseFilter, esMio])
+  }, [tasks, filter, search, responsableFilter, caseFilter, esMio, soloMio, username])
 
   // Group by case
   const grouped = useMemo(() => {
@@ -134,11 +146,32 @@ export default function Tasks() {
             </button>
           ))}
         </div>
+        <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-table-border-h))' }}>
+          {[{ v: 'lista' as const, label: 'Lista', icon: List }, { v: 'tablero' as const, label: 'Tablero', icon: LayoutGrid }].map((o) => (
+            <button key={o.v} onClick={() => setVista(o.v)}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${vista === o.v ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
+              <o.icon className="h-3.5 w-3.5" />{o.label}
+            </button>
+          ))}
+        </div>
+          <Button variant="outline" onClick={() => setEtiquetasDlg(true)} title="Etiquetas del tablero">
+            <Tag className="h-4 w-4" />
+          </Button>
           <Button onClick={() => setNewDlg(true)}><Plus className="h-4 w-4" />Nueva tarea</Button>
         </div>
       </div>
 
       <NewTaskDialog open={newDlg} onClose={() => setNewDlg(false)} caseId={caseFilter} />
+      <EtiquetasDialog open={etiquetasDlg} onClose={() => setEtiquetasDlg(false)} />
+      <Dialog open={!!detalle} onOpenChange={(o) => !o && setDetalle(null)}>
+        <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader><DialogTitle>{detalle?.title}</DialogTitle></DialogHeader>
+          {detalle && (
+            <TaskItem task={detalle} defaultExpanded
+              caseLink={{ title: detalle.case_title, clientName: detalle.client_name }} />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {caseFilter && (
         <div className="flex items-center justify-between px-4 py-2.5 rounded-xl text-sm"
@@ -208,8 +241,10 @@ export default function Tasks() {
         </div>
       </div>
 
-      {/* Task list */}
-      {isLoading ? (
+      {vista === 'tablero' ? (
+        <TaskBoard tareas={filtered} onNueva={() => setNewDlg(true)} onAbrirTarea={setDetalle} />
+      ) : /* Task list */
+      isLoading ? (
         <p className="text-muted-foreground text-sm py-8 text-center">Cargando...</p>
       ) : grouped.length === 0 ? (
         <div className="py-16 text-center">

@@ -149,7 +149,11 @@ export default function Cases() {
   const [detailSeed, setDetailSeed] = useState<Case | null>(null)
   const [serviceSearch, setServiceSearch] = useState('')
   const [selectedService, setSelectedService] = useState<{ id: number; service_code: string; nombre: string; category_code?: string; subcategory_code?: string } | null>(null)
-  const [tareasIniciales, setTareasIniciales] = useState<{ titulo: string; due_date: string; es_critico: boolean; incluida: boolean }[]>([])
+  // El plan de trabajo del servicio, ya ajustable antes de crear el expediente.
+  const [tareasIniciales, setTareasIniciales] = useState<{
+    titulo: string; due_date: string; es_critico: boolean; incluida: boolean
+    notes: string; responsible_username: string; costo_estimado: number; etiqueta_ids: number[]
+  }[]>([])
   const [nuevaTareaInicial, setNuevaTareaInicial] = useState('')
 
   // Enlaces desde búsqueda global, alertas, tareas, agenda y clientes:
@@ -244,6 +248,10 @@ export default function Cases() {
         : '',
       es_critico: p.es_critico_default,
       incluida: true,
+      notes: p.descripcion ?? '',
+      responsible_username: p.responsable_sugerido ?? '',
+      costo_estimado: p.costo_estimado ?? 0,
+      etiqueta_ids: p.etiquetas.map((e) => e.id),
     })))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plantillaFirma, selectedService?.id, editing])
@@ -330,7 +338,11 @@ export default function Cases() {
     } else {
       createCase.mutate({
         ...payload,
-        tareas_iniciales: tareasIniciales.filter((t) => t.incluida).map((t) => ({ titulo: t.titulo, due_date: t.due_date || null, es_critico: t.es_critico })),
+        tareas_iniciales: tareasIniciales.filter((t) => t.incluida).map((t) => ({
+          titulo: t.titulo, due_date: t.due_date || null, es_critico: t.es_critico,
+          notes: t.notes || null, responsible_username: t.responsible_username,
+          costo_estimado: t.costo_estimado, etiqueta_ids: t.etiqueta_ids,
+        })),
       })
     }
   }
@@ -628,7 +640,8 @@ export default function Cases() {
                   <Button type="button" size="sm" variant="outline" className="h-8 text-xs shrink-0"
                     onClick={() => {
                       if (!nuevaTareaInicial.trim()) return
-                      setTareasIniciales((p) => [...p, { titulo: nuevaTareaInicial.trim(), due_date: '', es_critico: false, incluida: true }])
+                      setTareasIniciales((p) => [...p, { titulo: nuevaTareaInicial.trim(), due_date: '', es_critico: false,
+                        incluida: true, notes: '', responsible_username: '', costo_estimado: 0, etiqueta_ids: [] }])
                       setNuevaTareaInicial('')
                     }}>
                     <Plus className="h-3 w-3" />Agregar

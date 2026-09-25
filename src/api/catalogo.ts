@@ -1,4 +1,4 @@
-import type { Categoria, CatalogoEstado, Familia, HistorialEntry, PlantillaTarea, PlantillaTareaIn, Servicio, ServicioChoice, ServicioEstado } from '@/types'
+import type { Categoria, CatalogoEstado, EtiquetaTarea, Familia, HistorialEntry, PlantillaTarea, PlantillaTareaIn, Servicio, ServicioChoice, ServicioEstado } from '@/types'
 import api from './client'
 
 // Solo lectura: toda alta, cambio o baja del catálogo se hace mediante una solicitud
@@ -34,4 +34,18 @@ export const catalogoApi = {
   updatePlantillaTarea: (id: number, data: PlantillaTareaIn) =>
     api.put<PlantillaTarea>(`/catalogo/plantilla-tareas/${id}`, data).then((r) => r.data),
   deletePlantillaTarea: (id: number) => api.delete(`/catalogo/plantilla-tareas/${id}`),
+  /** El orden de la plantilla es el orden en que se trabaja el caso. */
+  reordenarPlantillaTareas: (serviceId: number, orden_ids: number[]) =>
+    api.put<PlantillaTarea[]>(`/catalogo/servicios/${serviceId}/plantilla-tareas/orden`, { orden_ids }).then((r) => r.data),
+  /** Copiar el plan de trabajo de un servicio parecido. */
+  copiarPlantillaTareas: (serviceId: number, origen_service_id: number, reemplazar = false) =>
+    api.post<PlantillaTarea[]>(`/catalogo/servicios/${serviceId}/plantilla-tareas/copiar`, { origen_service_id, reemplazar }).then((r) => r.data),
+
+  // Etiquetas de tarea (las del tablero)
+  listEtiquetas: () => api.get<EtiquetaTarea[]>('/catalogo/etiquetas-tarea').then((r) => r.data),
+  createEtiqueta: (data: { nombre: string; color: string }) =>
+    api.post<EtiquetaTarea>('/catalogo/etiquetas-tarea', data).then((r) => r.data),
+  updateEtiqueta: (id: number, data: { nombre: string; color: string }) =>
+    api.put<EtiquetaTarea>(`/catalogo/etiquetas-tarea/${id}`, data).then((r) => r.data),
+  deleteEtiqueta: (id: number) => api.delete(`/catalogo/etiquetas-tarea/${id}`),
 }

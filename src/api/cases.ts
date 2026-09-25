@@ -1,4 +1,4 @@
-import type { Case, CaseIn, CaseUpdate, CaseTask, CaseTaskIn, CaseTaskUpdate, GlobalCaseTask, Choice, Session, TiempoAtencion, CaseTimeEntry, CaseTimeEntryIn, ConflictoInteres, CaseHonorariosLogEntry } from '@/types'
+import type { Case, CaseHonorariosLogEntry, CaseIn, CaseTask, CaseTaskCierre, CaseTaskIn, CaseTaskUpdate, CaseTimeEntry, CaseTimeEntryIn, CaseUpdate, Choice, ConflictoInteres, GlobalCaseTask, Session, TaskEstado, TiempoAtencion } from '@/types'
 import api from './client'
 
 export const casesApi = {
@@ -24,6 +24,12 @@ export const casesApi = {
     api.post<CaseTask>(`/cases/${caseId}/tasks`, data).then((r) => r.data),
   updateTask: (taskId: number, data: CaseTaskUpdate) =>
     api.put<CaseTask>(`/cases/tasks/${taskId}`, data).then((r) => r.data),
+  /** Mover la tarjeta de columna en el tablero. */
+  setTaskEstado: (taskId: number, estado: TaskEstado, completed_notes?: string | null) =>
+    api.patch<CaseTask>(`/cases/tasks/${taskId}/estado`, { estado, completed_notes }).then((r) => r.data),
+  /** Cerrarla con la fecha real, el costo final y lo que se obtuvo. */
+  cerrarTask: (taskId: number, data: CaseTaskCierre) =>
+    api.post<CaseTask>(`/cases/tasks/${taskId}/cerrar`, data).then((r) => r.data),
   setTaskDone: (taskId: number, done: boolean, completed_notes?: string | null) =>
     api.patch<CaseTask>(`/cases/tasks/${taskId}/done`, { done, completed_notes }).then((r) => r.data),
   updateTaskNotes: (taskId: number, notes: string | null, completed_notes: string | null) =>

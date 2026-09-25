@@ -152,6 +152,21 @@ export interface TiempoAtencion {
 }
 
 export type TareaOrigen = 'plantilla' | 'manual'
+/** Columnas del tablero. "En espera" es lo detenido por un tercero (cliente, tribunal,
+ *  registro): lo que más traba a un despacho y lo que nadie ve en una lista plana. */
+export const TASK_ESTADOS = ['Por hacer', 'En curso', 'En espera', 'Hecha'] as const
+export type TaskEstado = (typeof TASK_ESTADOS)[number]
+
+export const ETIQUETA_COLORES = ['red', 'amber', 'green', 'blue', 'violet', 'rose', 'slate'] as const
+export type EtiquetaColor = (typeof ETIQUETA_COLORES)[number]
+
+export interface EtiquetaTarea {
+  id: number
+  nombre: string
+  color: EtiquetaColor
+  usos?: number
+}
+
 export interface CaseTask {
   id: number
   case_id: number
@@ -175,6 +190,12 @@ export interface CaseTask {
   completed_at: string | null
   completed_by: string | null
   invoice_id: number | null
+  estado: TaskEstado
+  /** Lo que se calculó que iba a costar, para comparar contra el real al cerrarla. */
+  costo_estimado: number
+  /** Quienes la trabajan, además del responsable que responde por ella. */
+  asignados: string[]
+  etiquetas: EtiquetaTarea[]
   created_at: string
 }
 
@@ -197,6 +218,18 @@ export interface CaseTaskIn {
   costo_real?: number
   costo_account_id?: number | null
   costo_es_reembolsable?: boolean
+  costo_estimado?: number
+  asignados?: string[]
+  etiqueta_ids?: number[]
+  estado?: TaskEstado
+}
+
+export interface CaseTaskCierre {
+  completed_at?: string | null
+  completed_notes: string
+  costo_real?: number | null
+  costo_account_id?: number | null
+  costo_es_reembolsable?: boolean | null
 }
 
 export interface CaseTaskUpdate extends CaseTaskIn {
@@ -223,6 +256,9 @@ export interface PlantillaTarea {
   es_critico_default: boolean
   costo_estimado: number
   honorario_sugerido: number
+  descripcion: string | null
+  responsable_sugerido: string | null
+  etiquetas: EtiquetaTarea[]
   created_at: string
   updated_at: string
 }
@@ -233,6 +269,9 @@ export interface PlantillaTareaIn {
   es_critico_default?: boolean
   costo_estimado?: number
   honorario_sugerido?: number
+  descripcion?: string
+  responsable_sugerido?: string
+  etiqueta_ids?: number[]
 }
 
 export interface CaseTimeEntry {

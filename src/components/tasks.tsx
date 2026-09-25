@@ -13,6 +13,9 @@ import { casesApi } from '@/api/cases'
 import { attachmentsApi } from '@/api/attachments'
 import { usersApi } from '@/api/users'
 import { finanzasApi } from '@/api/finanzas'
+import { catalogoApi } from '@/api/catalogo'
+import { EtiquetaChip } from '@/components/TaskBoard'
+import { TaskCierreDialog } from '@/components/TaskCierreDialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -44,6 +47,55 @@ function fileIcon(name: string) {
 }
 
 const LBL = 'text-[10px] font-medium text-muted-foreground uppercase tracking-wider'
+
+/** Las etiquetas del tablero: se eligen marcándolas, como en Trello. */
+function EtiquetaPicker({ seleccionadas, onChange }: {
+  seleccionadas: number[]; onChange: (ids: number[]) => void
+}) {
+  const { data: etiquetas = [] } = useQuery({ queryKey: ['etiquetas-tarea'], queryFn: catalogoApi.listEtiquetas })
+  if (!etiquetas.length) return null
+  return (
+    <div className="space-y-1">
+      <label className={LBL}>Etiquetas</label>
+      <div className="flex flex-wrap gap-1.5">
+        {etiquetas.map((e) => {
+          const activa = seleccionadas.includes(e.id)
+          return (
+            <EtiquetaChip key={e.id} etiqueta={e} activa={activa}
+              onClick={() => onChange(activa ? seleccionadas.filter((x) => x !== e.id) : [...seleccionadas, e.id])} />
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+/** Quiénes más trabajan la tarea, además del responsable que responde por ella. */
+function AsignadosPicker({ responsable, seleccionados, onChange }: {
+  responsable: string; seleccionados: string[]; onChange: (usuarios: string[]) => void
+}) {
+  const users = useActiveUsers()
+  const otros = users.filter((u) => u.username !== responsable)
+  if (!otros.length) return null
+  return (
+    <div className="space-y-1">
+      <label className={LBL}>Trabajan con el responsable</label>
+      <div className="flex flex-wrap gap-1.5">
+        {otros.map((u) => {
+          const activo = seleccionados.includes(u.username)
+          return (
+            <button key={u.username} type="button"
+              onClick={() => onChange(activo ? seleccionados.filter((x) => x !== u.username) : [...seleccionados, u.username])}
+              className={`px-2 py-0.5 rounded text-[11px] transition-colors ${activo ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+              style={activo ? undefined : { border: '1px solid hsl(var(--c-inner-border))' }}>
+              {u.full_name || u.username}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
 
 /** Cuentas de egreso: el costo de una diligencia se clasifica igual que cualquier gasto. */
 function CuentaCostoSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
@@ -133,6 +185,9 @@ export function TaskForm({ caseId, onDone }: { caseId?: number; onDone: () => vo
   const [responsible, setResponsible] = useState('')
   const [critico, setCritico] = useState(false)
   const [dinero, setDinero] = useState({ monto: '', autorizado: '', costo: '', cuenta: '', reembolsable: false })
+  const [costoEstimado, setCostoEstimado] = useState('')
+  const [asignados, setAsignados] = useState<string[]>([])
+  const [etiquetaIds, setEtiquetaIds] = useState<number[]>([])
   const [guideFile, setGuideFile] = useState<File | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -171,6 +226,9 @@ export function TaskForm({ caseId, onDone }: { caseId?: number; onDone: () => vo
       costo_real: dinero.costo ? Number(dinero.costo) : undefined,
       costo_account_id: dinero.cuenta ? Number(dinero.cuenta) : null,
       costo_es_reembolsable: dinero.reembolsable,
+      costo_estimado: costoEstimado ? Number(costoEstimado) : undefined,
+      asignados,
+      etiqueta_ids: etiquetaIds,
     })
   }
 
@@ -217,6 +275,16 @@ export function TaskForm({ caseId, onDone }: { caseId?: number; onDone: () => vo
         <AlertTriangle className={`h-3.5 w-3.5 ${critico ? 'text-destructive' : 'text-muted-foreground'}`} />
         <span className={critico ? 'font-medium text-destructive' : 'text-muted-foreground'}>Plazo legal crítico (prescripción, término procesal...)</span>
       </label>
+      <div className="space-y-1">
+        <label className={LBL}>Costo estimado ($)</label>
+        <Input type="number" step="0.01" min="0" className="h-8 text-sm" placeholder="0.00"
+          value={costoEstimado} onChange={(e) => setCostoEstimado(e.target.value)} />
+        <p className="text-[11px] text-muted-foreground">Lo que se calcula que va a costar. Al cerrarla se compara con el real.</p>
+      </div>
+
+      <AsignadosPicker responsable={responsible} seleccionados={asignados} onChange={setAsignados} />
+      <EtiquetaPicker seleccionadas={etiquetaIds} onChange={setEtiquetaIds} />
+
       <DineroTarea valores={dinero} onChange={(v) => setDinero((p) => ({ ...p, ...v }))} />
 
       <div className="grid grid-cols-2 gap-2">
@@ -324,14 +392,19 @@ function TaskDocSection({ taskId, role, label, labelColor }: {
 
 // ── Fila de tarea (mismas acciones en todas las pantallas) ──────────────────
 
-export function TaskItem({ task, caseLink }: {
+export function TaskItem({ task, caseLink, defaultExpanded = false }: {
   task: CaseTask
   /** En la vista global, muestra a qué expediente pertenece y enlaza a él. */
   caseLink?: { title: string; clientName?: string | null }
+  defaultExpanded?: boolean
 }) {
   const qc = useQueryClient()
   const users = useActiveUsers()
-  const [expanded, setExpanded] = useState(false)
+  const [expanded, setExpanded] = useState(defaultExpanded)
+  const [cerrando, setCerrando] = useState(false)
+  const [asignados, setAsignados] = useState<string[]>(task.asignados ?? [])
+  const [etiquetaIds, setEtiquetaIds] = useState<number[]>((task.etiquetas ?? []).map((e) => e.id))
+  const [costoEstimado, setCostoEstimado] = useState(task.costo_estimado ? String(task.costo_estimado) : '')
   const [draft, setDraft] = useState<{ notes: string; completed_notes: string } | null>(null)
   const [dinero, setDinero] = useState({
     monto: task.monto_adicional ? String(task.monto_adicional) : '',
@@ -340,6 +413,10 @@ export function TaskItem({ task, caseLink }: {
     cuenta: task.costo_account_id ? String(task.costo_account_id) : '',
     reembolsable: task.costo_es_reembolsable,
   })
+  const equipoCambiado =
+    JSON.stringify([...asignados].sort()) !== JSON.stringify([...(task.asignados ?? [])].sort())
+    || JSON.stringify([...etiquetaIds].sort()) !== JSON.stringify([...(task.etiquetas ?? []).map((e) => e.id)].sort())
+    || (Number(costoEstimado) || 0) !== (task.costo_estimado ?? 0)
   const dineroCambiado =
     (Number(dinero.monto) || 0) !== task.monto_adicional ||
     (Number(dinero.costo) || 0) !== task.costo_real ||
@@ -378,6 +455,9 @@ export function TaskItem({ task, caseLink }: {
       costo_real: dinero.costo ? Number(dinero.costo) : 0,
       costo_account_id: dinero.cuenta ? Number(dinero.cuenta) : null,
       costo_es_reembolsable: dinero.reembolsable,
+      costo_estimado: costoEstimado ? Number(costoEstimado) : 0,
+      asignados,
+      etiqueta_ids: etiquetaIds,
     }),
     onSuccess: () => { refresh(); toast.success('Registrado en el expediente') }, onError,
   })
@@ -425,6 +505,10 @@ export function TaskItem({ task, caseLink }: {
                 title={task.costo_es_reembolsable ? 'Costo reembolsable: se recupera del cliente' : 'Costo directo del expediente'}>
                 −{formatCurrency(task.costo_real)}
               </span>
+            )}
+            {(task.etiquetas ?? []).map((e) => <EtiquetaChip key={e.id} etiqueta={e} />)}
+            {task.costo_estimado > 0 && !task.done && (
+              <span className="text-muted-foreground" title="Costo estimado">est. {formatCurrency(task.costo_estimado)}</span>
             )}
             {task.done && task.completed_at && (
               <span className="text-green-600">hecha {formatDate(task.completed_at)}</span>
@@ -494,6 +578,20 @@ export function TaskItem({ task, caseLink }: {
               </div>
             )}
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className={LBL}>Costo estimado ($)</label>
+              <Input type="number" step="0.01" min="0" className="h-8 text-sm" placeholder="0.00"
+                value={costoEstimado} onChange={(e) => setCostoEstimado(e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <label className={LBL}>Estado en el tablero</label>
+              <p className="h-8 flex items-center text-sm text-muted-foreground">{task.estado}</p>
+            </div>
+          </div>
+          <AsignadosPicker responsable={task.responsible_username ?? ''} seleccionados={asignados} onChange={setAsignados} />
+          <EtiquetaPicker seleccionadas={etiquetaIds} onChange={setEtiquetaIds} />
+
           {task.invoice_id ? (
             <div className="rounded-lg p-3 text-xs" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-inner-border))' }}>
               Esta tarea ya está cobrada en una factura: su monto no se puede cambiar desde aquí.
@@ -502,7 +600,7 @@ export function TaskItem({ task, caseLink }: {
           ) : (
             <DineroTarea valores={dinero} onChange={(v) => setDinero((p) => ({ ...p, ...v }))} />
           )}
-          {dineroCambiado && !task.invoice_id && (
+          {(dineroCambiado || equipoCambiado) && !task.invoice_id && (
             <div className="flex justify-end gap-2">
               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setDinero({
                 monto: task.monto_adicional ? String(task.monto_adicional) : '',
@@ -521,6 +619,15 @@ export function TaskItem({ task, caseLink }: {
               </Button>
             </div>
           )}
+
+          {!task.done && (
+            <div className="flex justify-end">
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setCerrando(true)}>
+                Cerrar tarea con resultado
+              </Button>
+            </div>
+          )}
+          <TaskCierreDialog tarea={cerrando ? task : null} onClose={() => { setCerrando(false); refresh() }} />
 
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
             <span>Estimada: {task.due_date ? formatDate(task.due_date) : 'sin fecha'}</span>
