@@ -1,3 +1,4 @@
+import { useAuthStore } from '@/store/auth'
 // Ficha del cliente en un solo lugar: sus expedientes, citas, documentos y cuenta, con las
 // acciones que siguen (abrir expediente, agendar, cobrar). Antes había que recorrer cuatro
 // pantallas distintas para armar la misma foto.
@@ -27,29 +28,32 @@ export default function ClientDetailPanel({ client, onClose, onEdit }: {
   onClose: () => void
   onEdit?: (c: Client) => void
 }) {
+  const user=useAuthStore(s=>s.user)
+  const can=(module:string)=>!!user&&(user.is_admin||user.permissions.includes(module+'.ver'))
+  const allowed:Record<Tab,boolean>={expedientes:can('expedientes'),citas:can('agenda'),documentos:can('clientes'),cuenta:['clientes','expedientes','agenda','facturas','flujo_caja'].every(can)}
   const navigate = useNavigate()
-  const [tab, setTab] = useState<Tab>('expedientes')
+  const [tab, setTab] = useState<Tab>(allowed.expedientes ? 'expedientes' : allowed.citas ? 'citas' : 'documentos')
   const [agendar, setAgendar] = useState(false)
   const [docs, setDocs] = useState(false)
 
   const { data: casos = [] } = useQuery<Case[]>({
     queryKey: ['cases', { client_id: client.id }],
-    queryFn: () => casesApi.list({ client_id: client.id }),
+    queryFn: () => casesApi.list({ client_id: client.id }), enabled: allowed.expedientes,
   })
   const { data: citas = [] } = useQuery<Session[]>({
     queryKey: ['sessions', { client_id: client.id }],
     queryFn: () => sessionsApi.list({ client_id: client.id }),
-    enabled: tab === 'citas',
+    enabled: allowed.citas && tab === 'citas',
   })
   const { data: adjuntos = [] } = useQuery<Attachment[]>({
     queryKey: ['attachments', 'client', client.id],
     queryFn: () => attachmentsApi.list('client', client.id),
-    enabled: tab === 'documentos',
+    enabled: allowed.documentos && tab === 'documentos',
   })
   const { data: cuenta } = useQuery({
     queryKey: ['client-statement', client.id],
     queryFn: () => clientsApi.statement(client.id),
-    enabled: tab === 'cuenta',
+    enabled: allowed.cuenta && tab === 'cuenta',
   })
 
   const abiertos = casos.filter((c) => c.status !== 'Cerrado')
@@ -128,7 +132,7 @@ export default function ClientDetailPanel({ client, onClose, onEdit }: {
           </div>
 
           <div className="flex gap-0" style={{ borderBottom: '1px solid hsl(var(--c-inner-border))' }}>
-            {tabs.map((t) => (
+            {tabs.filter(t=>allowed[t.id]).map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
@@ -145,7 +149,7 @@ export default function ClientDetailPanel({ client, onClose, onEdit }: {
 
         {/* Contenido */}
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-2">
-          {tab === 'expedientes' && (
+          {allowed.expedientes && tab === 'expedientes' && (
             casos.length === 0
               ? <Vacio icon={Briefcase} texto="Este cliente aún no tiene expedientes" />
               : casos.map((c) => (
@@ -168,7 +172,7 @@ export default function ClientDetailPanel({ client, onClose, onEdit }: {
               ))
           )}
 
-          {tab === 'citas' && (
+          {allowed.citas && tab === 'citas' && (
             citas.length === 0
               ? <Vacio icon={CalendarDays} texto="Sin citas registradas" />
               : citas.map((s) => (
@@ -185,7 +189,7 @@ export default function ClientDetailPanel({ client, onClose, onEdit }: {
               ))
           )}
 
-          {tab === 'documentos' && (
+          {allowed.documentos && tab === 'documentos' && (
             adjuntos.length === 0
               ? <Vacio icon={Paperclip} texto="Sin documentos del cliente" />
               : adjuntos.map((a) => (
@@ -202,7 +206,7 @@ export default function ClientDetailPanel({ client, onClose, onEdit }: {
               ))
           )}
 
-          {tab === 'cuenta' && (
+          {allowed.cuenta && tab === 'cuenta' && (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-2">
                 {[

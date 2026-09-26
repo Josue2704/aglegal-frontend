@@ -1,7 +1,10 @@
+import { FormGuidance } from '@/components/FormGuidance'
+import { WorkflowHistory } from '@/components/WorkflowHistory'
 // Tareas: un solo formulario y una sola fila para todas las pantallas (página Tareas y
 // pestaña Tareas del expediente) — antes cada una tenía su propia versión con distintas
 // capacidades (una permitía adjuntos y monto adicional, la otra reasignar responsable).
-import { useRef, useState } from 'react'
+import { useId, useRef, useState } from 'react'
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import {
@@ -25,6 +28,7 @@ import { formatCurrency, formatDate, today } from '@/lib/utils'
 type ApiError = { response?: { data?: { detail?: string } } }
 
 export function invalidateTasks(qc: QueryClient, caseId?: number) {
+  qc.invalidateQueries({ queryKey: ['workflow-history'] })
   qc.invalidateQueries({ queryKey: ['all-tasks'] })
   qc.invalidateQueries({ queryKey: ['case-tasks'] })
   qc.invalidateQueries({ queryKey: ['cases'] })
@@ -33,8 +37,8 @@ export function invalidateTasks(qc: QueryClient, caseId?: number) {
 }
 
 function useActiveUsers() {
-  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list, retry: false })
-  return users.filter((u) => u.active)
+  const { data: users = [] } = useQuery({ queryKey: ['assignment-users'], queryFn: usersApi.choices, retry: false })
+  return users
 }
 
 function fileIcon(name: string) {
@@ -49,7 +53,7 @@ function fileIcon(name: string) {
 const LBL = 'text-[10px] font-medium text-muted-foreground uppercase tracking-wider'
 
 /** Las etiquetas del tablero: se eligen marcándolas, como en Trello. */
-function EtiquetaPicker({ seleccionadas, onChange }: {
+export function EtiquetaPicker({ seleccionadas, onChange }: {
   seleccionadas: number[]; onChange: (ids: number[]) => void
 }) {
   const { data: etiquetas = [] } = useQuery({ queryKey: ['etiquetas-tarea'], queryFn: catalogoApi.listEtiquetas })
@@ -71,28 +75,49 @@ function EtiquetaPicker({ seleccionadas, onChange }: {
 }
 
 /** Quiénes más trabajan la tarea, además del responsable que responde por ella. */
-function AsignadosPicker({ responsable, seleccionados, onChange }: {
+export function AsignadosPicker({ responsable, seleccionados, onChange }: {
   responsable: string; seleccionados: string[]; onChange: (usuarios: string[]) => void
 }) {
   const users = useActiveUsers()
+  const labelId = useId()
   const otros = users.filter((u) => u.username !== responsable)
-  if (!otros.length) return null
+  const elegidos = seleccionados.filter((u) => u !== responsable)
+  const nombres = elegidos.map((username) => users.find((u) => u.username === username)?.full_name || username)
+  if (!otros.length && !elegidos.length) return null
   return (
-    <div className="space-y-1">
-      <label className={LBL}>Trabajan con el responsable</label>
-      <div className="flex flex-wrap gap-1.5">
-        {otros.map((u) => {
-          const activo = seleccionados.includes(u.username)
-          return (
-            <button key={u.username} type="button"
-              onClick={() => onChange(activo ? seleccionados.filter((x) => x !== u.username) : [...seleccionados, u.username])}
-              className={`px-2 py-0.5 rounded text-[11px] transition-colors ${activo ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground'}`}
-              style={activo ? undefined : { border: '1px solid hsl(var(--c-inner-border))' }}>
-              {u.full_name || u.username}
-            </button>
-          )
-        })}
-      </div>
+    <div className="space-y-1 min-w-0">
+      <label id={labelId} className={LBL}>Trabajan con el responsable</label>
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger asChild>
+          <button type="button" aria-labelledby={labelId}
+            className="flex h-9 w-full min-w-0 items-center justify-between gap-2 rounded-md border border-input px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+            <span className="truncate" title={nombres.join(', ')}>
+              {nombres.length === 0 ? 'Seleccionar colaboradores...' : nombres.length === 1 ? nombres[0] : `${nombres.length} colaboradores seleccionados`}
+            </span>
+            <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+          </button>
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Portal>
+          <DropdownMenu.Content align="start" sideOffset={4} collisionPadding={16}
+            className="z-[60] w-[var(--radix-dropdown-menu-trigger-width)] max-w-[calc(100vw-2rem)] max-h-[min(18rem,var(--radix-dropdown-menu-content-available-height))] overflow-y-auto overscroll-contain rounded-md border bg-popover p-1 text-popover-foreground shadow-lg">
+            <DropdownMenu.Item onSelect={(e) => { e.preventDefault(); onChange(Array.from(new Set([...elegidos, ...otros.map((u) => u.username)]))) }}
+              className="cursor-pointer rounded px-2 py-2 text-xs outline-none focus:bg-accent">Seleccionar todos</DropdownMenu.Item>
+            <DropdownMenu.Item disabled={!elegidos.length} onSelect={(e) => { e.preventDefault(); onChange([]) }}
+              className="cursor-pointer rounded px-2 py-2 text-xs outline-none focus:bg-accent data-[disabled]:opacity-40">Quitar selección</DropdownMenu.Item>
+            <DropdownMenu.Separator className="my-1 h-px bg-border" />
+            {otros.map((u) => (
+              <DropdownMenu.CheckboxItem key={u.username} checked={elegidos.includes(u.username)}
+                textValue={u.full_name || u.username}
+                onSelect={(e) => e.preventDefault()}
+                onCheckedChange={(checked) => onChange(checked ? [...elegidos, u.username] : elegidos.filter((x) => x !== u.username))}
+                className="relative cursor-pointer rounded py-2 pl-8 pr-2 text-sm outline-none focus:bg-accent">
+                <DropdownMenu.ItemIndicator className="absolute left-2 top-2.5"><CheckCircle2 className="h-4 w-4" /></DropdownMenu.ItemIndicator>
+                <span className="break-words">{u.full_name || u.username}</span>
+              </DropdownMenu.CheckboxItem>
+            ))}
+          </DropdownMenu.Content>
+        </DropdownMenu.Portal>
+      </DropdownMenu.Root>
     </div>
   )
 }
@@ -117,14 +142,14 @@ function CuentaCostoSelect({ value, onChange }: { value: string; onChange: (v: s
  *  cliente (sube honorarios y va a la factura), lo que nos costó (costo directo del
  *  expediente) y si ese costo se le recupera al cliente. */
 function DineroTarea({ valores, onChange }: {
-  valores: { monto: string; autorizado: string; costo: string; cuenta: string; reembolsable: boolean }
-  onChange: (v: Partial<{ monto: string; autorizado: string; costo: string; cuenta: string; reembolsable: boolean }>) => void
+  valores: { monto: string; autorizado: string; costo: string; cuenta: string; reembolsable: boolean; anticipado: boolean }
+  onChange: (v: Partial<{ monto: string; autorizado: string; costo: string; cuenta: string; reembolsable: boolean; anticipado: boolean }>) => void
 }) {
   return (
     <div className="space-y-3">
       <div className="rounded-lg p-3 space-y-2" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-inner-border))' }}>
         <p className="text-xs font-semibold">Se le cobra al cliente</p>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="space-y-1">
             <label className={LBL}>Honorario adicional ($)</label>
             <Input type="number" step="0.01" min="0" className="h-8 text-sm" placeholder="0.00"
@@ -137,6 +162,13 @@ function DineroTarea({ valores, onChange }: {
           </div>
         </div>
         {Number(valores.monto) > 0 && (
+          <label className="flex items-center gap-2 text-xs">
+            <input type="checkbox" checked={valores.anticipado} onChange={(e) => onChange({ anticipado: e.target.checked })} />
+            Se acordó facturar antes de terminar la tarea
+          </label>
+        )}
+        <p className="text-[11px] text-muted-foreground">Sin honorario adicional, la tarea se considera incluida. Los extras se facturan al completarla, salvo cobro anticipado acordado.</p>
+        {Number(valores.monto) > 0 && (
           <p className="text-[11px] text-amber-600">
             Sube {formatCurrency(Number(valores.monto))} los honorarios del expediente y queda en la bitácora con la fecha de hoy.
           </p>
@@ -144,17 +176,20 @@ function DineroTarea({ valores, onChange }: {
       </div>
 
       <div className="rounded-lg p-3 space-y-2" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-inner-border))' }}>
-        <p className="text-xs font-semibold">Lo que costó hacerla</p>
-        <div className="grid grid-cols-2 gap-2">
+        <p className="text-xs font-semibold">Gasto real ya realizado</p>
+        <p className="text-[11px] text-muted-foreground">Déjalo en cero si todavía no has realizado un gasto. Puedes registrarlo al cerrar la tarea.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div className="space-y-1">
             <label className={LBL}>Costo ($)</label>
             <Input type="number" step="0.01" min="0" className="h-8 text-sm" placeholder="0.00"
               value={valores.costo} onChange={(e) => onChange({ costo: e.target.value })} />
           </div>
-          <div className="space-y-1">
-            <label className={LBL}>Cuenta contable {Number(valores.costo) > 0 && <span className="text-destructive">*</span>}</label>
-            <CuentaCostoSelect value={valores.cuenta} onChange={(v) => onChange({ cuenta: v })} />
-          </div>
+          {Number(valores.costo) > 0 && (
+            <div className="space-y-1 min-w-0">
+              <label className={LBL}>Cuenta del gasto <span className="text-destructive">*</span></label>
+              <CuentaCostoSelect value={valores.cuenta} onChange={(v) => onChange({ cuenta: v })} />
+            </div>
+          )}
         </div>
         {Number(valores.costo) > 0 && (
           <>
@@ -164,7 +199,7 @@ function DineroTarea({ valores, onChange }: {
               <span>Es reembolsable: se le recupera al cliente</span>
             </label>
             <p className="text-[11px] text-muted-foreground">
-              Se registra como costo directo del expediente en Flujo de caja{valores.reembolsable ? ', sin restar utilidad por ser reembolsable' : ' y baja la utilidad del caso'}.
+              La cuenta clasifica este gasto real. Se registra como costo directo del expediente en Flujo de caja{valores.reembolsable ? ', sin restar utilidad por ser reembolsable' : ' y baja la utilidad del caso'}.
             </p>
           </>
         )}
@@ -175,7 +210,7 @@ function DineroTarea({ valores, onChange }: {
 
 // ── Formulario de nueva tarea ────────────────────────────────────────────────
 
-export function TaskForm({ caseId, onDone }: { caseId?: number; onDone: () => void }) {
+export function TaskForm({ caseId, onDone, scrollable = false }: { caseId?: number; onDone: () => void; scrollable?: boolean }) {
   const qc = useQueryClient()
   const users = useActiveUsers()
   const [selectedCase, setSelectedCase] = useState(caseId ? String(caseId) : '')
@@ -184,7 +219,7 @@ export function TaskForm({ caseId, onDone }: { caseId?: number; onDone: () => vo
   const [notes, setNotes] = useState('')
   const [responsible, setResponsible] = useState('')
   const [critico, setCritico] = useState(false)
-  const [dinero, setDinero] = useState({ monto: '', autorizado: '', costo: '', cuenta: '', reembolsable: false })
+  const [dinero, setDinero] = useState({ monto: '', autorizado: '', costo: '', cuenta: '', reembolsable: false, anticipado: false })
   const [costoEstimado, setCostoEstimado] = useState('')
   const [asignados, setAsignados] = useState<string[]>([])
   const [etiquetaIds, setEtiquetaIds] = useState<number[]>([])
@@ -198,7 +233,10 @@ export function TaskForm({ caseId, onDone }: { caseId?: number; onDone: () => vo
   const create = useMutation({
     mutationFn: async (data: CaseTaskIn) => {
       const task = await casesApi.createTask(Number(selectedCase), data)
-      if (guideFile) await attachmentsApi.upload('case_task', task.id, guideFile, 'guide')
+      if (guideFile) {
+        try { await attachmentsApi.upload('case_task', task.id, guideFile, 'guide') }
+        catch { toast.warning('La tarea se creó, pero el documento no se pudo subir. Adjunta el archivo desde la tarea; no hace falta crearla de nuevo.') }
+      }
       return task
     },
     onSuccess: () => {
@@ -226,6 +264,7 @@ export function TaskForm({ caseId, onDone }: { caseId?: number; onDone: () => vo
       costo_real: dinero.costo ? Number(dinero.costo) : undefined,
       costo_account_id: dinero.cuenta ? Number(dinero.cuenta) : null,
       costo_es_reembolsable: dinero.reembolsable,
+      cobro_anticipado: dinero.anticipado,
       costo_estimado: costoEstimado ? Number(costoEstimado) : undefined,
       asignados,
       etiqueta_ids: etiquetaIds,
@@ -233,7 +272,9 @@ export function TaskForm({ caseId, onDone }: { caseId?: number; onDone: () => vo
   }
 
   return (
-    <div className="space-y-3">
+    <div className={scrollable ? "flex min-h-0 flex-col overflow-hidden" : "space-y-3"}>
+      <div className={`space-y-3 ${scrollable ? "min-h-0 overflow-y-auto overscroll-contain px-1 pb-3" : ""}`}>
+      <FormGuidance required="Expediente y título. Si registras un costo real, cuenta de egreso; si cobras un extra, quién lo autorizó." optional="Descripción, responsable, fecha, colaboradores, etiquetas y documento guía. Costos y cobros vacíos equivalen a cero." missing={[!selectedCase && 'expediente', !title.trim() && 'título', Number(dinero.costo)>0 && !dinero.cuenta && 'cuenta del costo', Number(dinero.monto)>0 && !dinero.autorizado.trim() && 'autorización del extra']} recommended={[!responsible && 'responsable', !due && 'fecha de vencimiento']} />
       {!caseId && (
         <div className="space-y-1">
           <label className={LBL}>Expediente *</label>
@@ -248,17 +289,21 @@ export function TaskForm({ caseId, onDone }: { caseId?: number; onDone: () => vo
         <Input className="h-8 text-sm" placeholder="Describe la tarea..." value={title} onChange={(e) => setTitle(e.target.value)} autoFocus
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); submit() } }} />
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div className="space-y-1">
           <label className={LBL}>Fecha de vencimiento</label>
           <Input type="date" className="h-8 text-sm" value={due} onChange={(e) => setDue(e.target.value)} />
         </div>
         <div className="space-y-1">
           <label className={LBL}>Responsable</label>
-          <Select value={responsible} onValueChange={setResponsible}>
+          <Select value={responsible || '__sin_asignar__'} onValueChange={(v) => {
+            const next = v === '__sin_asignar__' ? '' : v
+            setResponsible(next)
+            setAsignados((prev) => prev.filter((u) => u !== next))
+          }}>
             <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Sin asignar" /></SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Sin asignar</SelectItem>
+              <SelectItem value="__sin_asignar__">Sin asignar</SelectItem>
               {users.map((u) => <SelectItem key={u.username} value={u.username}>{u.full_name || u.username}</SelectItem>)}
             </SelectContent>
           </Select>
@@ -275,19 +320,31 @@ export function TaskForm({ caseId, onDone }: { caseId?: number; onDone: () => vo
         <AlertTriangle className={`h-3.5 w-3.5 ${critico ? 'text-destructive' : 'text-muted-foreground'}`} />
         <span className={critico ? 'font-medium text-destructive' : 'text-muted-foreground'}>Plazo legal crítico (prescripción, término procesal...)</span>
       </label>
-      <div className="space-y-1">
-        <label className={LBL}>Costo estimado ($)</label>
-        <Input type="number" step="0.01" min="0" className="h-8 text-sm" placeholder="0.00"
-          value={costoEstimado} onChange={(e) => setCostoEstimado(e.target.value)} />
-        <p className="text-[11px] text-muted-foreground">Lo que se calcula que va a costar. Al cerrarla se compara con el real.</p>
-      </div>
-
       <AsignadosPicker responsable={responsible} seleccionados={asignados} onChange={setAsignados} />
       <EtiquetaPicker seleccionadas={etiquetaIds} onChange={setEtiquetaIds} />
 
-      <DineroTarea valores={dinero} onChange={(v) => setDinero((p) => ({ ...p, ...v }))} />
+      <details className="group/finanzas rounded-lg border border-input p-3">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+          <span>Costos y cobros <span className="font-normal text-muted-foreground">(opcional)</span></span>
+          <ChevronDown className="h-4 w-4 shrink-0 transition-transform group-open/finanzas:rotate-180" />
+        </summary>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          {Number(dinero.costo) > 0 || Number(dinero.monto) > 0 || Number(costoEstimado) > 0
+            ? `Estimado: ${formatCurrency(Number(costoEstimado) || 0)} · Gasto: ${formatCurrency(Number(dinero.costo) || 0)} · Cobro: ${formatCurrency(Number(dinero.monto) || 0)}`
+            : 'No necesitas una cuenta de gasto para crear la tarea ni para indicar un estimado.'}
+        </p>
+        <div className="mt-3 space-y-3">
+          <div className="space-y-1">
+            <label className={LBL}>Costo estimado ($)</label>
+            <Input type="number" step="0.01" min="0" className="h-8 text-sm" placeholder="0.00"
+              value={costoEstimado} onChange={(e) => setCostoEstimado(e.target.value)} />
+            <p className="text-[11px] text-muted-foreground">Lo que se calcula que va a costar. Al cerrarla se compara con el real.</p>
+          </div>
+          <DineroTarea valores={dinero} onChange={(v) => setDinero((p) => ({ ...p, ...v }))} />
+        </div>
+      </details>
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         <div className="space-y-1">
           <label className={`${LBL} flex items-center gap-1`}><FileText className="h-3 w-3 text-blue-400" />Documento guía</label>
           <input ref={fileRef} type="file" className="hidden" onChange={(e) => setGuideFile(e.target.files?.[0] ?? null)} />
@@ -306,7 +363,8 @@ export function TaskForm({ caseId, onDone }: { caseId?: number; onDone: () => vo
           </div>
         </div>
       </div>
-      <div className="flex justify-end gap-2 pt-1">
+      </div>
+      <div className="flex shrink-0 flex-wrap justify-end gap-2 border-t bg-background pt-3">
         <Button type="button" size="sm" variant="ghost" className="h-8 text-xs" onClick={onDone}>Cancelar</Button>
         <Button type="button" size="sm" className="h-8 text-xs" disabled={create.isPending} onClick={submit}>
           {create.isPending ? 'Guardando...' : 'Crear tarea'}
@@ -412,6 +470,7 @@ export function TaskItem({ task, caseLink, defaultExpanded = false }: {
     costo: task.costo_real ? String(task.costo_real) : '',
     cuenta: task.costo_account_id ? String(task.costo_account_id) : '',
     reembolsable: task.costo_es_reembolsable,
+    anticipado: task.cobro_anticipado ?? false,
   })
   const equipoCambiado =
     JSON.stringify([...asignados].sort()) !== JSON.stringify([...(task.asignados ?? [])].sort())
@@ -422,6 +481,7 @@ export function TaskItem({ task, caseLink, defaultExpanded = false }: {
     (Number(dinero.costo) || 0) !== task.costo_real ||
     (dinero.cuenta ? Number(dinero.cuenta) : null) !== task.costo_account_id ||
     dinero.reembolsable !== task.costo_es_reembolsable ||
+    dinero.anticipado !== (task.cobro_anticipado ?? false) ||
     dinero.autorizado !== (task.autorizado_por ?? '')
   const current = draft ?? { notes: task.notes ?? '', completed_notes: task.completed_notes ?? '' }
   const overdue = !task.done && !!task.due_date && task.due_date < today()
@@ -455,6 +515,7 @@ export function TaskItem({ task, caseLink, defaultExpanded = false }: {
       costo_real: dinero.costo ? Number(dinero.costo) : 0,
       costo_account_id: dinero.cuenta ? Number(dinero.cuenta) : null,
       costo_es_reembolsable: dinero.reembolsable,
+      cobro_anticipado: dinero.anticipado,
       costo_estimado: costoEstimado ? Number(costoEstimado) : 0,
       asignados,
       etiqueta_ids: etiquetaIds,
@@ -550,6 +611,7 @@ export function TaskItem({ task, caseLink, defaultExpanded = false }: {
 
       {expanded && (
         <div className="px-3 pb-3 space-y-3 border-t" style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
+          <WorkflowHistory path={`/cases/tasks/${task.id}/historial`}/>
           <div className="pt-2.5">
             <button type="button" onClick={() => toggleCritico.mutate()}
               className="inline-flex items-center gap-1.5 text-[11px] px-2 py-1 rounded-md transition-colors"
@@ -567,7 +629,7 @@ export function TaskItem({ task, caseLink, defaultExpanded = false }: {
                 value={current.notes} onChange={(e) => setDraft({ ...current, notes: e.target.value })} />
             </div>
             <div className="space-y-1">
-              <label className={LBL}>Notas de cierre {task.done ? '' : '(opcional, al completar)'}</label>
+              <label className={LBL}>Resultado de cierre (obligatorio al completar)</label>
               <Textarea rows={2} className="text-sm resize-none" placeholder="Qué pasó, cómo se resolvió, resultado final..."
                 value={current.completed_notes} onChange={(e) => setDraft({ ...current, completed_notes: e.target.value })} />
             </div>
@@ -578,7 +640,7 @@ export function TaskItem({ task, caseLink, defaultExpanded = false }: {
               </div>
             )}
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className={LBL}>Costo estimado ($)</label>
               <Input type="number" step="0.01" min="0" className="h-8 text-sm" placeholder="0.00"
@@ -594,7 +656,7 @@ export function TaskItem({ task, caseLink, defaultExpanded = false }: {
 
           {task.invoice_id ? (
             <div className="rounded-lg p-3 text-xs" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-inner-border))' }}>
-              Esta tarea ya está cobrada en una factura: su monto no se puede cambiar desde aquí.
+              Esta tarea está reservada o facturada: su monto no se puede cambiar desde aquí.
               Corrige la factura si el cobro cambió.
             </div>
           ) : (
@@ -608,6 +670,7 @@ export function TaskItem({ task, caseLink, defaultExpanded = false }: {
                 costo: task.costo_real ? String(task.costo_real) : '',
                 cuenta: task.costo_account_id ? String(task.costo_account_id) : '',
                 reembolsable: task.costo_es_reembolsable,
+    anticipado: task.cobro_anticipado ?? false,
               })}>Cancelar</Button>
               <Button size="sm" className="h-7 text-xs" disabled={guardarDinero.isPending}
                 onClick={() => {
@@ -634,10 +697,10 @@ export function TaskItem({ task, caseLink, defaultExpanded = false }: {
             <span>Real: {task.completed_at ? formatDate(task.completed_at) : 'pendiente'}</span>
             {task.completed_by && <span>Cerrada por {task.completed_by}</span>}
             {task.fecha_autorizacion && <span>Cobro autorizado {formatDate(task.fecha_autorizacion)}</span>}
-            {task.invoice_id && <span className="text-green-600">Ya facturada</span>}
+            {task.invoice_id && <span className="text-green-600">En factura</span>}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 rounded-lg p-3"
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 rounded-lg p-3"
             style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--c-inner-border))' }}>
             <TaskDocSection taskId={task.id} role="guide" label="Documento guía" labelColor="text-blue-400" />
             <TaskDocSection taskId={task.id} role="evidence" label="Evidencia" labelColor="text-green-400" />

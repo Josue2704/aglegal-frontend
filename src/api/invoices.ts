@@ -1,4 +1,4 @@
-import type { Invoice, InvoiceIn, UnbilledItems } from '@/types'
+import type { Invoice, InvoiceIn, UnbilledItems, InvoiceCredit, InvoicePaymentIn } from '@/types'
 import api from './client'
 
 export const invoicesApi = {
@@ -25,5 +25,7 @@ export const invoicesApi = {
   updateStatus: (id: number, status: string) =>
     api.patch<Invoice>(`/invoices/${id}/status`, { status }).then((r) => r.data),
 
+  credits: (id: number) => api.get<InvoiceCredit[]>(`/invoices/${id}/credits`).then((r) => r.data),
+  pay: (id: number, data: InvoicePaymentIn) => api.post<Invoice>(`/invoices/${id}/payments`, data).then((r) => r.data),
   delete: (id: number) => api.delete(`/invoices/${id}`),
 }

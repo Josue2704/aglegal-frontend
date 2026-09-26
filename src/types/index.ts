@@ -76,6 +76,9 @@ export type CasePriority = 'Baja' | 'Media' | 'Alta'
 export type CaseEstadoCobro = 'En ejecución' | 'Finalizado pendiente de facturar' | 'Facturado pendiente de cobro' | 'Cobrado' | 'Suspendido'
 
 export interface Case {
+  origen_negocio: string
+  canal_captacion: string
+  tipo_comercial: string
   id: number
   client_id: number
   client_name: string | null
@@ -107,6 +110,7 @@ export interface Case {
   costos_directos_estimados: number
   saldo_pendiente: number
   costos_directos_reales: number
+  probabilidad_cobro?: number | null
   mes_cobro_esperado: string | null
   estado_cobro: CaseEstadoCobro
   fecha_cierre_estimada: string | null
@@ -117,6 +121,14 @@ export interface Case {
   archived_at: string | null
 }
 export interface CaseIn {
+  origen_negocio?: string
+  canal_captacion?: string
+  tipo_comercial?: string
+  originador_id?: number | null
+  alcance?: string
+  condiciones_cobro?: string
+  revision_confirmada?: boolean
+  revision_observaciones?: string
   client_id: number
   title: string
   status: CaseStatus
@@ -131,6 +143,7 @@ export interface CaseIn {
   service_id?: number | null
   honorarios_contratados?: number | null
   costos_directos_estimados?: number | null
+  probabilidad_cobro?: number | null
   mes_cobro_esperado?: string | null
   estado_cobro?: CaseEstadoCobro
   fecha_cierre_estimada?: string | null
@@ -138,6 +151,7 @@ export interface CaseIn {
   tareas_iniciales?: { titulo: string; due_date?: string | null; notes?: string | null; es_critico?: boolean }[]
 }
 export interface CaseUpdate extends Omit<CaseIn, 'client_id'> {
+  motivo_atribucion?: string
   closed_at?: string | null
   fecha_cierre_real?: string | null
 }
@@ -180,6 +194,7 @@ export interface CaseTask {
   origen: TareaOrigen
   /** Honorario extra que se le cobra al cliente: sube los honorarios del expediente. */
   monto_adicional: number
+  cobro_anticipado?: boolean
   autorizado_por: string | null
   fecha_autorizacion: string | null
   /** Lo que costó hacerla: genera el costo directo del expediente. */
@@ -213,6 +228,7 @@ export interface CaseTaskIn {
   responsible_username?: string
   es_critico?: boolean
   monto_adicional?: number
+  cobro_anticipado?: boolean
   autorizado_por?: string
   fecha_autorizacion?: string | null
   costo_real?: number
@@ -298,7 +314,7 @@ export interface ConflictoInteres {
 }
 
 // ── Sessions ──────────────────────────────────────────────────────────────────
-export type SessionStatus = 'Pendiente' | 'En proceso' | 'Finalizada'
+export type SessionStatus = 'Pendiente' | 'En proceso' | 'Finalizada' | 'Cancelada'
 export interface Session {
   id: number
   client_id: number | null
@@ -306,6 +322,9 @@ export interface Session {
   case_id: number | null
   case_title: string | null
   session_date: string
+  end_date?: string | null
+  calendar_error?: string | null
+  gcal_owner?: string | null
   start_time: string | null
   end_time: string | null
   consult_type: string
@@ -318,6 +337,9 @@ export interface SessionIn {
   client_id?: number | null
   case_id?: number | null
   session_date: string
+  end_date?: string | null
+  calendar_error?: string | null
+  gcal_owner?: string | null
   start_time?: string | null
   end_time?: string | null
   consult_type: string
@@ -371,6 +393,7 @@ export interface IncomeIn {
 
 // ── Expenses ──────────────────────────────────────────────────────────────────
 export interface Expense {
+  payroll_id?: number | null
   id: number
   detail: string | null
   concept: string
@@ -681,6 +704,8 @@ export interface ProyeccionCierreMes {
   mes: string
   cobrado_mes: number
   cartera_ponderada_mes: number
+  proyeccion_comercial: number
+  expedientes_sin_plan: {id: number; title: string}[]
   proyeccion_cierre: number
   meta_ingresos: number
   cumplimiento_proyectado_pct: number | null
@@ -775,6 +800,7 @@ export interface TicketPromedio {
 
 // ── KPI-015 · ingresos y utilidad por origen del negocio ──────────────────────
 export interface IngresoPorOrigen {
+  expedientes: {id:number|null;title:string}[]
   origen: string
   tipo_origen: string
   casos: number
@@ -851,6 +877,13 @@ export interface TramoComision {
   monto: number
 }
 export interface Comision {
+  client_id: number | null
+  client_name: string | null
+  estado: string
+  evidencia: string
+  aprobado_por: string | null
+  aprobado_at: string | null
+  liquidacion_id: number | null
   id: number
   income_id: number | null
   income_date: string | null
@@ -1008,6 +1041,7 @@ export interface ConversionComercial {
 // ── Payroll ───────────────────────────────────────────────────────────────────
 export type PayrollModo = 'calculado' | 'manual'
 export interface PayrollEntry {
+  cash_model: string
   id: number
   employee_name: string
   role: string | null
@@ -1042,6 +1076,7 @@ export interface PayrollEntry {
 }
 export type Payroll = PayrollEntry
 export interface PayrollIn {
+  account_id?: number | null
   employee_name?: string
   role?: string
   period: string
@@ -1232,7 +1267,7 @@ export interface CaseAttachment extends Attachment {
 }
 
 // ── Invoices / Facturas ───────────────────────────────────────────────────────
-export type InvoiceStatus = 'Borrador' | 'Enviada' | 'Pagada' | 'Cancelada'
+export type InvoiceStatus = 'Borrador' | 'Enviada' | 'Parcial' | 'Pagada' | 'Cancelada'
 
 export interface InvoiceItem {
   id: number
@@ -1241,6 +1276,7 @@ export interface InvoiceItem {
   quantity: number
   unit_price: number
   subtotal: number
+  charge_type: string
   entity_type: string | null
   entity_id: number | null
   created_at: string
@@ -1264,14 +1300,48 @@ export interface Invoice {
   firm_tax_id: string | null
   total: number
   has_income: boolean
+  paid: number
+  balance: number
+  reimbursement_total: number
+  overdue: boolean
+  needs_review: boolean
+  payments: InvoicePayment[]
   items: InvoiceItem[]
   created_at: string
 }
 
+export interface InvoicePayment {
+  id: number
+  income_id: number
+  amount_cents: number
+  reimbursement_cents: number
+  income_date: string
+  detail: string
+  created_by: string
+  released_at: string | null
+  release_reason: string | null
+}
+export interface InvoiceCredit {
+  id: number
+  income_date: string
+  detail: string
+  available: number
+  reimbursement_available: number
+  applicable: number
+}
+export interface InvoicePaymentIn {
+  amount: number
+  income_date?: string
+  account_id?: number
+  detail?: string
+  income_id?: number
+  request_key: string
+}
 export interface InvoiceItemIn {
   description: string
   quantity: number
   unit_price: number
+  charge_type?: string
   entity_type?: string | null
   entity_id?: number | null
 }
@@ -1305,6 +1375,7 @@ export interface UnbilledTask {
   case_title: string | null
   case_id: number | null
   /** Honorario adicional ya acordado: el precio de la partida sale de aquí. */
+  cobro_anticipado: boolean
   monto_adicional_cents: number
   completed_at: string | null
   completed_notes: string | null
@@ -1330,6 +1401,7 @@ export interface UnbilledTimeEntry {
 }
 
 export interface UnbilledItems {
+  summary?: { contract_total: number; task_extras: number; reserved_or_invoiced: number; unbilled_fees: number; outstanding_invoices: number } | null
   sessions: UnbilledSession[]
   tasks: UnbilledTask[]
   costs: UnbilledCost[]
@@ -1337,5 +1409,5 @@ export interface UnbilledItems {
 }
 
 // ── Misc ──────────────────────────────────────────────────────────────────────
-export interface Choice { id: number; name?: string; title?: string }
+export interface Choice { responsible_username?: string; id: number; name?: string; title?: string }
 export interface ApiError { detail: string | { msg: string }[] }

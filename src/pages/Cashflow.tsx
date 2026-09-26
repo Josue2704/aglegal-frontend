@@ -137,7 +137,7 @@ function IncomesTab({ start, end }: { start: string; end: string }) {
   const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
   const { data: caseChoices = [] } = useQuery({ queryKey: ['case-choices'], queryFn: () => casesApi.choices() })
   // Expedientes completos: saldo pendiente, servicio y categoría para completar el cobro.
-  const { data: casos = [] } = useQuery({ queryKey: ['cases', 'para-cobro'], queryFn: () => casesApi.list(), enabled: dlg })
+  const { data: casos = [] } = useQuery({ queryKey: ['cases', 'para-cobro'], queryFn: () => casesApi.billingChoices(), enabled: dlg })
   const { data: cuentasIngreso = [] } = useQuery({ queryKey: ['finanzas-cuentas', 'Ingreso'], queryFn: () => finanzasApi.listCuentas({ tipo: 'Ingreso' }) })
   const casoSel = casos.find((c) => String(c.id) === form.case_id)
   // Al editar, el saldo del expediente ya descuenta este mismo cobro — se le suma de vuelta.
@@ -477,8 +477,10 @@ function ExpensesTab({ start, end }: { start: string; end: string }) {
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1">
                       <Button size="icon" variant="ghost" className="h-7 w-7" title="Adjuntos" onClick={() => setAttachExpense(e)}><Paperclip className="h-3.5 w-3.5" /></Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(e)}><Pencil className="h-3.5 w-3.5" /></Button>
-                      <Button size="icon" variant="ghost" className="text-destructive h-7 w-7" onClick={() => { if (confirm('¿Eliminar gasto?')) remove.mutate(e.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      {e.payroll_id ? <span className="text-xs text-muted-foreground self-center whitespace-nowrap">Gestionado en Nóminas</span> : <>
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(e)}><Pencil className="h-3.5 w-3.5" /></Button>
+                        <Button size="icon" variant="ghost" className="text-destructive h-7 w-7" onClick={() => { if (confirm('¿Eliminar gasto?')) remove.mutate(e.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      </>}
                     </div>
                   </td>
                 </tr>

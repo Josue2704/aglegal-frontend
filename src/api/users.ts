@@ -2,6 +2,7 @@ import type { User, UserIn } from '@/types'
 import api from './client'
 
 export const usersApi = {
+  choices: () => api.get<{ username: string; full_name: string }[]>('/users/choices').then((r) => r.data),
   list: () => api.get<User[]>('/users').then((r) => r.data),
   create: (data: UserIn) => api.post<User>('/users', data).then((r) => r.data),
   update: (id: number, data: Partial<UserIn>) => api.put<User>(`/users/${id}`, data).then((r) => r.data),

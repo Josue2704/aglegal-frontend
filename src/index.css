@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Radix keeps invisible native controls for form submission. Their absolute
+   static position can extend an outer dialog beyond a scrolling form/table.
+   Anchor them instead of leaving them at their offscreen fields. */
+select[aria-hidden="true"],
+input[aria-hidden="true"] {
+  top: 0;
+  left: 0;
+}
+
 @layer base {
   /* ── LIGHT MODE (default) ──────────────────────────────── */
   /* Brand: Navy #0A2342 (HSL 213 74% 15%), Gold #B38C31 (HSL 43 57% 45%) */

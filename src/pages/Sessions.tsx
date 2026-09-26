@@ -28,24 +28,25 @@ import { formatDate, today } from '@/lib/utils'
 import { AttachmentsDialog } from '@/components/AttachmentsDialog'
 import { SessionDialog, SESSION_STATUSES, SESSION_STATUS_COLOR, timeToFrac, fracToTime, formatDuration } from '@/components/SessionDialog'
 import { casesApi } from '@/api/cases'
+import { usePermission } from '@/hooks/usePermission'
 import { useSoloMio } from '@/hooks/useSoloMio'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 const STATUSES = SESSION_STATUSES
 const STATUS_COLOR = SESSION_STATUS_COLOR
 const STATUS_BADGE: Record<SessionStatus, 'warning' | 'info' | 'success'> = {
-  Pendiente: 'warning', 'En proceso': 'info', Finalizada: 'success',
+  Pendiente: 'warning', 'En proceso': 'info', Finalizada: 'success', Cancelada: 'info',
 }
 
 const HOUR_H = 64
-const DAY_START = 7
-const DAY_END = 21
+const DAY_START = 0
+const DAY_END = 24
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
 function formatTimeRange(session: Pick<Session, 'start_time' | 'end_time'>) {
   if (session.start_time && session.end_time) return `${session.start_time} – ${session.end_time}`
   if (session.start_time) return session.start_time
-  return 'Sin hora'
+  return 'Día completo'
 }
 
 function clientInitial(name: string | null): string {
@@ -75,6 +76,8 @@ function SessionDetailPanel({
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
 
+  const canEdit = usePermission('agenda', 'editar')
+  const canDelete = usePermission('agenda', 'eliminar')
   const dur = session.start_time && session.end_time ? formatDuration(session.start_time, session.end_time) : null
 
   return (
@@ -109,12 +112,14 @@ function SessionDetailPanel({
           </div>
         </div>
 
+        {session.calendar_error && <p className="text-sm text-amber-500">{session.calendar_error}</p>}
         {/* Date & Time */}
         <div className="rounded-xl p-3.5 space-y-2.5" style={{ background: 'hsl(var(--background))', border: '1px solid hsl(var(--c-inner-border))' }}>
           <div className="flex items-center gap-2.5 text-sm">
             <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
             <span className="font-medium capitalize text-sm">
               {format(parseISO(session.session_date), "EEEE d 'de' MMMM yyyy", { locale: es })}
+              {session.end_date && session.end_date !== session.session_date && <> — {formatDate(session.end_date)}</>}
             </span>
           </div>
           {session.start_time && (
@@ -146,7 +151,7 @@ function SessionDetailPanel({
               return (
                 <button
                   key={st}
-                  onClick={() => onStatusChange(st)}
+                  disabled={!canEdit} onClick={() => onStatusChange(st)}
                   className="flex-1 py-1.5 rounded-lg text-xs font-semibold transition-all border"
                   style={active
                     ? { background: STATUS_COLOR[st], color: '#fff', borderColor: 'transparent' }
@@ -174,14 +179,14 @@ function SessionDetailPanel({
 
       {/* Actions */}
       <div className="p-4 flex gap-2" style={{ borderTop: '1px solid hsl(var(--c-inner-border))' }}>
-        <Button size="sm" className="flex-1 gap-1.5" onClick={onEdit}>
+        <Button size="sm" className="flex-1 gap-1.5" disabled={!canEdit} onClick={onEdit}>
           <Pencil className="h-3.5 w-3.5" />Editar
         </Button>
         <Button size="sm" variant="outline" className="gap-1.5 px-3" title="Adjuntos" onClick={onAttach}>
           <Paperclip className="h-3.5 w-3.5" />
         </Button>
         <Button
-          size="sm" variant="outline" title="Eliminar"
+          size="sm" variant="outline" title="Eliminar" disabled={!canDelete}
           className="gap-1.5 px-3 text-destructive hover:text-destructive border-destructive/20 hover:border-destructive/40"
           onClick={() => { if (confirm('¿Eliminar esta sesión?')) onDelete() }}
         >
@@ -203,7 +208,7 @@ function StatsBar({ sessions, onViewDay }: { sessions: Session[]; onViewDay: (d:
   const pending = sessions.filter((s) => s.status === 'Pendiente')
   const inProgressToday = todaySessions.filter((s) => s.status === 'En proceso')
 
-  const nextSession = sessions
+  const nextSession = sessions.filter(s => !['Finalizada', 'Cancelada'].includes(s.status))
     .filter((s) =>
       s.session_date > todayStr ||
       (s.session_date === todayStr && (s.start_time ?? '99:99') > nowStr)
@@ -846,7 +851,17 @@ function ListView({
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function Sessions() {
   const qc = useQueryClient()
+  const canCreate = usePermission('agenda', 'crear')
+  const canEdit = usePermission('agenda', 'editar')
+  const { data: googleStatus } = useQuery({ queryKey: ['gcal-status'], queryFn: googleCalApi.status })
   const [searchParams, setSearchParams] = useSearchParams()
+  const [compactDetail, setCompactDetail] = useState(() => window.innerWidth < 1024)
+  useEffect(() => {
+    const query = window.matchMedia('(max-width: 1023px)')
+    const update = () => setCompactDetail(query.matches)
+    query.addEventListener('change', update)
+    return () => query.removeEventListener('change', update)
+  }, [])
   const [dlg, setDlg] = useState(false)
   const [editing, setEditing] = useState<Session | null>(null)
   const [newDate, setNewDate] = useState<string | undefined>()
@@ -892,9 +907,9 @@ export default function Sessions() {
   }
 
   const { soloMio, setSoloMio, esMio } = useSoloMio()
-  const { data: casosParaFiltro = [] } = useQuery({ queryKey: ['cases'], queryFn: () => casesApi.list() })
+  const { data: casosParaFiltro = [] } = useQuery({ queryKey: ['case-choices'], queryFn: () => casesApi.choices() })
   const responsablePorCaso = new Map(casosParaFiltro.map((c) => [c.id, c.responsible_username]))
-  const mia = (s: Session) => esMio(s.case_id ? responsablePorCaso.get(s.case_id) : null)
+  const mia = (s: Session) => esMio(s.case_id ? responsablePorCaso.get(s.case_id) : s.gcal_owner)
 
   const { data: allSessionsRaw = [] } = useQuery({
     queryKey: ['sessions', { client_id: urlClientId }],
@@ -915,6 +930,8 @@ export default function Sessions() {
     onSuccess: (updated) => {
       invalidate()
       toast.success('Sesión actualizada')
+      if (updated.calendar_error) toast.warning(updated.calendar_error)
+      qc.invalidateQueries({ queryKey: ['gcal-status'] })
       setDlg(false)
       setSelectedSession(updated)
     },
@@ -922,23 +939,28 @@ export default function Sessions() {
   })
   const remove = useMutation({
     mutationFn: sessionsApi.delete,
-    onSuccess: () => { invalidate(); toast.success('Sesión eliminada'); setSelectedSession(null) },
+    onSuccess: () => { invalidate(); qc.invalidateQueries({ queryKey: ['gcal-status'] }); toast.success('Sesión eliminada del sistema'); setSelectedSession(null) },
+    onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'No se pudo eliminar la sesión'),
   })
   const importGoogle = useMutation({
     mutationFn: googleCalApi.importEvents,
-    onSuccess: (r) => { invalidate(); toast.success(`Google Calendar: ${r.imported} nuevas, ${r.updated} actualizadas`) },
+    onSuccess: (r) => { invalidate(); toast.success(`Google Calendar: ${r.imported} nuevas, ${r.updated} actualizadas, ${r.cancelled} canceladas`); r.warnings.forEach(w => toast.warning(w)) },
     onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error importando'),
   })
 
   function openNew(date?: string, time?: string) {
+    if (!canCreate) return toast.error('No tienes permiso para crear citas')
     setEditing(null); setNewDate(date); setNewTime(time); setDlg(true)
   }
   function openEdit(s: Session) {
+    if (!canEdit) return toast.error('No tienes permiso para editar citas')
     setEditing(s); setNewDate(undefined); setNewTime(undefined); setDlg(true)
   }
   function handleReschedule(id: number, date: string, start: string, end: string | null) {
+    if (!canEdit) return toast.error('No tienes permiso para editar citas')
     const session = allSessions.find((s) => s.id === id)
     if (!session) return
+    if (session.end_date && session.end_date !== session.session_date) return toast.info('Abre Editar para mover una cita de varios días')
     update.mutate({
       id,
       data: {
@@ -952,7 +974,6 @@ export default function Sessions() {
         status: session.status,
       },
     })
-    toast.success('Sesión reagendada')
   }
   function handleStatusChange(status: SessionStatus) {
     if (!selectedSession) return
@@ -962,6 +983,7 @@ export default function Sessions() {
         client_id: selectedSession.client_id,
         case_id: selectedSession.case_id,
         session_date: selectedSession.session_date,
+        end_date: selectedSession.end_date,
         start_time: selectedSession.start_time,
         end_time: selectedSession.end_time,
         consult_type: selectedSession.consult_type,
@@ -972,7 +994,7 @@ export default function Sessions() {
   }
 
   const searchFiltered = searchText
-    ? allSessions.filter((s) => {
+    ? (view === 'list' ? filteredSessions : allSessions).filter((s) => {
         const q = searchText.toLowerCase()
         return (
           s.client_name?.toLowerCase().includes(q) ||
@@ -982,9 +1004,19 @@ export default function Sessions() {
       })
     : allSessions
 
-  const displayedSessions = view === 'list'
+  const baseDisplayedSessions = view === 'list'
     ? (searchText ? searchFiltered : filteredSessions)
     : searchFiltered
+
+  const displayedSessions = view === 'list' ? baseDisplayedSessions : baseDisplayedSessions.flatMap(s => {
+    if (!s.end_date || s.end_date <= s.session_date) return [s]
+    return eachDayOfInterval({ start: parseISO(s.session_date), end: parseISO(s.end_date) }).map(d => {
+      const day = format(d, 'yyyy-MM-dd')
+      return { ...s, session_date: day, start_time: s.start_time ? (day === s.session_date ? s.start_time : '00:00') : null,
+        end_time: s.end_time ? (day === s.end_date ? s.end_time : '23:59') : null }
+    })
+  })
+  const selectOriginal = (s: Session) => setSelectedSession(allSessions.find(row => row.id === s.id) ?? s)
 
   const pending = allSessions.filter((s) => s.status === 'Pendiente').length
   const inProgress = allSessions.filter((s) => s.status === 'En proceso').length
@@ -1010,6 +1042,9 @@ export default function Sessions() {
         </div>
       )}
 
+      {(googleStatus?.error || Boolean(googleStatus?.pending)) && <div className="rounded-lg border border-amber-500/40 p-3 text-sm text-amber-500">
+        {googleStatus?.error || `${googleStatus?.pending} cambios pendientes de sincronizar con Google.`} <Link to="/settings" className="underline">Revisar conexión</Link>
+      </div>}
       {/* Stats bar */}
       <StatsBar
         sessions={allSessions}
@@ -1047,8 +1082,8 @@ export default function Sessions() {
             )}
           </div>
 
-          <Button variant="outline" size="sm" onClick={() => importGoogle.mutate()} disabled={importGoogle.isPending} className="hidden sm:flex">
-            <CalendarDays className="h-4 w-4" />Google
+          <Button variant="outline" size="sm" onClick={() => importGoogle.mutate()} disabled={importGoogle.isPending || !canCreate || !canEdit || !googleStatus?.connected}>
+            <CalendarDays className="h-4 w-4" />Importar Google
           </Button>
 
           {/* Solo mis citas / todas */}
@@ -1077,7 +1112,7 @@ export default function Sessions() {
             ))}
           </div>
 
-          <Button size="sm" onClick={() => openNew()} className="gap-1.5">
+          <Button size="sm" disabled={!canCreate} onClick={() => openNew()} className="gap-1.5">
             <Plus className="h-4 w-4" />Nueva sesión
           </Button>
         </div>
@@ -1091,14 +1126,14 @@ export default function Sessions() {
             <MonthCalendar
               sessions={displayedSessions}
               onNewSession={(d) => openNew(d)}
-              onSelectSession={setSelectedSession}
+              onSelectSession={selectOriginal}
             />
           )}
           {view === 'week' && (
             <WeekCalendar
               sessions={displayedSessions}
               onNewSession={openNew}
-              onSelectSession={setSelectedSession}
+              onSelectSession={selectOriginal}
               onReschedule={handleReschedule}
             />
           )}
@@ -1108,7 +1143,7 @@ export default function Sessions() {
               onDateChange={setDayDate}
               sessions={displayedSessions}
               onNewSession={openNew}
-              onSelectSession={setSelectedSession}
+              onSelectSession={selectOriginal}
               onReschedule={handleReschedule}
             />
           )}
@@ -1142,7 +1177,7 @@ export default function Sessions() {
       </div>
 
       {/* Mobile detail dialog */}
-      {selectedSession && (
+      {selectedSession && compactDetail && (
         <Dialog open onOpenChange={(v) => { if (!v) setSelectedSession(null) }}>
           <DialogContent className="p-0 max-w-sm lg:hidden">
             <SessionDetailPanel

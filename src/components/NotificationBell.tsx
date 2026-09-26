@@ -1,3 +1,5 @@
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import api from '@/api/client'
 import { useState, useRef, useEffect } from 'react'
 import { Bell, AlertTriangle, FolderOpen, CircleDollarSign, TrendingDown } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -10,7 +12,11 @@ export function NotificationBell() {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const navigate = useNavigate()
-  const { data, totalCount } = useAlerts()
+  const { data, totalCount: alertsCount } = useAlerts()
+  const qc=useQueryClient()
+  const {data:notifications=[]}=useQuery({queryKey:['catalog-notifications'],queryFn:()=>api.get<{id:number;message:string;read_at:string|null}[]>('/solicitudes-catalogo/notificaciones').then(r=>r.data),refetchInterval:60000})
+  const unread=notifications.filter(n=>!n.read_at)
+  const totalCount=alertsCount+unread.length
 
   // Close on outside click
   useEffect(() => {
@@ -79,6 +85,7 @@ export function NotificationBell() {
           </div>
 
           <div className="max-h-80 overflow-y-auto">
+            {unread.map(n=><div key={`catalog-${n.id}`} className="p-3 border-b text-sm"><p>{n.message}</p><button className="text-xs underline mt-2" onClick={async()=>{await api.post(`/solicitudes-catalogo/notificaciones/${n.id}/leida`);qc.invalidateQueries({queryKey:['catalog-notifications']})}}>Marcar leída</button></div>)}
             {!hasItems && (
               <div className="px-4 py-8 text-center">
                 <Bell className="h-8 w-8 mx-auto mb-2 opacity-20" />

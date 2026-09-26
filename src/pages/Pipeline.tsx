@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { FormGuidance } from '@/components/FormGuidance'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Megaphone, Search, ArrowRight, Trophy, XCircle, FileText, AlertTriangle, Clock, User as UserIcon,
@@ -22,6 +23,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { HelpButton } from '@/components/HelpButton'
 import { pipelineHelp } from '@/lib/helpContent'
 import { formatCurrency, formatDate, today } from '@/lib/utils'
+import { WorkflowHistory } from '@/components/WorkflowHistory'
+import { OpeningTasks, type OpeningTask } from '@/components/OpeningTasks'
+import { casesApi } from '@/api/cases'
 import { useSoloMio } from '@/hooks/useSoloMio'
 
 type ApiErr = { response?: { data?: { detail?: string } } }
@@ -40,7 +44,7 @@ const EN_TRES_DIAS = () => new Date(Date.now() + 3 * 86_400_000).toISOString().s
 
 const FORM_VACIO = {
   client_id: '', prospecto_nombre: '', prospecto_contacto: '', service_id: '',
-  canal_captacion: 'Referido', origen_negocio: 'Andrea', honorarios_estimados: '',
+  canal_captacion: 'Referido', origen_negocio: '', honorarios_estimados: '',
   responsable_username: '', proxima_accion: '', fecha_proxima_accion: '',
 }
 
@@ -63,7 +67,7 @@ function OportunidadDialog({ open, onClose, editing }: { open: boolean; onClose:
   const [serviceSearch, setServiceSearch] = useState('')
 
   const { data: clientes = [] } = useQuery({ queryKey: ['clientes-choices'], queryFn: clientsApi.choices })
-  const { data: usuarios = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list, retry: false })
+  const { data: usuarios = [] } = useQuery({ queryKey: ['assignment-users'], queryFn: usersApi.choices, retry: false })
   const { data: servicios = [] } = useQuery({ queryKey: ['servicio-choices', serviceSearch], queryFn: () => catalogoApi.servicioChoices({ q: serviceSearch || undefined, limit: 15 }) })
 
   // Duplicados y conflicto de interés, consultados mientras se escribe el nombre: antes se
@@ -72,7 +76,7 @@ function OportunidadDialog({ open, onClose, editing }: { open: boolean; onClose:
   const { data: parecidos } = useQuery({
     queryKey: ['contactos-parecidos', nombreBuscado, form.prospecto_contacto],
     queryFn: () => pipelineApi.contactosParecidos(nombreBuscado, form.prospecto_contacto),
-    enabled: open && !editing && nombreBuscado.length >= 3,
+    enabled: open && nombreBuscado.length >= 3,
     staleTime: 10_000,
   })
   const hayParecidos = !!parecidos && (parecidos.clientes.length + parecidos.oportunidades.length + parecidos.contrapartes.length) > 0
@@ -134,6 +138,7 @@ function OportunidadDialog({ open, onClose, editing }: { open: boolean; onClose:
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>{editing ? 'Editar oportunidad' : 'Nueva oportunidad'}</DialogTitle></DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-3">
+          <FormGuidance required="Cliente existente o nombre del prospecto, canal y origen del negocio." optional="Contacto, servicio, honorarios estimados, responsable, próximo paso y fecha. Servicio, responsable y acuerdo serán necesarios al ganar y abrir el expediente." missing={[mode === 'cliente' ? !form.client_id && 'cliente' : !form.prospecto_nombre.trim() && 'nombre del prospecto']} recommended={[mode === 'prospecto' && !form.prospecto_contacto.trim() && 'contacto del prospecto', !form.responsable_username && 'responsable del seguimiento']} />
           <div className="flex gap-1 rounded-lg p-1" style={{ background: 'hsl(var(--muted))' }}>
             <button type="button" onClick={() => setMode('prospecto')} className="flex-1 text-sm py-1.5 rounded-md transition-colors"
               style={mode === 'prospecto' ? { background: 'hsl(var(--background))', fontWeight: 600 } : {}}>Prospecto nuevo</button>
@@ -211,11 +216,11 @@ function OportunidadDialog({ open, onClose, editing }: { open: boolean; onClose:
             </div>
             <div className="space-y-1">
               <Label>Le da seguimiento</Label>
-              <Select value={form.responsable_username} onValueChange={(v) => setForm({ ...form, responsable_username: v })}>
+              <Select value={form.responsable_username || '__none__'} onValueChange={(v) => setForm({ ...form, responsable_username: v === '__none__' ? '' : v })}>
                 <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Sin asignar</SelectItem>
-                  {usuarios.filter((u) => u.active).map((u) => <SelectItem key={u.username} value={u.username}>{u.full_name || u.username}</SelectItem>)}
+                  <SelectItem value="__none__">Sin asignar</SelectItem>
+                  {usuarios.map((u) => <SelectItem key={u.username} value={u.username}>{u.full_name || u.username}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
@@ -237,7 +242,7 @@ function OportunidadDialog({ open, onClose, editing }: { open: boolean; onClose:
 
           <div className="rounded-lg p-3 space-y-2" style={{ background: 'hsl(var(--muted))' }}>
             <p className="text-xs font-semibold">Seguimiento</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid gap-2 sm:grid-cols-3">
               <div className="space-y-1 col-span-2">
                 <Label className="text-xs">Próximo paso</Label>
                 <Input className="h-8 text-sm" value={form.proxima_accion} placeholder="Ej: llamar para confirmar la propuesta"
@@ -271,23 +276,64 @@ function GanarDialog({ oportunidad, onClose }: { oportunidad: Oportunidad | null
   const [telefono, setTelefono] = useState('')
   const [email, setEmail] = useState('')
   const [responsable, setResponsable] = useState('')
-  const { data: usuarios = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list, retry: false })
+  const { data: usuarios = [] } = useQuery({ queryKey: ['assignment-users'], queryFn: usersApi.choices, retry: false })
 
+  const [mesCobro, setMesCobro] = useState('')
+  const [probabilidad, setProbabilidad] = useState('70')
+  const [pactado, setPactado] = useState('')
+  const [presupuesto, setPresupuesto] = useState('')
+  const [alcance, setAlcance] = useState('')
+  const [condiciones, setCondiciones] = useState('')
+  const [revision, setRevision] = useState(false)
+  const [observaciones, setObservaciones] = useState('')
+  const [contraparte, setContraparte] = useState('')
+  const [clienteExistente, setClienteExistente] = useState('')
+  const [originador, setOriginador] = useState('')
+  const {data: originadores=[]} = useQuery({queryKey:['pipeline-originadores'],queryFn:pipelineApi.originadores,enabled:!!oportunidad})
+  const [plan, setPlan] = useState<OpeningTask[]>([])
+  const planCargado = useRef<number | null>(null)
+  const { data: clientes = [] } = useQuery({ queryKey: ['clientes-choices'], queryFn: clientsApi.choices })
+  const { data: plantilla, isLoading: cargandoPlan, isError: errorPlan } = useQuery({
+    queryKey: ['plantilla-tareas', oportunidad?.service_id],
+    queryFn: () => catalogoApi.listPlantillaTareas(oportunidad!.service_id!), enabled: !!oportunidad?.service_id,
+  })
+  const { data: coincidencias } = useQuery({ queryKey: ['revision-contacto', oportunidad?.id],
+    queryFn: () => pipelineApi.contactosParecidos(oportunidad!.prospecto_nombre || oportunidad!.client_name || '', oportunidad!.prospecto_contacto || ''), enabled: !!oportunidad })
+  const { data: conflictos } = useQuery({queryKey:['conflicto-interes',contraparte],queryFn:()=>casesApi.conflictoInteres(contraparte),enabled:contraparte.trim().length>=3})
   const esProspecto = !!oportunidad && !oportunidad.client_id
 
   useEffect(() => {
-    if (!oportunidad) return
+    if (!oportunidad) { planCargado.current=null; return }
     const contacto = (oportunidad.prospecto_contacto ?? '').trim()
+    setPactado(oportunidad.honorarios_estimados != null ? String(oportunidad.honorarios_estimados) : '')
+    setPresupuesto(''); setMesCobro(''); setProbabilidad('70')
+    setAlcance(''); setCondiciones(''); setRevision(false); setObservaciones(''); setContraparte(''); setClienteExistente(''); setOriginador('')
     setDocumento('')
     setTelefono(contacto.includes('@') ? '' : contacto)
     setEmail(contacto.includes('@') ? contacto : '')
     setResponsable(oportunidad.responsable_username ?? '')
   }, [oportunidad])
 
+  useEffect(() => {
+    if (!plantilla || !oportunidad || planCargado.current===oportunidad.id) return
+    planCargado.current=oportunidad.id
+    setPlan(plantilla.length ? plantilla.map(p=>({titulo:p.titulo, notes:p.descripcion || '',
+      due_date:new Date(new Date(today()+'T12:00:00').getTime()+(p.dias_plazo_relativo ?? 0)*86400000).toISOString().slice(0,10),
+      responsible_username:p.responsable_sugerido || '',es_critico:p.es_critico_default,incluida:true,
+      costo_estimado:p.costo_estimado,etiqueta_ids:p.etiquetas.map(e=>e.id)})) :
+      [{titulo:'Revisar documentos y confirmar próximos pasos',due_date:today(),es_critico:false,incluida:true}])
+  }, [plantilla, oportunidad?.id])
+
   const ganar = useMutation({
     mutationFn: () => pipelineApi.transicion(oportunidad!.id, {
       estado: 'Ganado',
-      crear_cliente: esProspecto,
+      crear_cliente: esProspecto && !clienteExistente,
+      client_id_existente: clienteExistente ? Number(clienteExistente) : null,
+      originador_id: originador ? Number(originador) : null,
+      mes_cobro_esperado: mesCobro, probabilidad_cobro: Number(probabilidad)/100,
+      honorarios_pactados: Number(pactado), costos_directos_estimados: presupuesto !== '' ? Number(presupuesto) : undefined, alcance, condiciones_cobro: condiciones,
+      revision_confirmada: revision, revision_observaciones: observaciones, opposing_party: contraparte,
+      tareas_iniciales: plan.filter(t=>t.incluida).map(t=>({...t,responsible_username:t.responsible_username || responsable})),
       cliente_documento: documento,
       cliente_telefono: telefono,
       cliente_email: email,
@@ -296,6 +342,9 @@ function GanarDialog({ oportunidad, onClose }: { oportunidad: Oportunidad | null
     onSuccess: (res) => {
       qc.invalidateQueries({ queryKey: ['oportunidades'] })
       qc.invalidateQueries({ queryKey: ['oportunidades-conversion'] })
+      qc.invalidateQueries({ queryKey: ['cases'] })
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+      qc.invalidateQueries({ queryKey: ['dashboard-alerts'] })
       qc.invalidateQueries({ queryKey: ['clients'] })
       qc.invalidateQueries({ queryKey: ['clientes-choices'] })
       onClose()
@@ -310,18 +359,24 @@ function GanarDialog({ oportunidad, onClose }: { oportunidad: Oportunidad | null
 
   return (
     <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
-        <DialogHeader><DialogTitle>Ganar: {nombre}</DialogTitle></DialogHeader>
-        <form onSubmit={(e) => { e.preventDefault(); ganar.mutate() }} className="space-y-3">
+      <DialogContent className="max-w-3xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
+        <DialogHeader><DialogTitle>Preparar apertura: {nombre}</DialogTitle></DialogHeader>
+        <form onSubmit={(e) => { e.preventDefault(); ganar.mutate() }} className="grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-3 overflow-hidden">
+          <div className="min-h-0 overflow-y-auto space-y-3 pr-1">
+          <FormGuidance required="Servicio, responsable, honorarios, alcance, condiciones, revisión confirmada, mes y probabilidad de cobro y tareas iniciales con título y fecha." optional="Documento y contacto del nuevo cliente, contraparte y observaciones. Presupuesto vacío: suma estimada de tareas. Originador vacío: sin comisión. Número interno: automático." missing={[!oportunidad.service_id && 'servicio en la oportunidad', !responsable && 'responsable', pactado === '' && 'honorarios', !alcance.trim() && 'alcance', !condiciones.trim() && 'condiciones', !revision && 'revisión', !mesCobro && 'mes de cobro', probabilidad === '' && 'probabilidad', (!plan.some(t=>t.incluida) || plan.some(t=>t.incluida && (!t.titulo.trim() || !t.due_date))) && 'plan inicial con títulos y fechas']} />
           {!oportunidad.service_id && (
             <p className="text-xs text-destructive">Primero elige el servicio en la oportunidad: de ahí salen la clasificación y la tarifa del expediente.</p>
           )}
 
-          {esProspecto && (
+          {esProspecto && <div className="space-y-2"><Label>Ficha del cliente</Label>
+            <select className="w-full h-9 border rounded-md bg-background px-2 text-sm" value={clienteExistente} onChange={e=>setClienteExistente(e.target.value)}>
+              <option value="">Registrar nuevo cliente</option>{clientes.map(c=><option key={c.id} value={c.id}>{c.name}</option>)}
+            </select></div>}
+          {esProspecto && !clienteExistente && (
             <div className="rounded-lg p-3 space-y-2" style={{ background: 'hsl(var(--muted))' }}>
               <p className="text-xs font-semibold">Se registra como cliente</p>
               <p className="text-[11px] text-muted-foreground">Con lo capturado al primer contacto. Completa lo que falte; el resto de la ficha se llena luego.</p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid gap-2 sm:grid-cols-3">
                 <Input className="h-8 text-sm font-mono" placeholder="DUI / NIT" value={documento} onChange={(e) => setDocumento(e.target.value)} />
                 <Input className="h-8 text-sm" placeholder="Teléfono" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
                 <Input className="h-8 text-sm" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -331,23 +386,44 @@ function GanarDialog({ oportunidad, onClose }: { oportunidad: Oportunidad | null
 
           <div className="space-y-1">
             <Label>Abogado responsable del expediente</Label>
-            <Select value={responsable} onValueChange={setResponsable}>
+            <Select value={responsable || '__none__'} onValueChange={v => setResponsable(v === '__none__' ? '' : v)}>
               <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="">Sin asignar</SelectItem>
-                {usuarios.filter((u) => u.active).map((u) => <SelectItem key={u.username} value={u.username}>{u.full_name || u.username}</SelectItem>)}
+                <SelectItem value="__none__">Sin asignar</SelectItem>
+                {usuarios.map((u) => <SelectItem key={u.username} value={u.username}>{u.full_name || u.username}</SelectItem>)}
               </SelectContent>
             </Select>
           </div>
 
-          <p className="text-xs text-muted-foreground">
-            Se abre el expediente con el servicio y los honorarios estimados
-            {oportunidad.honorarios_estimados != null ? ` (${formatCurrency(oportunidad.honorarios_estimados)})` : ''}, y se entra directo a él.
-          </p>
+          <div className="space-y-3 rounded-lg border p-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div><Label>Mes esperado de cobro *</Label><Input required type="month" min={today().slice(0,7)} value={mesCobro} onChange={e=>setMesCobro(e.target.value)}/></div>
+              <div><Label>Probabilidad de cobro (%) *</Label><Input required type="number" min="0" max="100" value={probabilidad} onChange={e=>setProbabilidad(e.target.value)}/></div>
+            </div>
+            <Label>Honorarios pactados ($)</Label><Input aria-label="Honorarios pactados" type="number" min="0" step="0.01" value={pactado} onChange={e=>setPactado(e.target.value)}/>
+            <Label>Presupuesto interno de costos ($)</Label><Input aria-label="Presupuesto interno de costos" type="number" min="0" step="0.01" value={presupuesto} onChange={e=>setPresupuesto(e.target.value)} placeholder={String(plan.filter(t=>t.incluida).reduce((total,t)=>total+(t.costo_estimado || 0),0))}/>
+            <p className="text-xs text-muted-foreground">Si lo dejas vacío se toma la suma de costos estimados del plan inicial. No se suma a los honorarios del cliente.</p>
+            <Label>Alcance aceptado por el cliente</Label><Textarea value={alcance} onChange={e=>setAlcance(e.target.value)} placeholder="Trabajo incluido, exclusiones y cómo confirmó su aceptación"/>
+            <Label>Condiciones de cobro acordadas</Label><Textarea value={condiciones} onChange={e=>setCondiciones(e.target.value)} placeholder="Anticipo, cuotas o hitos. Esto no registra un pago."/>
+            <Label>Originador del negocio</Label><select className="w-full h-9 border rounded-md bg-background px-2 text-sm" value={originador} onChange={e=>setOriginador(e.target.value)}>
+              <option value="">Según origen comercial; pendiente si no hay coincidencia única</option>{originadores.map(p=><option key={p.id} value={p.id}>{p.persona}</option>)}
+            </select>
+          </div>
+          <div className="space-y-2 rounded-lg border p-3">
+            <Label>Contraparte, si corresponde</Label><Input value={contraparte} onChange={e=>setContraparte(e.target.value)}/>
+            {coincidencias?.clientes.map(c=><p key={c.id} className="text-xs text-amber-600">Cliente parecido: {c.name}. Puedes vincular su ficha arriba.</p>)}
+            {coincidencias?.contrapartes.map(c=><p key={c.id} className="text-xs text-amber-600">Figura como contraparte: {c.opposing_party} · {c.title}</p>)}
+            {coincidencias?.oportunidades.filter(o=>o.id!==oportunidad.id).map(o=><p key={o.id} className="text-xs text-amber-600">Oportunidad abierta similar: #{o.id} · {o.nombre}</p>)}
+            {(conflictos?.clientes.length || conflictos?.casos.length) ? <p className="text-xs text-amber-600">La contraparte coincide con registros existentes. Revisa y documenta antes de abrir.</p> : null}
+            <Textarea value={observaciones} onChange={e=>setObservaciones(e.target.value)} placeholder="Resultado de la revisión, resolución de coincidencias y documentos pendientes"/>
+            <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={revision} onChange={e=>setRevision(e.target.checked)}/> Confirmé cliente, acuerdo y revisión de posibles conflictos.</label>
+          </div>
+          {cargandoPlan ? <p>Cargando tareas del servicio…</p> : errorPlan ? <p className="text-destructive">No se pudo cargar la plantilla. Cierra y vuelve a abrir para reintentar.</p> : <OpeningTasks tasks={plan} onChange={setPlan} users={usuarios} defaultResponsible={responsable} date={today()}/>}
 
+          </div>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={ganar.isPending || !oportunidad.service_id}>
+            <Button type="submit" disabled={ganar.isPending || !oportunidad.service_id || cargandoPlan || errorPlan || !revision || !responsable || pactado === '' || Number(pactado)<0 || !alcance.trim() || !condiciones.trim() || !plan.some(t=>t.incluida) || plan.some(t=>t.incluida && (!t.titulo.trim() || !t.due_date))}>
               {ganar.isPending ? 'Creando...' : 'Ganar y abrir expediente'}
             </Button>
           </DialogFooter>
@@ -372,6 +448,9 @@ function PerderDialog({ oportunidad, onClose }: { oportunidad: Oportunidad | nul
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['oportunidades'] })
       qc.invalidateQueries({ queryKey: ['oportunidades-conversion'] })
+      qc.invalidateQueries({ queryKey: ['cases'] })
+      qc.invalidateQueries({ queryKey: ['tasks'] })
+      qc.invalidateQueries({ queryKey: ['dashboard-alerts'] })
       qc.invalidateQueries({ queryKey: ['dashboard-alerts'] })
       toast.success('Marcada como perdida')
       onClose()
@@ -387,7 +466,7 @@ function PerderDialog({ oportunidad, onClose }: { oportunidad: Oportunidad | nul
         <DialogHeader><DialogTitle>Marcar como perdida</DialogTitle></DialogHeader>
         <form onSubmit={(e) => { e.preventDefault(); if (!tipo) return toast.error('Elige la causa'); perder.mutate() }} className="space-y-3">
           <div className="space-y-1">
-            <Label>Causa <span className="text-destructive text-xs">*</span></Label>
+            <FormGuidance required="Causa de la pérdida." optional="Detalle adicional." missing={[!tipo && 'causa']} /><Label>Causa <span className="text-destructive text-xs">*</span></Label>
             <Select value={tipo} onValueChange={setTipo}>
               <SelectTrigger><SelectValue placeholder="Elegir causa..." /></SelectTrigger>
               <SelectContent>{motivos.map((m) => <SelectItem key={m} value={m}>{m}</SelectItem>)}</SelectContent>
@@ -415,6 +494,7 @@ function OportunidadCard({ op, onEdit, onCotizar, onGanar, onPerder }: {
 }) {
   const nombre = op.client_name ?? op.prospecto_nombre ?? 'Sin nombre'
   const abierta = op.estado === 'Prospecto' || op.estado === 'Cotizado'
+  const seguimientoIncompleto = abierta && (!op.responsable_username || !op.proxima_accion || !op.fecha_proxima_accion)
   const seguimientoVencido = abierta && !!op.fecha_proxima_accion && op.fecha_proxima_accion < today()
   const estancada = abierta && (op.dias_en_etapa ?? 0) >= 10
 
@@ -422,6 +502,8 @@ function OportunidadCard({ op, onEdit, onCotizar, onGanar, onPerder }: {
     <Card className="cursor-pointer" onClick={onEdit}
       style={seguimientoVencido ? { borderColor: 'hsl(38 90% 50% / 0.5)' } : undefined}>
       <CardContent className="p-3 space-y-2">
+        {seguimientoIncompleto && <p className="text-xs text-amber-600 mb-2">Seguimiento incompleto: revisa responsable, próxima acción y fecha.</p>}
+
         <div className="flex items-start justify-between gap-2">
           <span className="font-medium text-sm">{nombre}</span>
           {!op.client_id && <Badge variant="info" className="text-[10px] shrink-0">prospecto</Badge>}
@@ -490,6 +572,7 @@ function OportunidadCard({ op, onEdit, onCotizar, onGanar, onPerder }: {
             <Button size="sm" variant="outline" className="h-6 px-2 text-[11px] gap-1 text-destructive" onClick={onPerder}><XCircle className="h-3 w-3" />Perdido</Button>
           </div>
         )}
+        <WorkflowHistory path={`/oportunidades/${op.id}/historial`}/>
       </CardContent>
     </Card>
   )
@@ -506,7 +589,10 @@ export default function Pipeline() {
   const { soloMio, setSoloMio, esMio } = useSoloMio()
 
   const { data: todas = [] } = useQuery({ queryKey: ['oportunidades'], queryFn: () => pipelineApi.list() })
-  const { data: conversion } = useQuery({ queryKey: ['oportunidades-conversion'], queryFn: pipelineApi.conversion })
+  const [metricMonth,setMetricMonth]=useState('')
+  const [metricOrigin,setMetricOrigin]=useState('')
+  const [metricService,setMetricService]=useState('')
+  const { data: conversion } = useQuery({ queryKey: ['oportunidades-conversion',metricMonth,metricOrigin,metricService], queryFn: ()=>pipelineApi.conversion({mes:metricMonth || undefined,origen:metricOrigin || undefined,service_id:metricService?Number(metricService):undefined}) })
   const oportunidades = todas.filter((o) => esMio(o.responsable_username))
 
   const cotizar = useMutation({
@@ -517,6 +603,7 @@ export default function Pipeline() {
 
   const vencidas = oportunidades.filter((o) => (o.estado === 'Prospecto' || o.estado === 'Cotizado')
     && !!o.fecha_proxima_accion && o.fecha_proxima_accion < today()).length
+  const sinSeguimiento = oportunidades.filter(o=>['Prospecto','Cotizado'].includes(o.estado) && (!o.responsable_username || !o.proxima_accion || !o.fecha_proxima_accion)).length
 
   return (
     <div className="space-y-5">
@@ -541,6 +628,7 @@ export default function Pipeline() {
         </div>
       </div>
 
+      {sinSeguimiento>0 && <InfoBanner>{sinSeguimiento} oportunidades necesitan completar responsable, próxima acción o fecha.</InfoBanner>}
       {vencidas > 0 ? (
         <div className="flex items-start gap-2 rounded-lg px-3 py-2 text-xs"
           style={{ background: 'hsl(38 90% 50% / 0.08)', border: '1px solid hsl(38 90% 50% / 0.3)', color: 'hsl(var(--muted-foreground))' }}>
@@ -551,6 +639,15 @@ export default function Pipeline() {
         <InfoBanner>Al marcar <strong>Ganado</strong>, el prospecto se registra como cliente y se abre su expediente en un solo paso.</InfoBanner>
       )}
 
+      <div className="space-y-2">
+        <p className="text-xs text-muted-foreground">Conversión por mes de cotización: mide cuántas propuestas de ese período se han ganado. Los prospectos sin cotizar se agrupan por mes de captación.</p>
+        <div className="flex flex-wrap gap-2">
+          <Input aria-label="Mes de conversión" type="month" className="w-40" value={metricMonth} onChange={e=>setMetricMonth(e.target.value)}/>
+          <select aria-label="Origen de conversión" className="border rounded-md bg-background p-2" value={metricOrigin} onChange={e=>setMetricOrigin(e.target.value)}><option value="">Todos los orígenes</option>{[...new Set(todas.map(o=>o.origen_negocio))].map(o=><option key={o}>{o}</option>)}</select>
+          <select aria-label="Servicio de conversión" className="border rounded-md bg-background p-2 max-w-full" value={metricService} onChange={e=>setMetricService(e.target.value)}><option value="">Todos los servicios</option>{[...new Map(todas.filter(o=>o.service_id).map(o=>[o.service_id,o.service_nombre])).entries()].map(([id,name])=><option key={id} value={id!}>{name}</option>)}</select>
+          <Button variant="ghost" onClick={()=>{setMetricMonth('');setMetricOrigin('');setMetricService('')}}>Limpiar filtros</Button>
+        </div>
+      </div>
       {conversion && (
         <div className="grid grid-cols-2 sm:grid-cols-6 gap-3">
           <Card><CardContent className="p-3"><div className="text-xs text-muted-foreground">Prospectos</div><div className="text-lg font-semibold">{conversion.prospectos}</div></CardContent></Card>

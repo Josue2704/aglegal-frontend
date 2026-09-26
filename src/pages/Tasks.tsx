@@ -1,8 +1,9 @@
 import { useState, useMemo, useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { CheckCircle2, Clock, Search, Briefcase, AlertTriangle, ListChecks, X, Plus, LayoutGrid, List, Tag } from 'lucide-react'
+import { CheckCircle2, Clock, Search, Briefcase, AlertTriangle, ListChecks, X, Plus, LayoutGrid, List, Tag, ChevronDown } from 'lucide-react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { casesApi } from '@/api/cases'
+import { catalogoApi } from '@/api/catalogo'
 import { usersApi } from '@/api/users'
 import type { GlobalCaseTask } from '@/types'
 import { Button } from '@/components/ui/button'
@@ -35,9 +36,9 @@ function isOverdue(task: GlobalCaseTask): boolean {
 function NewTaskDialog({ open, onClose, caseId }: { open: boolean; onClose: () => void; caseId?: number }) {
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent>
+      <DialogContent className="grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
         <DialogHeader><DialogTitle>Nueva tarea</DialogTitle></DialogHeader>
-        {open && <TaskForm caseId={caseId} onDone={onClose} />}
+        {open && <TaskForm caseId={caseId} onDone={onClose} scrollable />}
       </DialogContent>
     </Dialog>
   )
@@ -46,8 +47,11 @@ function NewTaskDialog({ open, onClose, caseId }: { open: boolean; onClose: () =
 export default function Tasks() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<FilterMode>('pending')
+  const [filter, setFilter] = useState<FilterMode>('all')
   const [responsableFilter, setResponsableFilter] = useState('')
+  const [filtroEtiqueta, setFiltroEtiqueta] = useState('')
+  const [newCaseId, setNewCaseId] = useState<number | undefined>()
+  const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const [newDlg, setNewDlg] = useState(false)
   const [etiquetasDlg, setEtiquetasDlg] = useState(false)
   const [detalle, setDetalle] = useState<GlobalCaseTask | null>(null)
@@ -63,32 +67,36 @@ export default function Tasks() {
   const caseFilter = searchParams.get('case') ? Number(searchParams.get('case')) : undefined
   useEffect(() => {
     if (searchParams.get('new') === '1') {
+      setNewCaseId(caseFilter)
       setNewDlg(true)
       const next = new URLSearchParams(searchParams); next.delete('new'); setSearchParams(next, { replace: true })
     }
-  }, [searchParams, setSearchParams])
-  useEffect(() => { if (caseFilter) setFilter('all') }, [caseFilter])
+  }, [searchParams, setSearchParams, caseFilter])
+  const selectCase = (value: string) => {
+    const next = new URLSearchParams(searchParams)
+    if (value === '__todos__') next.delete('case')
+    else next.set('case', value)
+    setSearchParams(next, { replace: true })
+  }
+  const openNew = (id?: number) => { setNewCaseId(id); setNewDlg(true) }
 
-  const { data: tasks = [], isLoading } = useQuery({
+
+  const { data: tasks = [], isLoading, isError } = useQuery({
     queryKey: ['all-tasks'],
     queryFn: () => casesApi.listAllTasks(),
   })
-  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
+  const { data: users = [] } = useQuery({ queryKey: ['assignment-users'], queryFn: usersApi.choices })
 
-  // Stats
-  const pending  = tasks.filter((t) => !t.done && !isOverdue(t)).length
-  const overdue  = tasks.filter(isOverdue).length
-  const done     = tasks.filter((t) => t.done).length
+  const { data: etiquetas = [] } = useQuery({ queryKey: ['etiquetas-tarea'], queryFn: catalogoApi.listEtiquetas })
+  const caseOptions = useMemo(() => Array.from(new Map(tasks.map((t) => [t.case_id, t])).values())
+    .sort((a, b) => a.case_title.localeCompare(b.case_title, 'es', { numeric: true })), [tasks])
 
-  const filtered = useMemo(() => {
+  // Counts reflect the selected scope, before applying the status tabs.
+  const scoped = useMemo(() => {
     let list = caseFilter ? tasks.filter((t) => t.case_id === caseFilter) : tasks
-    // "Míos": lo que respondo, lo que trabajo con alguien más, o los expedientes a mi cargo.
     list = list.filter((t) => esMio(t.responsible_username, t.case_responsible_username)
       || (soloMio && !!username && t.asignados.includes(username)))
-    if (filter === 'pending') list = list.filter((t) => !t.done && !isOverdue(t))
-    else if (filter === 'overdue') list = list.filter(isOverdue)
-    else if (filter === 'done') list = list.filter((t) => t.done)
-
+    if (filtroEtiqueta) list = list.filter((t) => t.etiquetas.some((e) => e.id === Number(filtroEtiqueta)))
     if (responsableFilter) {
       list = responsableFilter === '__sin_asignar__'
         ? list.filter((t) => !t.responsible_username)
@@ -96,16 +104,23 @@ export default function Tasks() {
     }
 
     if (search.trim()) {
-      const q = search.toLowerCase()
+      const q = search.trim().toLowerCase()
       list = list.filter(
         (t) =>
+          String(t.case_id).includes(q) ||
           t.title.toLowerCase().includes(q) ||
           t.case_title.toLowerCase().includes(q) ||
           (t.client_name ?? '').toLowerCase().includes(q),
       )
     }
     return list
-  }, [tasks, filter, search, responsableFilter, caseFilter, esMio, soloMio, username])
+  }, [tasks, search, responsableFilter, caseFilter, esMio, soloMio, username, filtroEtiqueta])
+  const pending = scoped.filter((t) => !t.done && !isOverdue(t)).length
+  const overdue = scoped.filter(isOverdue).length
+  const done = scoped.filter((t) => t.done).length
+  const filtered = useMemo(() => scoped.filter((t) =>
+    filter === 'pending' ? !t.done && !isOverdue(t) :
+    filter === 'overdue' ? isOverdue(t) : filter === 'done' ? t.done : true), [scoped, filter])
 
   // Group by case
   const grouped = useMemo(() => {
@@ -116,11 +131,17 @@ export default function Tasks() {
       }
       map.get(t.case_id)!.tasks.push(t)
     }
-    return Array.from(map.entries())
+    for (const group of map.values()) {
+      group.tasks.sort((a, b) => Number(a.done) - Number(b.done)
+        || Number(b.es_critico) - Number(a.es_critico)
+        || (a.due_date || '9999').localeCompare(b.due_date || '9999') || a.id - b.id)
+    }
+    return Array.from(map.entries()).sort((a, b) =>
+      a[1].case_title.localeCompare(b[1].case_title, 'es', { numeric: true }) || a[0] - b[0])
   }, [filtered])
 
   const FILTERS: { id: FilterMode; label: string; count?: number; color?: string }[] = [
-    { id: 'all',     label: 'Todas',      count: tasks.length },
+    { id: 'all',     label: 'Todas',      count: scoped.length },
     { id: 'pending', label: 'Pendientes', count: pending,  color: 'text-blue-400' },
     { id: 'overdue', label: 'Vencidas',   count: overdue,  color: 'text-red-400' },
     { id: 'done',    label: 'Completadas',count: done,     color: 'text-green-400' },
@@ -129,16 +150,16 @@ export default function Tasks() {
   return (
     <div className="space-y-5">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-bold">Tareas</h1>
             <HelpButton content={tasksHelp} />
           </div>
-          <p className="text-muted-foreground text-sm">Checklist global de todos los expedientes</p>
+          <p className="text-muted-foreground text-sm">Tareas organizadas por expediente en lista y tablero</p>
         </div>
-        <div className="flex items-center gap-2">
-        <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-table-border-h))' }}>
+        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap gap-1 p-1 rounded-lg" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-table-border-h))' }}>
           {[{ v: true, label: 'Míos' }, { v: false, label: 'Todos' }].map((o) => (
             <button key={o.label} onClick={() => setSoloMio(o.v)}
               className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all ${soloMio === o.v ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
@@ -146,7 +167,7 @@ export default function Tasks() {
             </button>
           ))}
         </div>
-        <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-table-border-h))' }}>
+        <div className="flex flex-wrap gap-1 p-1 rounded-lg" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-table-border-h))' }}>
           {[{ v: 'lista' as const, label: 'Lista', icon: List }, { v: 'tablero' as const, label: 'Tablero', icon: LayoutGrid }].map((o) => (
             <button key={o.v} onClick={() => setVista(o.v)}
               className={`px-2.5 py-1 rounded-md text-xs font-medium transition-all flex items-center gap-1.5 ${vista === o.v ? 'bg-primary text-primary-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground'}`}>
@@ -154,14 +175,14 @@ export default function Tasks() {
             </button>
           ))}
         </div>
-          <Button variant="outline" onClick={() => setEtiquetasDlg(true)} title="Etiquetas del tablero">
+          <Button variant="outline" onClick={() => setEtiquetasDlg(true)} title="Administrar etiquetas">
             <Tag className="h-4 w-4" />
           </Button>
-          <Button onClick={() => setNewDlg(true)}><Plus className="h-4 w-4" />Nueva tarea</Button>
+          <Button onClick={() => openNew(caseFilter)}><Plus className="h-4 w-4" />Nueva tarea</Button>
         </div>
       </div>
 
-      <NewTaskDialog open={newDlg} onClose={() => setNewDlg(false)} caseId={caseFilter} />
+      <NewTaskDialog open={newDlg} onClose={() => setNewDlg(false)} caseId={newCaseId ?? caseFilter} />
       <EtiquetasDialog open={etiquetasDlg} onClose={() => setEtiquetasDlg(false)} />
       <Dialog open={!!detalle} onOpenChange={(o) => !o && setDetalle(null)}>
         <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
@@ -179,7 +200,7 @@ export default function Tasks() {
           <span className="text-foreground/80">
             Tareas del expediente: <strong>{tasks.find((t) => t.case_id === caseFilter)?.case_title ?? `#${caseFilter}`}</strong>
           </span>
-          <button onClick={() => setSearchParams({})} className="text-muted-foreground hover:text-foreground" title="Ver todas">
+          <button onClick={() => selectCase('__todos__')} className="text-muted-foreground hover:text-foreground" title="Ver todas">
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
@@ -194,7 +215,7 @@ export default function Tasks() {
 
       {/* Filters + Search */}
       <div className="flex flex-wrap gap-3 items-center">
-        <div className="flex gap-1 p-1 rounded-lg" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-table-border-h))' }}>
+        <div className="flex flex-wrap gap-1 p-1 rounded-lg" style={{ background: 'hsl(var(--c-surface-1))', border: '1px solid hsl(var(--c-table-border-h))' }}>
           {FILTERS.map((f) => (
             <button
               key={f.id}
@@ -212,12 +233,26 @@ export default function Tasks() {
             </button>
           ))}
         </div>
+        <Select value={caseFilter ? String(caseFilter) : '__todos__'} onValueChange={selectCase}>
+          <SelectTrigger className="w-full sm:w-64" aria-label="Filtrar por expediente"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__todos__">Todos los expedientes</SelectItem>
+            {caseOptions.map((t) => <SelectItem key={t.case_id} value={String(t.case_id)}>#{t.case_id} · {t.case_title}</SelectItem>)}
+          </SelectContent>
+        </Select>
+        <Select value={filtroEtiqueta || '__todas__'} onValueChange={(v) => setFiltroEtiqueta(v === '__todas__' ? '' : v)}>
+          <SelectTrigger className="w-44" aria-label="Filtrar por etiqueta"><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__todas__">Todas las etiquetas</SelectItem>
+            {etiquetas.map((e) => <SelectItem key={e.id} value={String(e.id)}>{e.nombre}</SelectItem>)}
+          </SelectContent>
+        </Select>
         <Select value={responsableFilter || '__todos__'} onValueChange={(v) => setResponsableFilter(v === '__todos__' ? '' : v)}>
           <SelectTrigger className="w-44"><SelectValue placeholder="Responsable" /></SelectTrigger>
           <SelectContent>
             <SelectItem value="__todos__">Todos los responsables</SelectItem>
             <SelectItem value="__sin_asignar__">Sin asignar</SelectItem>
-            {users.filter((u) => u.active).map((u) => (
+            {users.map((u) => (
               <SelectItem key={u.username} value={u.username}>{u.full_name || u.username}</SelectItem>
             ))}
           </SelectContent>
@@ -241,11 +276,10 @@ export default function Tasks() {
         </div>
       </div>
 
-      {vista === 'tablero' ? (
-        <TaskBoard tareas={filtered} onNueva={() => setNewDlg(true)} onAbrirTarea={setDetalle} />
-      ) : /* Task list */
-      isLoading ? (
+      {isLoading ? (
         <p className="text-muted-foreground text-sm py-8 text-center">Cargando...</p>
+      ) : isError ? (
+        <p role="alert" className="text-destructive py-8 text-center">No se pudieron cargar las tareas. Intenta recargar la página.</p>
       ) : grouped.length === 0 ? (
         <div className="py-16 text-center">
           <ListChecks className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
@@ -253,6 +287,13 @@ export default function Tasks() {
         </div>
       ) : (
         <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-muted-foreground">
+            <span>{grouped.length} expedientes · {filtered.length} tareas · Orden alfabético</span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setCollapsed(new Set())}>Expandir todos</Button>
+              <Button size="sm" variant="ghost" onClick={() => setCollapsed(new Set(grouped.map(([id]) => id)))}>Contraer todos</Button>
+            </div>
+          </div>
           {grouped.map(([caseId, group]) => (
             <div
               key={caseId}
@@ -261,16 +302,22 @@ export default function Tasks() {
             >
               {/* Case header */}
               <div
-                className="flex items-center gap-3 px-4 py-3"
+                className="flex flex-wrap items-center gap-3 px-4 py-4"
                 style={{ background: 'hsl(var(--c-surface-1))', borderBottom: '1px solid hsl(var(--c-inner-border))' }}
               >
+                <button aria-label={`${collapsed.has(caseId) ? 'Expandir' : 'Contraer'} expediente ${group.case_title}`}
+                  aria-expanded={!collapsed.has(caseId)} aria-controls={`case-tasks-${caseId}`}
+                  className="p-1 rounded hover:bg-muted"
+                  onClick={() => setCollapsed((prev) => { const next = new Set(prev); if (next.has(caseId)) next.delete(caseId); else next.add(caseId); return next })}>
+                  <ChevronDown className={`h-4 w-4 transition-transform ${collapsed.has(caseId) ? '-rotate-90' : ''}`} />
+                </button>
                 <Briefcase className="h-4 w-4 text-muted-foreground shrink-0" />
                 <div className="flex-1 min-w-0">
                   <Link
                     to={`/cases?case_id=${caseId}`}
                     className="font-semibold text-sm text-foreground hover:text-primary transition-colors truncate block"
                   >
-                    {group.case_title}
+                    #{caseId} · {group.case_title}
                   </Link>
                   <p className="text-xs text-muted-foreground truncate">
                     {group.client_name && <span>{group.client_name} · </span>}
@@ -278,13 +325,19 @@ export default function Tasks() {
                   </p>
                 </div>
                 <span className="text-xs text-muted-foreground shrink-0">
-                  {group.tasks.filter((t) => t.done).length}/{group.tasks.length} completadas
+                  {group.tasks.length} tareas mostradas
+                  {group.tasks.some(isOverdue) && <span className="block text-red-400">{group.tasks.filter(isOverdue).length} vencidas</span>}
                 </span>
+                <Button size="sm" variant="outline" onClick={() => openNew(caseId)}><Plus className="h-3.5 w-3.5" />Nueva tarea</Button>
               </div>
 
               {/* Tasks */}
-              <div className="p-2 space-y-1.5" style={{ background: 'hsl(var(--background))' }}>
-                {group.tasks.map((task) => <TaskItem key={task.id} task={task} />)}
+              <div id={`case-tasks-${caseId}`} hidden={collapsed.has(caseId)} className="p-3" style={{ background: 'hsl(var(--background))' }}>
+                {vista === 'tablero' ? (
+                  <TaskBoard tareas={group.tasks} onNueva={() => openNew(caseId)} onAbrirTarea={setDetalle} />
+                ) : (
+                  <div className="space-y-1.5">{group.tasks.map((task) => <TaskItem key={task.id} task={task} />)}</div>
+                )}
               </div>
             </div>
           ))}

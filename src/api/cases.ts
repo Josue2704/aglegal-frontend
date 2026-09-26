@@ -7,6 +7,7 @@ export const casesApi = {
   get: (id: number) => api.get<Case>(`/cases/${id}`).then((r) => r.data),
   tiemposAtencion: (params?: { category_id?: number; subcategory_id?: number; service_id?: number }) =>
     api.get<TiempoAtencion[]>('/cases/tiempos-atencion', { params }).then((r) => r.data),
+  billingChoices: () => api.get<Case[]>('/cases/billing-choices').then(r => r.data),
   choices: (client_id?: number) =>
     api.get<Choice[]>('/cases/choices', { params: client_id ? { client_id } : undefined }).then((r) => r.data),
   create: (data: CaseIn) => api.post<Case>('/cases', data).then((r) => r.data),

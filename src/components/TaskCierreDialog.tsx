@@ -79,7 +79,7 @@ export function TaskCierreDialog({ tarea, onClose }: {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Fecha real de cumplimiento</Label>
               <Input type="date" value={fecha} onChange={(e) => setFecha(e.target.value)} />
@@ -116,6 +116,7 @@ export function TaskCierreDialog({ tarea, onClose }: {
                   </SelectContent>
                 </Select>
               </div>
+              <p className="text-[11px] text-muted-foreground">La cuenta clasifica el gasto real que se registrará en Flujo de caja. Si no hubo gasto, indica cero en el costo final.</p>
               <label className="flex items-center gap-2 text-xs cursor-pointer">
                 <input type="checkbox" className="h-3.5 w-3.5" checked={reembolsable}
                   onChange={(e) => setReembolsable(e.target.checked)} />

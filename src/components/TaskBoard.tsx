@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, Coins, Plus, Tag, User } from 'lucide-react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { AlertTriangle, Coins, Plus, User } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { casesApi } from '@/api/cases'
-import { catalogoApi } from '@/api/catalogo'
 import { TASK_ESTADOS, type EtiquetaTarea, type GlobalCaseTask, type TaskEstado } from '@/types'
 import { Button } from '@/components/ui/button'
 import { formatCurrency, formatDate, today } from '@/lib/utils'
@@ -52,7 +51,7 @@ function esVencida(t: GlobalCaseTask) {
 }
 
 function Tarjeta({ tarea, onAbrir, onArrastrar }: {
-  tarea: GlobalCaseTask; onAbrir: () => void; onArrastrar: (e: React.DragEvent) => void
+  tarea: GlobalCaseTask; onAbrir: () => void; onArrastrar: (e: React.DragEvent | null) => void
 }) {
   const vencida = esVencida(tarea)
   const personas = [tarea.responsible_username, ...tarea.asignados.filter((a) => a !== tarea.responsible_username)]
@@ -61,6 +60,10 @@ function Tarjeta({ tarea, onAbrir, onArrastrar }: {
   return (
     <div
       draggable
+      onDragEnd={() => onArrastrar(null)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); onAbrir() } }}
       onDragStart={onArrastrar}
       onClick={onAbrir}
       className="group rounded-lg p-2.5 space-y-2 cursor-pointer transition-shadow hover:shadow-md active:cursor-grabbing"
@@ -124,10 +127,8 @@ export function TaskBoard({ tareas, onNueva, onAbrirTarea }: {
   const qc = useQueryClient()
   const [arrastrada, setArrastrada] = useState<GlobalCaseTask | null>(null)
   const [columnaActiva, setColumnaActiva] = useState<TaskEstado | null>(null)
-  const [filtroEtiqueta, setFiltroEtiqueta] = useState<number | null>(null)
   const [porCerrar, setPorCerrar] = useState<GlobalCaseTask | null>(null)
 
-  const { data: etiquetas = [] } = useQuery({ queryKey: ['etiquetas-tarea'], queryFn: catalogoApi.listEtiquetas })
 
   const mover = useMutation({
     mutationFn: ({ id, estado }: { id: number; estado: TaskEstado }) => casesApi.setTaskEstado(id, estado),
@@ -139,23 +140,17 @@ export function TaskBoard({ tareas, onNueva, onAbrirTarea }: {
       toast.error((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? 'No se pudo mover la tarea'),
   })
 
-  const visibles = useMemo(
-    () => (filtroEtiqueta ? tareas.filter((t) => t.etiquetas.some((e) => e.id === filtroEtiqueta)) : tareas),
-    [tareas, filtroEtiqueta],
-  )
   const porColumna = useMemo(() => {
     const mapa: Record<TaskEstado, GlobalCaseTask[]> = { 'Por hacer': [], 'En curso': [], 'En espera': [], 'Hecha': [] }
-    for (const t of visibles) (mapa[t.estado] ?? mapa['Por hacer']).push(t)
+    for (const t of tareas) (mapa[t.estado] ?? mapa['Por hacer']).push(t)
     for (const col of TASK_ESTADOS) {
       mapa[col].sort((a, b) => {
         if (a.es_critico !== b.es_critico) return a.es_critico ? -1 : 1
-        if (!a.due_date) return 1
-        if (!b.due_date) return -1
-        return a.due_date.localeCompare(b.due_date)
+        return (a.due_date || '9999').localeCompare(b.due_date || '9999') || a.id - b.id
       })
     }
     return mapa
-  }, [visibles])
+  }, [tareas])
 
   function soltar(columna: TaskEstado) {
     setColumnaActiva(null)
@@ -169,27 +164,12 @@ export function TaskBoard({ tareas, onNueva, onAbrirTarea }: {
 
   return (
     <div className="space-y-3">
-      {etiquetas.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <Tag className="h-3.5 w-3.5 text-muted-foreground" />
-          {etiquetas.map((e) => (
-            <EtiquetaChip key={e.id} etiqueta={e} activa={!filtroEtiqueta || filtroEtiqueta === e.id}
-              onClick={() => setFiltroEtiqueta(filtroEtiqueta === e.id ? null : e.id)} />
-          ))}
-          {filtroEtiqueta && (
-            <button onClick={() => setFiltroEtiqueta(null)} className="text-[11px] text-muted-foreground hover:text-foreground">
-              quitar filtro
-            </button>
-          )}
-        </div>
-      )}
-
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {TASK_ESTADOS.map((columna) => (
           <div key={columna}
-            onDragOver={(e) => { e.preventDefault(); setColumnaActiva(columna) }}
+            onDragOver={(e) => { if (arrastrada) { e.preventDefault(); setColumnaActiva(columna) } }}
             onDragLeave={() => setColumnaActiva((c) => (c === columna ? null : c))}
-            onDrop={() => soltar(columna)}
+            onDrop={(e) => { e.preventDefault(); soltar(columna) }}
             className="rounded-xl p-2.5 space-y-2 min-h-[140px] transition-colors"
             style={{
               background: columnaActiva === columna ? 'hsl(var(--accent) / 0.08)' : 'hsl(var(--c-surface-1))',
@@ -210,7 +190,7 @@ export function TaskBoard({ tareas, onNueva, onAbrirTarea }: {
 
             {porColumna[columna].map((t) => (
               <Tarjeta key={t.id} tarea={t} onAbrir={() => onAbrirTarea(t)}
-                onArrastrar={() => setArrastrada(t)} />
+                onArrastrar={(e) => { setArrastrada(e ? t : null); if (!e) setColumnaActiva(null) }} />
             ))}
 
             {porColumna[columna].length === 0 && (

@@ -1,3 +1,4 @@
+import { queryClient } from '@/lib/queryClient'
 import { create } from 'zustand'
 import type { UserInfo } from '@/types'
 
@@ -18,11 +19,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   token: stored.token,
   user: stored.user,
   setAuth: (token, user) => {
+    queryClient.clear()
     localStorage.setItem('ag_token', token)
     localStorage.setItem('ag_user', JSON.stringify(user))
     set({ token, user })
   },
   logout: () => {
+    queryClient.clear()
     localStorage.removeItem('ag_token')
     localStorage.removeItem('ag_user')
     set({ token: null, user: null })

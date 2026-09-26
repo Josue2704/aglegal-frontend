@@ -46,11 +46,15 @@ export const pipelineHelp: HelpContent = {
     'Pulsa "Nueva oportunidad" y elige si es un prospecto nuevo o un cliente existente.',
     'Completa servicio de interés, honorarios estimados, canal de captación y origen del negocio.',
     'Mueve la tarjeta entre columnas conforme avanza: Prospecto → Cotizado → Ganado / Perdido.',
-    'Al marcarla como Perdida debes indicar el motivo. Para marcarla como Ganada, el prospecto debe estar registrado antes como cliente.',
+    'Al marcarla como Perdida debes indicar el motivo. Al ganar puedes registrar al prospecto o vincular una ficha existente.',
+    'Antes de abrir, confirma honorarios pactados, alcance aceptado, condiciones de cobro y revisión de posibles conflictos.',
+    'Revisa el plan sugerido por el servicio: incluye al menos una tarea con fecha y responsable. La apertura crea todo en una sola operación.',
   ],
   tips: [
     'El honorario estimado aquí solo mide el valor del embudo — no es el honorario final que se factura en el expediente.',
     '"Origen del negocio" sí afecta comisiones; "Canal de captación" es solo informativo.',
+    'El historial conserva el seguimiento comercial y el acuerdo de apertura. Abrir el expediente no registra un pago.',
+    'Los avisos de seguimiento incompleto señalan oportunidades sin responsable, próxima acción o fecha.',
   ],
 }
 
@@ -82,17 +86,19 @@ export const casesHelp: HelpContent = {
 
 export const tasksHelp: HelpContent = {
   title: 'Tareas',
-  description: 'Lista global de pendientes de todos los expedientes, con filtros por vencidas, pendientes, completadas y responsable.',
+  description: 'Tareas agrupadas por expediente en lista y tablero, ordenadas alfabéticamente. Cada expediente tiene sus propias columnas de estado.',
   before: ['El expediente al que pertenece la tarea (obligatorio) y un título claro.'],
   steps: [
     'Pulsa "Nueva tarea" — puedes crearla sin entrar primero al expediente, solo elige a cuál pertenece.',
     'Agrega fecha de vencimiento, notas y un responsable si aplica.',
     'Marca "Plazo legal crítico" si es un plazo que no se puede perder (se resalta en rojo en el Dashboard).',
-    'Usa los filtros (todas, pendientes, vencidas, completadas), el selector de responsable y la búsqueda para encontrarlas rápido.',
+    'Filtra por expediente, estado, responsable o etiqueta. Los filtros se conservan al alternar entre lista y tablero.',
     'Haz clic en el círculo junto a la tarea para marcarla como completada, o en el nombre del responsable para reasignarla.',
   ],
   tips: [
     'Los plazos legales críticos vencidos o a 3 días se muestran aparte en el Dashboard para que no se pierdan entre las tareas normales.',
+    'Expande o contrae los expedientes para concentrarte en uno. Usa Nueva tarea dentro de su bloque para dejarlo seleccionado.',
+    'En el tablero, arrastra las tareas entre las columnas del mismo expediente para cambiar su estado.',
     'Reasignar el responsable no requiere abrir el expediente — se cambia directamente desde esta lista.',
   ],
 }
@@ -131,23 +137,21 @@ export const cashflowHelp: HelpContent = {
 }
 
 export const invoicesHelp: HelpContent = {
-  title: 'Facturas',
-  description: 'Genera y da seguimiento a las facturas emitidas a los clientes, ligadas o no a un expediente.',
-  before: [
-    'El cliente (obligatorio) — puedes usar uno existente o registrar sus datos de facturación al vuelo (nombre, cédula jurídica, teléfono, email, dirección).',
-    'El expediente relacionado (opcional), número de factura, fecha de emisión y de vencimiento.',
-    'Los montos a facturar con su cuenta contable y detalle.',
-  ],
+  title: 'Facturas y pagos',
+  description: 'Prepara cargos por expediente, emite la factura y registra el dinero recibido por separado.',
+  before: ['Selecciona cliente y expediente. El número se asigna automáticamente si lo dejas vacío.',
+    'Los extras deben estar autorizados y completados, salvo que hayas acordado facturar por anticipado.'],
   steps: [
-    'Pulsa "Nueva Factura" y sigue el asistente: datos del cliente, expediente, número y fechas.',
-    'Si eliges un expediente, el panel de "partidas no facturadas" solo trae tareas, sesiones, horas y costos de ESE expediente — sin elegirlo, trae de todos los expedientes del cliente.',
-    'Agrega los montos con su fecha de cobro, cuenta contable y detalle.',
-    'Actualiza el estado conforme avanza: Borrador → Enviada → Pagada.',
-    'Exporta a CSV con el botón correspondiente si necesitas la lista completa.',
+    'Desde el expediente pulsa Preparar factura, o entra en Nueva Factura.',
+    'Agrega extras con su importe acordado, gastos reembolsables y las demás partidas. Los gastos internos no se ofrecen como cargos.',
+    'Guarda un borrador para revisar o emite la factura. Emitir no registra un pago ni envía un correo.',
+    'En Registrar pago indica importe, fecha real, cuenta y referencia. También puedes aplicar un anticipo ya registrado sin duplicar caja.',
+    'El saldo determina automáticamente si queda pendiente, parcialmente pagada o pagada. Puedes imprimir el documento con su desglose y saldo.',
   ],
   tips: [
-    'Las tarjetas superiores (total, pagadas, pendientes, ingresos cobrados) se actualizan solas según el estado de cada factura.',
-    'Si borras una factura, sus partidas (tareas, sesiones, horas, costos) vuelven a aparecer como "no facturadas" — se puede volver a facturar sin quedar huérfanas.',
+    'Solo los borradores se editan o eliminan. Las facturas emitidas conservan su contenido.',
+    'Cancelar libera partidas y aplicaciones de pagos. Los ingresos permanecen como saldo disponible para otra factura del mismo expediente; no equivale a devolver dinero.',
+    'Los pagos muestran su historial. La parte reembolsable no se trata como honorario.',
   ],
 }
 
@@ -162,13 +166,15 @@ export const payrollHelp: HelpContent = {
     'Pulsa "Nuevo pago" y elige "Planilla calculada" para un pago mensual real: selecciona al colaborador, el salario base se prellena desde Personal, y agrega horas extra, nocturnidad, bonos y descuentos (faltas, préstamos) del mes.',
     'Usa "Calcular vista previa" para ver el desglose (ISSS, AFP, renta, neto) antes de guardar.',
     'Usa "Pago manual" solo para un bono suelto o ajuste que ya traes calculado — no pasa por el motor ni por las deducciones de ley.',
-    'El ícono de flecha en cada fila calculada despliega el desglose completo. El lápiz permite corregir fecha, notas o el neto de un pago ya guardado, dejando registro de auditoría — para cambiar el salario base o las horas, elimina y vuelve a crear el pago.',
+    'El ícono de flecha en cada fila calculada despliega el desglose completo. El lápiz permite corregir fecha y notas; el neto solo puede cambiarse en pagos manuales. Para cambiar un cálculo, anula y genera de nuevo. El historial conserva las correcciones.',
+    'Al guardar, caja registra el neto. En Obligaciones registra cada remesa ISSS, AFP e ISR con fecha y comprobante: así no se adelantan ni duplican las salidas.',
     '"Config. de ley" abre el historial versionado de tasas ISSS/AFP y la tabla de renta — cada cambio crea una versión nueva, nunca se sobrescribe la anterior, para que una planilla ya pagada conserve la tasa que aplicaba en ese momento.',
     '"Prestaciones" abre una calculadora aparte de aguinaldo, vacaciones (15 días + 30%) e indemnización por despido — son cálculos anuales o de fin de relación laboral, no forman parte de la planilla mensual y no se guardan automáticamente.',
   ],
   tips: [
+    'Las comisiones se liquidan desde Comisiones. No copies un importe ya pagado como bono; el pago manual no calcula impuestos ni cotizaciones.',
     'Una planilla calculada no se puede duplicar para la misma persona y el mismo período — evita el doble pago accidental. Un pago manual (bono) sí puede repetirse.',
-    'Si la tabla de retención de renta está vacía, el motor calcula ISSS y AFP pero avisa que no retuvo renta — complétala en Configuración de ley antes de usarlo como planilla real.',
+    'Si la tabla de retención de renta está vacía, el motor calcula ISSS y AFP pero avisa que no retuvo renta — el guardado se bloquea hasta completarla en Configuración de ley.',
     'AFP no tiene tope de cotización por ley — solo ISSS lo tiene. Déjalo vacío en Config. de ley salvo que confirmes que la ley cambió.',
   ],
 }
@@ -219,7 +225,9 @@ export const comisionesHelp: HelpContent = {
   before: ['Nada que llenar directamente — las comisiones se generan solas cuando se cobra un ingreso ligado a una oportunidad con origen de negocio asignado.'],
   steps: [
     'Elige el mes para ver el resumen de comisiones por persona y el detalle por expediente.',
-    'Si una comisión quedó mal calculada (por ejemplo, por un cobro revertido), usa "Revertir" — el ajuste se refleja en el mes en curso, sin borrar el historial.',
+    'Primero se recuperan los costos directos reales del expediente; solo el excedente cobrado genera comisión. Los cambios de costos y abonos recalculan las comisiones y requieren nueva revisión.',
+    'En Revisión y pago, documenta la elegibilidad y aprueba cada comisión. Selecciona las aprobadas de una persona, incluye sus ajustes y registra fecha, comprobante y cuenta del egreso. El sistema guarda el gasto una sola vez; no envía dinero al banco.',
+    'Si reviertes una comisión sin pagar, se anula conservando el historial. Si ya fue pagada, el pago se conserva y el ajuste se compensa desde el siguiente período. Aprobar y pagar requieren permisos específicos.',
     'Exporta el detalle a CSV si lo necesitas.',
   ],
   tips: ['El campo que determina quién cobra comisión es "Origen del negocio" en Pipeline, no el "Canal de captación".'],

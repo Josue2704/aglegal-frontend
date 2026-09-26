@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import axios from 'axios'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff } from 'lucide-react'
 import { toast } from 'sonner'
@@ -25,8 +26,9 @@ export default function Login() {
       const data = await authApi.login(username.trim(), password)
       setAuth(data.access_token, data.user)
       navigate('/', { replace: true })
-    } catch {
-      toast.error('Credenciales incorrectas. Verifique su usuario y contraseña.')
+    } catch (error) {
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined
+      toast.error(status === 401 ? 'Usuario o contraseña de AGLegal incorrectos.' : status === 429 ? 'Demasiados intentos. Espera un minuto y vuelve a intentar.' : 'No se pudo conectar con el servidor. Intenta de nuevo.')
     } finally {
       setLoading(false)
     }

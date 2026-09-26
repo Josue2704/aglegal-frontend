@@ -60,7 +60,7 @@ export function PlantillaTareasDialog({ open, onClose, serviceId, serviceLabel }
   const { data: etiquetas = [] } = useQuery({
     queryKey: ['etiquetas-tarea'], queryFn: catalogoApi.listEtiquetas, enabled: open,
   })
-  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list, enabled: open })
+  const { data: users = [] } = useQuery({ queryKey: ['assignment-users'], queryFn: usersApi.choices, enabled: open })
   const { data: servicios = [] } = useQuery({
     queryKey: ['servicio-choices', 'plantilla'],
     queryFn: () => catalogoApi.servicioChoices({ estado: 'Activo', limit: 400 }),
@@ -153,7 +153,7 @@ export function PlantillaTareasDialog({ open, onClose, serviceId, serviceLabel }
             <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="Sin sugerir" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="__ninguno__">Sin sugerir</SelectItem>
-              {users.filter((u) => u.active).map((u) => (
+              {users.map((u) => (
                 <SelectItem key={u.username} value={u.username}>{u.full_name || u.username}</SelectItem>
               ))}
             </SelectContent>

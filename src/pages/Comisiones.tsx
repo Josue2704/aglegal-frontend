@@ -1,3 +1,6 @@
+import { Link } from 'react-router-dom'
+import { usePermission } from '@/hooks/usePermission'
+import { CommissionSettlementPanel } from '@/components/CommissionSettlementPanel'
 import { useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { RotateCcw, Users2, Download } from 'lucide-react'
@@ -18,16 +21,20 @@ const currentMonth = () => new Date().toISOString().slice(0, 7)
 export default function Comisiones() {
   const [mes, setMes] = useState(currentMonth())
   const qc = useQueryClient()
+  const canCases=usePermission('expedientes','ver')
+  const [client,setClient]=useState(''),[caseFilter,setCaseFilter]=useState('')
 
   const { data: resumen = [] } = useQuery({ queryKey: ['comisiones-resumen', mes], queryFn: () => comisionesApi.resumen(mes) })
-  const { data: detalle = [] } = useQuery({ queryKey: ['comisiones-lista', mes], queryFn: () => comisionesApi.list({ mes }) })
+  const { data: allDetails = [] } = useQuery({ queryKey: ['comisiones-lista', mes], queryFn: () => comisionesApi.list({ mes }) })
 
+  const detalle=allDetails.filter(c=>(!client||String(c.client_id)===client)&&(!caseFilter||String(c.case_id)===caseFilter))
   const revertir = useMutation({
     mutationFn: (id: number) => comisionesApi.revertir(id),
     onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['commission-workflow'] })
       qc.invalidateQueries({ queryKey: ['comisiones-resumen'] })
       qc.invalidateQueries({ queryKey: ['comisiones-lista'] })
-      toast.success('Comisión revertida — el ajuste se reconoce en el mes en curso')
+      toast.success('Comisión revertida; el ajuste pagado queda para compensación posterior')
     },
     onError: (e: { response?: { data?: { detail?: string } } }) => toast.error(e.response?.data?.detail ?? 'Error'),
   })
@@ -58,6 +65,9 @@ export default function Comisiones() {
         </Button>
       </div>
 
+      <CommissionSettlementPanel />
+      <div className="flex flex-wrap gap-3 items-end"><label className="text-xs">Cliente del detalle<select aria-label="Cliente de comisiones" className="block bg-background border rounded p-2 max-w-64" value={client} onChange={e=>{setClient(e.target.value);setCaseFilter('')}}><option value="">Todos</option>{[...new Map(allDetails.filter(c=>c.client_id).map(c=>[c.client_id,c.client_name])).entries()].map(([id,name])=><option key={id} value={String(id)}>{name}</option>)}</select></label><label className="text-xs">Expediente del detalle<select aria-label="Expediente de comisiones" className="block bg-background border rounded p-2 max-w-64" value={caseFilter} onChange={e=>setCaseFilter(e.target.value)}><option value="">Todos</option>{[...new Map(allDetails.filter(c=>!client||String(c.client_id)===client).map(c=>[c.case_id,c.case_title])).entries()].map(([id,name])=><option key={id} value={String(id)}>{name}</option>)}</select></label><p className="text-sm">Detalle seleccionado: {money(detalle.reduce((n,c)=>n+c.comision,0))}</p></div>
+
       <div className="flex items-center gap-2">
         <Label className="text-sm">Mes</Label>
         <Input type="month" value={mes} onChange={(e) => setMes(e.target.value)} className="w-40" />
@@ -71,7 +81,7 @@ export default function Comisiones() {
       </Card>
 
       <div>
-        <h3 className="text-sm font-semibold mb-2">Resumen por persona — {mes}</h3>
+        <h3 className="text-sm font-semibold mb-2">Resumen mensual completo por persona — {mes}</h3>
         <Card>
           <CardContent className="p-0 overflow-x-auto">
             <table className="w-full text-sm">
@@ -124,13 +134,13 @@ export default function Comisiones() {
                   return (
                     <tr key={c.id} className="border-t hover:bg-muted/30">
                       <td className="px-4 py-2.5">{c.persona_nombre}</td>
-                      <td className="px-4 py-2.5 max-w-[180px] truncate">{c.case_title ?? '—'}</td>
+                      <td className="px-4 py-2.5 max-w-[180px] truncate">{canCases?<Link className="underline" to={`/cases?case_id=${c.case_id}`}>{c.case_title ?? '—'}</Link>:c.case_title??'—'}</td>
                       <td className="px-4 py-2.5 text-muted-foreground text-xs">
                         {c.income_date ?? '—'}
                         {c.income_id == null && <div className="text-[10px] text-destructive">Cobro eliminado</div>}
                       </td>
                       <td className="px-4 py-2.5">
-                        {isAjuste ? <Badge variant="outline" className="text-[10px]">Ajuste</Badge> : <Badge variant="secondary" className="text-[10px]">{c.tipo_origen}</Badge>}
+                        {isAjuste ? <Badge variant="outline" className="text-[10px]">Ajuste</Badge> : <Badge variant="secondary" className="text-[10px]">{c.tipo_origen} · {c.estado}</Badge>}
                         {isAjuste && c.motivo && <div className="text-[10px] text-muted-foreground mt-0.5 max-w-[160px]">{c.motivo}</div>}
                       </td>
                       <td className="px-4 py-2.5 text-right font-mono text-muted-foreground">{c.porcentaje_participacion.toFixed(1)}%</td>
@@ -144,10 +154,10 @@ export default function Comisiones() {
                         )}
                       </td>
                       <td className="px-4 py-2.5">
-                        {!isAjuste && (
+                        {!isAjuste && c.estado !== 'Anulada' && (
                           <Button
                             size="icon" variant="ghost" className="h-7 w-7" title="Revertir comisión"
-                            onClick={() => { if (confirm('¿Revertir esta comisión? Se registrará un ajuste negativo en el mes en curso.')) revertir.mutate(c.id) }}
+                            onClick={() => { if (confirm('¿Revertir esta comisión? Si ya fue pagada, quedará un ajuste para compensar desde el siguiente período.')) revertir.mutate(c.id) }}
                           >
                             <RotateCcw className="h-3.5 w-3.5" />
                           </Button>

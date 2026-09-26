@@ -161,6 +161,16 @@ function GoogleCalendarPanel() {
     }
   }, [searchParams, qc, setSearchParams])
 
+  const verify = useMutation({
+    mutationFn: googleCalApi.verify,
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ['gcal-status'] }); r.error ? toast.error(r.error) : toast.success('Acceso a Google Calendar verificado') },
+    onError: () => toast.error('No se pudo verificar la conexión'),
+  })
+  const retry = useMutation({
+    mutationFn: googleCalApi.retry,
+    onSuccess: (r) => { qc.invalidateQueries({ queryKey: ['gcal-status'] }); r.failed ? toast.warning(`${r.failed} cambios siguen pendientes`) : toast.success(`${r.completed} cambios sincronizados`) },
+    onError: () => toast.error('No se pudo reintentar la sincronización'),
+  })
   const connected = gcalStatus?.connected ?? false
 
   return (
@@ -184,18 +194,26 @@ function GoogleCalendarPanel() {
         ) : (
           <>
             <div className="flex items-center gap-3">
-              <Badge variant={connected ? 'success' : 'outline'}>
-                {connected ? '✓ Conectado' : 'Desconectado'}
+              <Badge variant={connected && !gcalStatus?.error ? 'success' : 'outline'}>
+                {gcalStatus?.error ? 'Conexión con problemas' : connected ? 'Autorización guardada' : 'Desconectado'}
               </Badge>
               {connected && (
                 <span className="text-xs text-muted-foreground">
-                  Las sesiones se sincronizan automáticamente
+                  Los cambios se envían al calendario de quien creó la cita
                 </span>
               )}
             </div>
 
+            {gcalStatus?.error && <p className="text-sm text-destructive">{gcalStatus.error}</p>}
+            {Boolean(gcalStatus?.pending) && <p className="text-sm text-amber-500">{gcalStatus?.pending} cambios pendientes de sincronizar.</p>}
+            {connected && <div className="flex flex-wrap gap-2">
+              <Button variant="outline" size="sm" onClick={() => verify.mutate()} disabled={verify.isPending}>Verificar conexión</Button>
+              <Button variant="outline" size="sm" onClick={() => connect.mutate()} disabled={connect.isPending}>Volver a autorizar</Button>
+              {Boolean(gcalStatus?.pending) && <Button size="sm" onClick={() => retry.mutate()} disabled={retry.isPending}>Reintentar pendientes</Button>}
+            </div>}
+            <p className="text-xs text-muted-foreground">Los cambios hechos en Google se traen con «Importar Google» en la Agenda (90 días anteriores y 180 siguientes).</p>
             {connected ? (
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
                   variant="outline"
                   size="sm"
@@ -222,7 +240,7 @@ function GoogleCalendarPanel() {
                   <ol className="list-decimal list-inside space-y-0.5">
                     <li>Haz clic en "Conectar" y autoriza el acceso con tu cuenta Google</li>
                     <li>Cada sesión creada o editada se sincronizará automáticamente</li>
-                    <li>Las sesiones aparecen como eventos de día completo en tu calendario</li>
+                    <li>Se respetan las horas de la cita y los eventos de día completo</li>
                   </ol>
                   <p className="mt-2 text-muted-foreground/70">
                     Requiere configurar <code className="text-xs bg-muted px-1 rounded">GOOGLE_CLIENT_ID</code> en el servidor.

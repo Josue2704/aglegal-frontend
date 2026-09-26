@@ -1,3 +1,5 @@
+import { useAuthStore } from '@/store/auth'
+import { CatalogFollowup } from '@/components/CatalogFollowup'
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Search, ShieldCheck } from 'lucide-react'
@@ -192,7 +194,7 @@ function SolicitudDialog({ open, onClose, editing }: { open: boolean; onClose: (
       horas_estandar_propuesta: form.horas_estandar_propuesta ? Number(form.horas_estandar_propuesta) : null,
       estado_propuesto: form.estado_propuesto || null,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['solicitudes'] }); toast.success('Solicitud creada'); onClose() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['solicitudes'] }); qc.invalidateQueries({queryKey:['catalog-followup']}); qc.invalidateQueries({queryKey:['catalog-notifications']}); toast.success('Solicitud creada'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
   const update = useMutation({
@@ -205,7 +207,7 @@ function SolicitudDialog({ open, onClose, editing }: { open: boolean; onClose: (
       horas_estandar_propuesta: form.horas_estandar_propuesta ? Number(form.horas_estandar_propuesta) : null,
       estado_propuesto: form.estado_propuesto || null,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['solicitudes'] }); toast.success('Solicitud actualizada'); onClose() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['solicitudes'] }); qc.invalidateQueries({queryKey:['catalog-followup']}); qc.invalidateQueries({queryKey:['catalog-notifications']}); toast.success('Solicitud actualizada'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
 
@@ -361,7 +363,7 @@ function TransitionDialog({ open, onClose, solicitud, targetEstado }: { open: bo
       aprobador: aprobador || null,
       observaciones: observaciones || null,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['solicitudes'] }); toast.success('Estado actualizado'); onClose() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['solicitudes'] }); qc.invalidateQueries({queryKey:['catalog-followup']}); qc.invalidateQueries({queryKey:['catalog-notifications']}); toast.success('Estado actualizado'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
 
@@ -446,6 +448,7 @@ function TransitionDialog({ open, onClose, solicitud, targetEstado }: { open: bo
 }
 
 export default function Gobierno() {
+  const admin=useAuthStore(s=>s.user?.is_admin)
   const [search, setSearch] = useState('')
   const [estadoFilter, setEstadoFilter] = useState<'Todos' | SolicitudEstado>('Todos')
   const [dlg, setDlg] = useState(false)
@@ -462,6 +465,7 @@ export default function Gobierno() {
 
   return (
     <div className="space-y-5">
+      <CatalogFollowup/>
       <div>
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-bold">Gobierno del Catálogo</h1>
@@ -527,7 +531,7 @@ export default function Gobierno() {
                       {EDITABLE_ESTADOS.includes(s.estado) && (
                         <Button size="icon" variant="ghost" className="h-7 w-7" title="Editar" onClick={() => openEdit(s)}><Pencil className="h-3.5 w-3.5" /></Button>
                       )}
-                      {NEXT_STEPS[s.estado].map((step) => (
+                      {NEXT_STEPS[s.estado].filter(step=>admin||!['Aprobado','Rechazado','Activo','Inactivo'].includes(step.estado)).map((step) => (
                         <Button
                           key={step.estado}
                           size="sm"

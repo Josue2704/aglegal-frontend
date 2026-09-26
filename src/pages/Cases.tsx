@@ -1,4 +1,6 @@
-﻿import { useState, useEffect, useMemo } from 'react'
+import { FormGuidance } from '@/components/FormGuidance'
+import { usePermission } from '@/hooks/usePermission'
+﻿import { useState, useEffect, useMemo, useRef } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Trash2, Pencil, Search, CalendarDays, X, LayoutList, AlertTriangle, Download, UserPlus } from 'lucide-react'
@@ -6,6 +8,7 @@ import { toast } from 'sonner'
 import { casesApi } from '@/api/cases'
 import { clientsApi } from '@/api/clients'
 import { catalogoApi } from '@/api/catalogo'
+import { OpeningTasks, type OpeningTask } from '@/components/OpeningTasks'
 import { usersApi } from '@/api/users'
 import { finanzasApi } from '@/api/finanzas'
 import { comisionesApi } from '@/api/comisiones'
@@ -30,7 +33,6 @@ import { useSoloMio } from '@/hooks/useSoloMio'
 
 const STATUSES = ['Abierto', 'En trámite', 'En pausa', 'Cerrado'] as const
 const PRIORITIES = ['Baja', 'Media', 'Alta'] as const
-const ESTADOS_COBRO: CaseEstadoCobro[] = ['En ejecución', 'Finalizado pendiente de facturar', 'Facturado pendiente de cobro', 'Cobrado', 'Suspendido']
 
 const PRIORITY_COLOR: Record<string, 'success' | 'warning' | 'destructive'> = { Baja: 'success', Media: 'warning', Alta: 'destructive' }
 const STATUS_COLOR: Record<string, 'info' | 'warning' | 'secondary' | 'outline'> = { Abierto: 'info', 'En trámite': 'warning', 'En pausa': 'secondary', Cerrado: 'outline' }
@@ -40,6 +42,11 @@ const ESTADO_COBRO_COLOR: Record<string, 'secondary' | 'warning' | 'info' | 'suc
 const money = (n: number) => `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
 
 type FormData = {
+  motivo_atribucion: string
+  origen_negocio: string
+  canal_captacion: string
+  tipo_comercial: string
+  originador_id: string
   client_id: string
   title: string
   status: string
@@ -54,6 +61,7 @@ type FormData = {
   service_id: string
   honorarios_contratados: string
   costos_directos_estimados: string
+  probabilidad_cobro: string
   mes_cobro_esperado: string
   estado_cobro: CaseEstadoCobro
   fecha_cierre_estimada: string
@@ -62,9 +70,11 @@ type FormData = {
 }
 
 const EMPTY_FORM: FormData = {
+  motivo_atribucion: '',
+  origen_negocio: '', canal_captacion: '', tipo_comercial: '', originador_id: '',
   client_id: '', title: '', status: 'Abierto', priority: 'Media', opened_at: today(), notes: '',
   internal_ref: '', official_ref: '', opposing_party: '', court_entity: '', responsible_username: '',
-  service_id: '', honorarios_contratados: '', costos_directos_estimados: '', mes_cobro_esperado: '',
+  service_id: '', honorarios_contratados: '', costos_directos_estimados: '', mes_cobro_esperado: '', probabilidad_cobro: '70',
   estado_cobro: 'En ejecución', fecha_cierre_estimada: '', fecha_cierre_real: '', proxima_accion: '',
 }
 
@@ -73,7 +83,7 @@ type OriginadorRow = { personal_id: string; porcentaje_participacion: string; ti
 
 function OriginadoresEditor({ caseId }: { caseId: number }) {
   const qc = useQueryClient()
-  const { data: personal = [] } = useQuery({ queryKey: ['finanzas-personal', 'Activo'], queryFn: () => finanzasApi.listPersonal('Activo') })
+  const { data: personal = [] } = useQuery({ queryKey: ['personal-choices'], queryFn: finanzasApi.personalChoices })
   const { data: originadores = [] } = useQuery({ queryKey: ['comisiones-originadores', caseId], queryFn: () => comisionesApi.listOriginadores(caseId) })
   const [rows, setRows] = useState<OriginadorRow[]>([])
   const [dirty, setDirty] = useState(false)
@@ -102,6 +112,7 @@ function OriginadoresEditor({ caseId }: { caseId: number }) {
   return (
     <div className="pt-1">
       <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2">Originadores del negocio (comisión)</p>
+      <FormGuidance required="Por cada originador: persona, participación mayor a cero y tipo de origen. Las participaciones deben sumar 100%." optional="La lista completa puede quedar vacía si no corresponde comisión." missing={[rows.some(r=>!r.personal_id) && 'persona en cada fila', rows.some(r=>!(Number(r.porcentaje_participacion)>0)) && 'porcentajes positivos', !totalOk && 'participaciones que sumen 100%', new Set(rows.map(r=>r.personal_id)).size !== rows.length && 'personas sin repetir']} />
       <div className="space-y-2">
         {rows.map((r, i) => (
           <div key={i} className="grid gap-2 items-center" style={{ gridTemplateColumns: '1fr 90px 150px auto' }}>
@@ -123,7 +134,7 @@ function OriginadoresEditor({ caseId }: { caseId: number }) {
         <Button type="button" size="sm" variant="outline" onClick={addRow}><Plus className="h-3.5 w-3.5" />Agregar originador</Button>
         <div className="flex items-center gap-2">
           {rows.length > 0 && <span className={`text-xs font-mono ${totalOk ? 'text-muted-foreground' : 'text-destructive'}`}>Total: {total.toFixed(2)}%</span>}
-          <Button type="button" size="sm" disabled={!dirty || save.isPending || !totalOk} onClick={() => save.mutate()}>Guardar originadores</Button>
+          <Button type="button" size="sm" disabled={!dirty || save.isPending || !totalOk || rows.some(r=>!r.personal_id || !(Number(r.porcentaje_participacion)>0)) || new Set(rows.map(r=>r.personal_id)).size !== rows.length} onClick={() => save.mutate()}>Guardar originadores</Button>
         </div>
       </div>
     </div>
@@ -150,11 +161,9 @@ export default function Cases() {
   const [serviceSearch, setServiceSearch] = useState('')
   const [selectedService, setSelectedService] = useState<{ id: number; service_code: string; nombre: string; category_code?: string; subcategory_code?: string } | null>(null)
   // El plan de trabajo del servicio, ya ajustable antes de crear el expediente.
-  const [tareasIniciales, setTareasIniciales] = useState<{
-    titulo: string; due_date: string; es_critico: boolean; incluida: boolean
-    notes: string; responsible_username: string; costo_estimado: number; etiqueta_ids: number[]
-  }[]>([])
-  const [nuevaTareaInicial, setNuevaTareaInicial] = useState('')
+  const [tareasIniciales, setTareasIniciales] = useState<OpeningTask[]>([])
+  const [acuerdo, setAcuerdo] = useState({alcance:'',condiciones_cobro:'',revision_confirmada:false,revision_observaciones:''})
+  const previousOpening = useRef({ service: 0, date: '' })
 
   // Enlaces desde búsqueda global, alertas, tareas, agenda y clientes:
   //   ?case_id=ID            → abre el detalle de ese expediente
@@ -211,10 +220,10 @@ export default function Cases() {
   const casesVisibles = useMemo(() => cases.filter((c) => esMio(c.responsible_username)), [cases, esMio])
   const { sorted: sortedCases, sortKey, sortDir, toggle } = useSortable(casesVisibles as unknown as Record<string, unknown>[], 'opened_at', 'desc')
   const { data: clients = [] } = useQuery({ queryKey: ['client-choices'], queryFn: clientsApi.choices })
-  const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: usersApi.list })
+  const { data: users = [] } = useQuery({ queryKey: ['assignment-users'], queryFn: usersApi.choices })
   const { data: allServicios = [] } = useQuery({
-    queryKey: ['catalogo-servicios', 'Activo'],
-    queryFn: () => catalogoApi.listServicios({ estado: 'Activo' }),
+    queryKey: ['servicio-choices', serviceSearch],
+    queryFn: () => catalogoApi.servicioChoices({ q: serviceSearch || undefined, estado: 'Activo', limit: 100 }),
     enabled: dlg,
   })
   const serviceMatches = useMemo(() => {
@@ -240,7 +249,7 @@ export default function Cases() {
       setTareasIniciales((prev) => (prev.length ? [] : prev))
       return
     }
-    if (!plantilla.length) return
+    if (!plantilla.length) { setTareasIniciales([]); return }
     setTareasIniciales(plantilla.map((p) => ({
       titulo: p.titulo,
       due_date: p.dias_plazo_relativo != null
@@ -255,6 +264,21 @@ export default function Cases() {
     })))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plantillaFirma, selectedService?.id, editing])
+
+  useEffect(() => {
+    const prior = previousOpening.current
+    const service = selectedService?.id || 0
+    if (!editing && prior.service === service && prior.date && prior.date !== form.opened_at && form.opened_at) {
+      const shift = new Date(form.opened_at+'T12:00:00').getTime() - new Date(prior.date+'T12:00:00').getTime()
+      setTareasIniciales(prev=>prev.map(t=>{
+        const source = plantilla.find(p=>p.titulo===t.titulo)
+        if (!source || source.dias_plazo_relativo == null) return t
+        const oldAuto = new Date(new Date(prior.date+'T12:00:00').getTime()+source.dias_plazo_relativo*86400000).toISOString().slice(0,10)
+        return t.due_date === oldAuto ? {...t,due_date:new Date(new Date(t.due_date+'T12:00:00').getTime()+shift).toISOString().slice(0,10)} : t
+      }))
+    }
+    previousOpening.current={service,date:form.opened_at}
+  }, [form.opened_at,selectedService?.id,editing])
 
   const createCase = useMutation({
     mutationFn: (d: CaseIn) => casesApi.create(d),
@@ -287,12 +311,15 @@ export default function Cases() {
   })
 
   function openNew(clientId = '') {
+    setAcuerdo({alcance:'',condiciones_cobro:'',revision_confirmada:false,revision_observaciones:''})
     setEditing(null); setForm({ ...EMPTY_FORM, client_id: clientId || (urlClientId ? String(urlClientId) : '') })
-    setSelectedService(null); setServiceSearch(''); setTareasIniciales([]); setNuevaTareaInicial(''); setNuevoCliente(false); setDlg(true)
+    setSelectedService(null); setServiceSearch(''); setTareasIniciales([]); setNuevoCliente(false); setDlg(true)
   }
   function openEdit(c: Case) {
     setEditing(c)
     setForm({
+      motivo_atribucion: '',
+      origen_negocio: c.origen_negocio, canal_captacion: c.canal_captacion, tipo_comercial: c.tipo_comercial, originador_id: '',
       client_id: String(c.client_id), title: c.title, status: c.status,
       priority: c.priority, opened_at: c.opened_at, notes: c.notes ?? '',
       internal_ref: c.internal_ref ?? '', official_ref: c.official_ref ?? '',
@@ -302,6 +329,7 @@ export default function Cases() {
       honorarios_contratados: c.honorarios_contratados ? String(c.honorarios_contratados) : '',
       costos_directos_estimados: c.costos_directos_estimados ? String(c.costos_directos_estimados) : '',
       mes_cobro_esperado: c.mes_cobro_esperado ?? '',
+      probabilidad_cobro: String((c.probabilidad_cobro ?? 0.7) * 100),
       estado_cobro: c.estado_cobro ?? 'En ejecución',
       fecha_cierre_estimada: c.fecha_cierre_estimada ?? '',
       fecha_cierre_real: c.fecha_cierre_real ?? '',
@@ -315,9 +343,16 @@ export default function Cases() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    if (!form.opened_at) return toast.error('Completa la fecha de apertura')
     if (!form.client_id) return toast.error('Selecciona o registra el cliente')
+    if (!form.mes_cobro_esperado || form.probabilidad_cobro === '') return toast.error('Completa el mes esperado y la probabilidad de cobro')
     if (!form.title.trim()) return toast.error('El título es requerido')
+    if (!editing && (!acuerdo.revision_confirmada || !acuerdo.alcance.trim() || !acuerdo.condiciones_cobro.trim() || !form.service_id || !form.responsible_username || form.honorarios_contratados === '')) return toast.error('Confirma el acuerdo, servicio, honorarios y responsable antes de abrir')
+    if (!editing && (!tareasIniciales.some(t=>t.incluida) || tareasIniciales.some(t=>t.incluida && (!t.titulo.trim() || !t.due_date)))) return toast.error('Incluye al menos una tarea inicial y completa sus fechas')
     const payload = {
+      motivo_atribucion: form.motivo_atribucion,
+      origen_negocio: form.origen_negocio, canal_captacion: form.canal_captacion, tipo_comercial: form.tipo_comercial,
+      originador_id: form.originador_id ? Number(form.originador_id) : null,
       client_id: Number(form.client_id), title: form.title,
       status: form.status as CaseIn['status'], priority: form.priority as CaseIn['priority'],
       opened_at: form.opened_at, notes: form.notes,
@@ -328,6 +363,7 @@ export default function Cases() {
       honorarios_contratados: form.honorarios_contratados ? Number(form.honorarios_contratados) : null,
       costos_directos_estimados: form.costos_directos_estimados ? Number(form.costos_directos_estimados) : null,
       mes_cobro_esperado: form.mes_cobro_esperado || null,
+      probabilidad_cobro: Number(form.probabilidad_cobro) / 100,
       estado_cobro: form.estado_cobro,
       fecha_cierre_estimada: form.fecha_cierre_estimada || null,
       fecha_cierre_real: form.fecha_cierre_real || null,
@@ -338,14 +374,18 @@ export default function Cases() {
     } else {
       createCase.mutate({
         ...payload,
+        ...acuerdo,
         tareas_iniciales: tareasIniciales.filter((t) => t.incluida).map((t) => ({
           titulo: t.titulo, due_date: t.due_date || null, es_critico: t.es_critico,
-          notes: t.notes || null, responsible_username: t.responsible_username,
-          costo_estimado: t.costo_estimado, etiqueta_ids: t.etiqueta_ids,
+          notes: t.notes || null, responsible_username: t.responsible_username || form.responsible_username,
+          costo_estimado: t.costo_estimado, etiqueta_ids: t.etiqueta_ids, asignados: t.asignados,
         })),
       })
     }
   }
+
+  const canOrigins=usePermission('comisiones','ver')
+  const { data: personalApertura = [] } = useQuery({ queryKey: ['personal-choices'], queryFn: finanzasApi.personalChoices, enabled: dlg && !editing })
 
   const f = (k: keyof FormData) => (v: string) => setForm((p) => ({ ...p, [k]: v }))
 
@@ -533,9 +573,11 @@ export default function Cases() {
 
       {/* Form Dialog */}
       <Dialog open={dlg} onOpenChange={(o) => !o && setDlg(false)}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-2xl grid-rows-[auto_minmax(0,1fr)] overflow-hidden">
           <DialogHeader><DialogTitle>{editing ? 'Editar expediente' : 'Nuevo expediente'}</DialogTitle></DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-1">
+          <form onSubmit={handleSubmit} className="relative grid min-h-0 grid-rows-[minmax(0,1fr)_auto] gap-4 overflow-hidden">
+            <div className="relative min-h-0 space-y-4 overflow-y-auto pr-1">
+            <FormGuidance required={editing ? 'Cliente, título, fecha de apertura, mes y probabilidad de cobro.' : 'Cliente, título, fecha, servicio, responsable, honorarios (pueden ser 0), origen, canal, tipo comercial, acuerdo, revisión y una tarea inicial con fecha; mes y probabilidad de cobro.'} optional="Número judicial, contraparte, juzgado, notas, próxima acción y fecha de cierre estimada. El número interno se genera al guardar. Sin presupuesto inicial se usa la estimación de las tareas. Sin originador no se genera comisión." missing={[!form.client_id && 'cliente', !form.title.trim() && 'título', !form.opened_at && 'fecha de apertura', !form.mes_cobro_esperado && 'mes de cobro', form.probabilidad_cobro === '' && 'probabilidad', !editing && !form.service_id && 'servicio', !editing && !form.responsible_username && 'responsable', !editing && form.honorarios_contratados === '' && 'honorarios', !editing && !form.origen_negocio && 'origen', !editing && !form.canal_captacion && 'canal', !editing && !form.tipo_comercial && 'tipo comercial', !editing && !acuerdo.alcance.trim() && 'alcance', !editing && !acuerdo.condiciones_cobro.trim() && 'condiciones de cobro', !editing && !acuerdo.revision_confirmada && 'confirmación de revisión', !editing && (!tareasIniciales.some(t=>t.incluida) || tareasIniciales.some(t=>t.incluida && (!t.titulo.trim() || !t.due_date))) && 'plan inicial con títulos y fechas']} />
             {/* Datos generales */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1 col-span-2">
@@ -619,45 +661,34 @@ export default function Cases() {
                 <p className="text-[11px] text-muted-foreground">Categoría, subcategoría y familia se completan solas a partir del servicio.</p>
               </div>
 
-              {!editing && selectedService && tareasIniciales.length > 0 && (
-                <div className="space-y-1.5 mb-3 rounded-lg p-3" style={{ background: 'hsl(var(--muted))' }}>
-                  <Label className="text-xs">Tareas sugeridas de la plantilla ({tareasIniciales.filter((t) => t.incluida).length} de {tareasIniciales.length})</Label>
-                  {tareasIniciales.map((t, i) => (
-                    <label key={i} className="flex items-center gap-2 text-xs cursor-pointer">
-                      <input type="checkbox" checked={t.incluida} className="h-3.5 w-3.5 shrink-0"
-                        onChange={(e) => setTareasIniciales((p) => p.map((x, j) => j === i ? { ...x, incluida: e.target.checked } : x))} />
-                      <span className={`flex-1 ${t.incluida ? '' : 'line-through text-muted-foreground'}`}>{t.titulo}</span>
-                      {t.due_date && <span className="text-[10px] text-muted-foreground shrink-0">{t.due_date}</span>}
-                      {t.es_critico && <AlertTriangle className="h-3 w-3 text-destructive shrink-0" />}
-                    </label>
-                  ))}
-                  <p className="text-[10px] text-muted-foreground pt-1">Se crean junto con el expediente, incluidas en los honorarios pactados sin recargo aparte.</p>
+              <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {([{key:'origen_negocio',label:'Origen del negocio',options:['Andrea','Alfredo','Guadalupe','Referido','Orgánico','Otro']},
+                    {key:'canal_captacion',label:'Canal de captación',options:['Instagram','Google','LinkedIn','Referido','Otro']},
+                    {key:'tipo_comercial',label:'Tipo comercial',options:['Cliente nuevo','Venta cruzada','Cliente existente']}] as const).map(field => <div key={field.key} className="space-y-1">
+                      <Label>{field.label} *</Label><Select value={form[field.key]} onValueChange={f(field.key)}><SelectTrigger><SelectValue placeholder="Seleccionar"/></SelectTrigger><SelectContent>{field.options.map(v=><SelectItem key={v} value={v}>{v}</SelectItem>)}</SelectContent></Select>
+                    </div>)}
+                  {!editing && <div className="space-y-1"><Label>Originador con participación</Label><Select value={form.originador_id || 'none'} onValueChange={v=>f('originador_id')(v==='none'?'':v)}><SelectTrigger><SelectValue/></SelectTrigger><SelectContent><SelectItem value="none">Sin comisión</SelectItem>{personalApertura.map(p=><SelectItem key={p.id} value={String(p.id)}>{p.persona}</SelectItem>)}</SelectContent></Select></div>}
                 </div>
-              )}
-              {!editing && selectedService && (
-                <div className="flex gap-2 mb-3">
-                  <Input value={nuevaTareaInicial} onChange={(e) => setNuevaTareaInicial(e.target.value)} placeholder="Agregar otra tarea inicial..." className="h-8 text-xs" />
-                  <Button type="button" size="sm" variant="outline" className="h-8 text-xs shrink-0"
-                    onClick={() => {
-                      if (!nuevaTareaInicial.trim()) return
-                      setTareasIniciales((p) => [...p, { titulo: nuevaTareaInicial.trim(), due_date: '', es_critico: false,
-                        incluida: true, notes: '', responsible_username: '', costo_estimado: 0, etiqueta_ids: [] }])
-                      setNuevaTareaInicial('')
-                    }}>
-                    <Plus className="h-3 w-3" />Agregar
-                  </Button>
-                </div>
-              )}
+                <p className="text-xs text-muted-foreground">La participación requiere revisión antes de pagarse. El origen orgánico puede registrarse sin comisión.</p>
+                {editing && <div className="space-y-1"><Label>Motivo del cambio de atribución</Label><Input value={form.motivo_atribucion} onChange={e=>f('motivo_atribucion')(e.target.value)} placeholder="Solo si corriges origen, canal o tipo comercial"/></div>}
+              </div>
+              {!editing && <div className="space-y-3">
+                <Label>Alcance aceptado</Label><Textarea value={acuerdo.alcance} onChange={e=>setAcuerdo({...acuerdo,alcance:e.target.value})} placeholder="Trabajo incluido y aceptación del cliente"/>
+                <Label>Condiciones de cobro</Label><Textarea value={acuerdo.condiciones_cobro} onChange={e=>setAcuerdo({...acuerdo,condiciones_cobro:e.target.value})} placeholder="Anticipo, cuotas o hitos acordados"/>
+                <Label>Revisión de apertura</Label><Textarea value={acuerdo.revision_observaciones} onChange={e=>setAcuerdo({...acuerdo,revision_observaciones:e.target.value})} placeholder="Coincidencias revisadas, posibles conflictos y documentos pendientes"/>
+                <label className="flex gap-2 text-sm"><input type="checkbox" checked={acuerdo.revision_confirmada} onChange={e=>setAcuerdo({...acuerdo,revision_confirmada:e.target.checked})}/> Confirmé cliente, acuerdo y revisión de posibles conflictos.</label>
+                <OpeningTasks tasks={tareasIniciales} onChange={setTareasIniciales} users={users} defaultResponsible={form.responsible_username} date={form.opened_at}/>
+              </div>}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1"><Label>Honorarios contratados ($)</Label><Input type="number" step="0.01" min="0" value={form.honorarios_contratados} onChange={(e) => setForm({ ...form, honorarios_contratados: e.target.value })} placeholder="0.00" /></div>
                 <div className="space-y-1"><Label>Costos directos estimados ($)</Label><Input type="number" step="0.01" min="0" value={form.costos_directos_estimados} onChange={(e) => setForm({ ...form, costos_directos_estimados: e.target.value })} placeholder="0.00" /></div>
-                <div className="space-y-1"><Label>Mes de cobro esperado</Label><Input type="month" value={form.mes_cobro_esperado} onChange={(e) => setForm({ ...form, mes_cobro_esperado: e.target.value })} /></div>
+                <div className="space-y-1"><Label>Probabilidad de cobro (%) *</Label><Input required type="number" min="0" max="100" step="1" value={form.probabilidad_cobro} onChange={e=>setForm({...form,probabilidad_cobro:e.target.value})}/></div>
+                <div className="space-y-1"><Label>Mes de cobro esperado *</Label><Input required min={form.opened_at.slice(0,7)} type="month" value={form.mes_cobro_esperado} onChange={(e) => setForm({ ...form, mes_cobro_esperado: e.target.value })} /></div>
                 <div className="space-y-1">
                   <Label>Estado de cobro</Label>
-                  <Select value={form.estado_cobro} onValueChange={(v) => setForm({ ...form, estado_cobro: v as CaseEstadoCobro })}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>{ESTADOS_COBRO.map((e) => <SelectItem key={e} value={e}>{e}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <Input readOnly value={form.estado_cobro} />
+                  <p className="text-xs text-muted-foreground">Calculado con facturas, cobros y avance del expediente.</p>
                 </div>
                 {editing && (
                   <div className="space-y-1">
@@ -681,7 +712,7 @@ export default function Cases() {
               </div>
             </div>
 
-            {editing && <OriginadoresEditor caseId={editing.id} />}
+            {editing && canOrigins && <OriginadoresEditor caseId={editing.id} />}
 
             {/* Datos judiciales / expediente */}
             <div className="pt-1">
@@ -723,11 +754,11 @@ export default function Cases() {
                 </div>
                 <div className="space-y-1 col-span-2">
                   <Label>Abogado responsable</Label>
-                  <Select value={form.responsible_username} onValueChange={f('responsible_username')}>
+                  <Select value={form.responsible_username || '__none__'} onValueChange={v => f('responsible_username')(v === '__none__' ? '' : v)}>
                     <SelectTrigger><SelectValue placeholder="Sin asignar" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Sin asignar</SelectItem>
-                      {users.filter((u) => u.active).map((u) => (
+                      <SelectItem value="__none__">Sin asignar</SelectItem>
+                      {users.map((u) => (
                         <SelectItem key={u.username} value={u.username}>
                           {u.full_name ? `${u.full_name} (${u.username})` : u.username}
                         </SelectItem>
@@ -740,6 +771,7 @@ export default function Cases() {
 
             <div className="space-y-1"><Label>Notas</Label><Textarea rows={2} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></div>
 
+            </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDlg(false)}>Cancelar</Button>
               <Button type="submit" disabled={createCase.isPending || updateCase.isPending}>Guardar</Button>

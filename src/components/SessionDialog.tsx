@@ -17,11 +17,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog'
 import { formatCurrency, today } from '@/lib/utils'
 
-export const SESSION_STATUSES: SessionStatus[] = ['Pendiente', 'En proceso', 'Finalizada']
+export const SESSION_STATUSES: SessionStatus[] = ['Pendiente', 'En proceso', 'Finalizada', 'Cancelada']
 export const SESSION_STATUS_COLOR: Record<SessionStatus, string> = {
   Pendiente: '#f59e0b',
   'En proceso': '#3b82f6',
   Finalizada: '#22c55e',
+  Cancelada: '#94a3b8',
 }
 const CONSULT_PRESETS = [
   'Consulta inicial', 'Revisión de contrato', 'Asesoría laboral',
@@ -34,7 +35,7 @@ export function timeToFrac(t: string): number {
   return h + m / 60
 }
 export function fracToTime(frac: number): string {
-  const h = Math.floor(frac)
+  const h = Math.floor(Math.max(0, Math.min(frac, 23.9833)))
   const m = Math.round((frac - h) * 60)
   return `${String(h).padStart(2, '0')}:${String(Math.min(m, 59)).padStart(2, '0')}`
 }
@@ -58,7 +59,7 @@ export function invalidateSessions(qc: ReturnType<typeof useQueryClient>, caseId
 }
 
 type FormData = {
-  client_id: string; case_id: string; session_date: string
+  client_id: string; case_id: string; session_date: string; end_date: string
   start_time: string; end_time: string; consult_type: string
   notes: string; status: SessionStatus; monto_adicional: string
 }
@@ -83,8 +84,9 @@ export function SessionDialog({
     client_id: editing.client_id ? String(editing.client_id) : '',
     case_id: editing.case_id ? String(editing.case_id) : '',
     session_date: editing.session_date,
-    start_time: editing.start_time ?? '09:00',
-    end_time: editing.end_time ?? '10:00',
+    end_date: editing.end_date ?? editing.session_date,
+    start_time: editing.start_time ?? '',
+    end_time: editing.end_time ?? '',
     consult_type: editing.consult_type,
     notes: editing.notes ?? '',
     status: editing.status,
@@ -93,6 +95,7 @@ export function SessionDialog({
     client_id: fixedClientId ? String(fixedClientId) : initialClientId ? String(initialClientId) : '',
     case_id: fixedCaseId ? String(fixedCaseId) : '',
     session_date: initialDate ?? today(),
+    end_date: initialDate ?? today(),
     start_time: initialTime ?? '09:00',
     end_time: initialTime ? fracToTime(timeToFrac(initialTime) + 1) : '10:00',
     consult_type: '', notes: '', status: 'Pendiente', monto_adicional: '',
@@ -112,7 +115,7 @@ export function SessionDialog({
     enabled: open && !!form.session_date,
   })
   const conflict = form.start_time && form.end_time
-    ? delDia.find((s) => s.id !== editing?.id && s.start_time && s.end_time
+    ? delDia.find((s) => s.id !== editing?.id && !['Finalizada', 'Cancelada'].includes(s.status) && s.start_time && s.end_time
         && form.start_time < s.end_time && form.end_time > s.start_time) ?? null
     : null
 
@@ -123,6 +126,8 @@ export function SessionDialog({
     onSuccess: (s) => {
       invalidateSessions(qc, s.case_id)
       toast.success(editing ? 'Cita actualizada' : 'Cita agendada')
+      if (s.calendar_error) toast.warning(s.calendar_error)
+      qc.invalidateQueries({ queryKey: ['gcal-status'] })
       onOpenChange(false)
       onSaved?.(s)
     },
@@ -133,15 +138,18 @@ export function SessionDialog({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!form.client_id || !form.consult_type.trim()) return toast.error('Cliente y tipo de consulta son requeridos')
+    if (!form.consult_type.trim()) return toast.error('El tipo de consulta es requerido')
     if (!form.session_date) return toast.error('La fecha es requerida')
-    if (form.end_time <= form.start_time) return toast.error('La hora fin debe ser mayor que la hora inicio')
+    if (Boolean(form.start_time) !== Boolean(form.end_time)) return toast.error('Indica ambas horas o selecciona día completo')
+    if (form.end_date < form.session_date) return toast.error('La fecha final no puede ser anterior al inicio')
+    if (form.start_time && form.end_date === form.session_date && form.end_time <= form.start_time) return toast.error('La hora fin debe ser mayor que la hora inicio')
     save.mutate({
-      client_id: Number(form.client_id),
+      client_id: form.client_id ? Number(form.client_id) : null,
       case_id: form.case_id ? Number(form.case_id) : null,
       session_date: form.session_date,
-      start_time: form.start_time,
-      end_time: form.end_time,
+      end_date: form.end_date,
+      start_time: form.start_time || null,
+      end_time: form.end_time || null,
       consult_type: form.consult_type.trim(),
       notes: form.notes,
       status: form.status,
@@ -166,19 +174,19 @@ export function SessionDialog({
           {!fixedClientId && (
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1 col-span-2">
-                <Label>Cliente <span className="text-destructive text-xs">*</span></Label>
-                <Select value={form.client_id} onValueChange={(v) => setForm((p) => ({ ...p, client_id: v, case_id: '' }))}>
+                <Label>Cliente (opcional)</Label>
+                <Select value={form.client_id || '__none__'} onValueChange={(v) => setForm((p) => ({ ...p, client_id: v === '__none__' ? '' : v, case_id: '' }))}>
                   <SelectTrigger><SelectValue placeholder="Seleccionar cliente..." /></SelectTrigger>
-                  <SelectContent>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
+                  <SelectContent><SelectItem value="__none__">Sin cliente</SelectItem>{clients.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               {!fixedCaseId && (
                 <div className="space-y-1 col-span-2">
                   <Label>Expediente (opcional)</Label>
-                  <Select value={form.case_id} onValueChange={(v) => set('case_id', v)}>
+                  <Select value={form.case_id || '__none__'} onValueChange={(v) => set('case_id', v === '__none__' ? '' : v)}>
                     <SelectTrigger><SelectValue placeholder="Sin expediente específico" /></SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Sin expediente específico</SelectItem>
+                      <SelectItem value="__none__">Sin expediente específico</SelectItem>
                       {caseChoices.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.title}</SelectItem>)}
                     </SelectContent>
                   </Select>
@@ -190,7 +198,7 @@ export function SessionDialog({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label>Fecha <span className="text-destructive text-xs">*</span></Label>
-              <Input type="date" value={form.session_date} onChange={(e) => set('session_date', e.target.value)} />
+              <Input type="date" value={form.session_date} onChange={(e) => setForm(p => ({ ...p, session_date: e.target.value, end_date: p.end_date < e.target.value ? e.target.value : p.end_date }))} />
             </div>
             <div className="space-y-1">
               <Label>Inicio</Label>
@@ -200,6 +208,10 @@ export function SessionDialog({
               <Label>Fin</Label>
               <Input type="time" value={form.end_time} onChange={(e) => set('end_time', e.target.value)} />
             </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1"><Label>Fecha final</Label><Input type="date" min={form.session_date} value={form.end_date} onChange={e => set('end_date', e.target.value)} /></div>
+            <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={!form.start_time && !form.end_time} onChange={e => setForm(p => ({ ...p, start_time: e.target.checked ? '' : '09:00', end_time: e.target.checked ? '' : '10:00' }))} />Día completo</label>
           </div>
           <div className="flex items-center gap-2 -mt-2 min-h-[18px]">
             {form.start_time && form.end_time && form.end_time > form.start_time && (

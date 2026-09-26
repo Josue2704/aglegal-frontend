@@ -24,9 +24,9 @@ const MODULE_LABELS: Record<string, string> = {
   usuarios: 'Usuarios', roles: 'Roles y Permisos', configuracion: 'Configuración',
 }
 const ACTION_LABELS: Record<string, string> = {
-  ver: 'Ver', crear: 'Crear', editar: 'Editar', eliminar: 'Eliminar', aprobar: 'Aprobar',
+  ver: 'Ver', crear: 'Crear', editar: 'Editar', eliminar: 'Eliminar', aprobar: 'Aprobar', pagar: 'Pagar',
 }
-const ACTION_ORDER = ['ver', 'crear', 'editar', 'eliminar', 'aprobar']
+const ACTION_ORDER = ['ver', 'crear', 'editar', 'eliminar', 'aprobar', 'pagar']
 
 function groupPermissions(perms: Permission[]) {
   const map: Record<string, Record<string, Permission>> = {}
@@ -41,7 +41,8 @@ function PermissionMatrix({
   allPerms, selected, onChange,
 }: { allPerms: Permission[]; selected: Set<number>; onChange: (ids: Set<number>) => void }) {
   const grouped = groupPermissions(allPerms)
-  const modules = Object.keys(MODULE_LABELS).filter(m => grouped[m])
+  const modules = [...new Set([...Object.keys(MODULE_LABELS), ...Object.keys(grouped)])].filter(m => grouped[m])
+  const actions = [...new Set([...ACTION_ORDER, ...allPerms.map(p => p.action)])]
 
   function toggleCell(id: number) {
     const next = new Set(selected)
@@ -63,7 +64,7 @@ function PermissionMatrix({
         <thead>
           <tr className="bg-muted/60 border-b">
             <th className="text-left px-4 py-2.5 font-medium text-muted-foreground w-48">Módulo</th>
-            {ACTION_ORDER.map(a => (
+            {actions.map(a => (
               <th key={a} className="text-center px-3 py-2.5 font-medium text-muted-foreground w-20">
                 {ACTION_LABELS[a] ?? a}
               </th>
@@ -80,12 +81,13 @@ function PermissionMatrix({
             return (
               <tr key={mod} className={`border-b last:border-0 ${i % 2 === 0 ? '' : 'bg-muted/20'}`}>
                 <td className="px-4 py-2.5 font-medium">{MODULE_LABELS[mod] ?? mod}</td>
-                {ACTION_ORDER.map(action => {
+                {actions.map(action => {
                   const perm = cells[action]
                   return (
                     <td key={action} className="px-3 py-2.5 text-center">
                       {perm ? (
                         <Checkbox
+                          aria-label={`${MODULE_LABELS[mod] ?? mod}: ${ACTION_LABELS[action] ?? action}`}
                           checked={selected.has(perm.id)}
                           onCheckedChange={() => toggleCell(perm.id)}
                           className="mx-auto"
@@ -153,7 +155,7 @@ function RoleDialog({
             {editing ? `Editar rol — ${editing.name}` : 'Nuevo rol'}
           </DialogTitle>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="min-w-0 space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label>Nombre <span className="text-destructive text-xs">*</span></Label>

@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react'
+import { useState, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
   Plus, Printer, Pencil, Trash2, FileText, ChevronDown, ChevronUp,
@@ -6,9 +6,10 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { invoicesApi } from '@/api/invoices'
-import { incomesApi } from '@/api/incomes'
+import { useSearchParams } from 'react-router-dom'
 import { finanzasApi } from '@/api/finanzas'
-import type { Invoice, InvoiceItemIn, InvoiceStatus, UnbilledItems } from '@/types'
+import type { Invoice, InvoiceItemIn, UnbilledItems } from '@/types'
+import { useAuthStore } from '@/store/auth'
 import { useSettingsStore } from '@/store/settings'
 import { formatCurrency, formatDate, exportCsv, today as todayStr } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -24,11 +25,11 @@ import { invoicesHelp } from '@/lib/helpContent'
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   Borrador:  { label: 'Borrador',  color: 'bg-muted/60 text-muted-foreground' },
-  Enviada:   { label: 'Enviada',   color: 'bg-blue-500/15 text-blue-500' },
+  Parcial: { label: 'Pago parcial', color: 'bg-amber-500/15 text-amber-500' },
+  Enviada:   { label: 'Emitida',   color: 'bg-blue-500/15 text-blue-500' },
   Pagada:    { label: 'Pagada',    color: 'bg-emerald-500/15 text-emerald-500' },
   Cancelada: { label: 'Cancelada', color: 'bg-red-500/15 text-red-500' },
 }
-const STATUSES = ['Borrador', 'Enviada', 'Pagada', 'Cancelada']
 
 function StatusBadge({ status }: { status: string }) {
   const cfg = STATUS_CONFIG[status] ?? { label: status, color: 'bg-muted/60 text-muted-foreground' }
@@ -41,6 +42,20 @@ function StatusBadge({ status }: { status: string }) {
 
 // ─── Print helper ──────────────────────────────────────────────────────────────
 
+function lineSubtotal(it: InvoiceItemIn) {
+  return Math.round(Math.round((it.unit_price + Number.EPSILON) * 100) * it.quantity + Number.EPSILON) / 100
+}
+
+function escapeHtml(value: unknown) {
+  return String(value ?? '').replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!))
+}
+
+function refreshBilling(qc: ReturnType<typeof useQueryClient>) {
+  for (const key of ['invoices', 'incomes', 'cashflow', 'cases', 'case-tasks', 'all-tasks', 'unbilled', 'invoice-credits', 'comisiones', 'dashboard']) {
+    qc.invalidateQueries({queryKey:[key]})
+  }
+}
+
 function printInvoice(inv: Invoice, currency: string) {
   const fmt = (n: number) =>
     new Intl.NumberFormat('es-CR', { style: 'currency', currency, minimumFractionDigits: 2 }).format(n)
@@ -49,7 +64,7 @@ function printInvoice(inv: Invoice, currency: string) {
     .map(
       (it) =>
         `<tr>
-          <td>${it.description}</td>
+          <td>${escapeHtml(it.description)}</td>
           <td class="num">${it.quantity % 1 === 0 ? it.quantity : it.quantity.toFixed(2)}</td>
           <td class="num">${fmt(it.unit_price)}</td>
           <td class="num">${fmt(it.subtotal)}</td>
@@ -62,7 +77,7 @@ function printInvoice(inv: Invoice, currency: string) {
     .join(' · ')
 
   const html = `<!doctype html><html><head><meta charset="utf-8">
-  <title>Factura ${inv.invoice_number}</title>
+  <title>Factura ${escapeHtml(inv.invoice_number)}</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
     body{font-family:Arial,sans-serif;color:#222;padding:32px;font-size:13px}
@@ -88,20 +103,20 @@ function printInvoice(inv: Invoice, currency: string) {
 </head><body>
   <div class="header">
     <div>
-      <div class="firm-name">${inv.firm_name || 'Despacho Jurídico'}</div>
-      <div class="firm-sub">${firmLine || ''}</div>
+      <div class="firm-name">${escapeHtml(inv.firm_name || 'Despacho Jurídico')}</div>
+      <div class="firm-sub">${escapeHtml(firmLine)}</div>
     </div>
     <div class="inv-title">
-      <div class="inv-number">Factura ${inv.invoice_number}</div>
-      <div class="inv-status">${inv.status}</div>
+      <div class="inv-number">Factura ${escapeHtml(inv.invoice_number)}</div>
+      <div class="inv-status">${escapeHtml(inv.status)}</div>
     </div>
   </div>
   <hr class="divider"/>
   <div class="info-grid">
     <div class="info-block">
       <div class="lbl">Facturado a</div>
-      <div class="val">${inv.client_name || ''}</div>
-      ${inv.case_title ? `<div style="color:#666;font-size:12px;margin-top:2px">Expediente: ${inv.case_title}</div>` : ''}
+      <div class="val">${escapeHtml(inv.client_name)}</div>
+      ${inv.case_title ? `<div style="color:#666;font-size:12px;margin-top:2px">Expediente: ${escapeHtml(inv.case_title)}</div>` : ''}
     </div>
     <div class="info-block" style="text-align:right">
       <div class="lbl">Fecha de emisión</div>
@@ -126,9 +141,13 @@ function printInvoice(inv: Invoice, currency: string) {
         <td colspan="3">Total</td>
         <td class="num">${fmt(inv.total)}</td>
       </tr>
+      <tr><td colspan="3">Honorarios</td><td class="num">${fmt(inv.total - inv.reimbursement_total)}</td></tr>
+      <tr><td colspan="3">Reembolsos</td><td class="num">${fmt(inv.reimbursement_total)}</td></tr>
+      <tr><td colspan="3">Pagos aplicados</td><td class="num">${fmt(inv.paid)}</td></tr>
+      <tr><td colspan="3">${inv.status === 'Cancelada' ? 'Documento cancelado — no exigible' : 'Saldo pendiente'}</td><td class="num">${fmt(inv.status === 'Cancelada' ? 0 : inv.balance)}</td></tr>
     </tfoot>
   </table>
-  ${inv.notes ? `<div class="notes"><strong>Notas:</strong> ${inv.notes}</div>` : ''}
+  ${inv.notes ? `<div class="notes"><strong>Notas:</strong> ${escapeHtml(inv.notes)}</div>` : ''}
   <div class="footer">Documento generado por AGLegal</div>
   <br>
   <button onclick="window.print()" style="padding:8px 16px;background:#1a1a3e;color:#fff;border:none;border-radius:4px;cursor:pointer">Imprimir / Guardar PDF</button>
@@ -143,117 +162,68 @@ function printInvoice(inv: Invoice, currency: string) {
 
 // ─── Register Income Dialog ────────────────────────────────────────────────────
 
-function RegisterIncomeDialog({
-  invoice,
-  onClose,
-}: {
-  invoice: Invoice
-  onClose: () => void
-}) {
+function RegisterIncomeDialog({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
   const qc = useQueryClient()
-  const today = new Date().toISOString().split('T')[0]
-  const [amount, setAmount] = useState(String(invoice.total))
-  const [incomeDate, setIncomeDate] = useState(today)
-  const [accountId, setAccountId] = useState<number | null>(null)
-  const [detail, setDetail] = useState(`Factura ${invoice.invoice_number}`)
-
-  const { data: cuentas = [] } = useQuery({
-    queryKey: ['finanzas-cuentas', 'Ingreso'],
-    queryFn: () => finanzasApi.listCuentas({ tipo: 'Ingreso' }),
-  })
-
+  const [amount, setAmount] = useState(String(invoice.balance))
+  const [incomeDate, setIncomeDate] = useState(todayStr())
+  const [accountId, setAccountId] = useState('')
+  const [detail, setDetail] = useState('')
+  const [source, setSource] = useState('new')
+  const request = useRef({ signature: '', key: '' })
+  const user = useAuthStore((s) => s.user)
+  const canRegister = user?.is_admin || (user?.permissions.includes('facturas.editar') && user?.permissions.includes('flujo_caja.crear'))
+  const canPay = canRegister && (invoice.status === 'Enviada' || invoice.status === 'Parcial') && !invoice.needs_review
+  const { data: cuentas = [] } = useQuery({queryKey:['finanzas-cuentas','Ingreso'],queryFn:()=>finanzasApi.listCuentas({tipo:'Ingreso',estado:'Activo'})})
+  const { data: credits = [] } = useQuery({queryKey:['invoice-credits',invoice.id],queryFn:()=>invoicesApi.credits(invoice.id),enabled:canPay})
+  const selected = credits.find((c) => String(c.id) === source)
   const save = useMutation({
     mutationFn: () => {
-      if (!accountId) throw new Error('La cuenta contable es requerida')
-      return incomesApi.create({
-        amount: parseFloat(amount) || invoice.total,
-        income_date: incomeDate,
-        client_id: invoice.client_id,
-        case_id: invoice.case_id,
-        account_id: accountId,
-        detail,
-        invoice_id: invoice.id,
-      })
+      const data = source === 'new'
+        ? {amount:Number(amount),income_date:incomeDate,account_id:Number(accountId),detail}
+        : {amount:Number(amount),income_id:Number(source)}
+      const signature = JSON.stringify(data)
+      if (request.current.signature !== signature) request.current = {signature,key:crypto.randomUUID()}
+      return invoicesApi.pay(invoice.id,{...data,request_key:request.current.key})
     },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['invoices'] })
-      qc.invalidateQueries({ queryKey: ['incomes'] })
-      toast.success('Ingreso registrado')
-      onClose()
-    },
-    onError: () => toast.error('Error al registrar el ingreso'),
+    onSuccess: () => { refreshBilling(qc); toast.success(source === 'new' ? 'Pago registrado con su fecha real' : 'Anticipo aplicado sin duplicar el ingreso'); onClose() },
+    onError: (e: unknown) => toast.error((e as {response?:{data?:{detail?:string}}})?.response?.data?.detail ?? 'No se pudo registrar el pago'),
   })
-
-  return (
-    <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <DollarSign className="h-5 w-5 text-emerald-500" />
-            Registrar Ingreso
-          </DialogTitle>
-        </DialogHeader>
-        <p className="text-sm text-muted-foreground -mt-2">
-          Factura <span className="font-mono font-medium">{invoice.invoice_number}</span> — {invoice.client_name}
-        </p>
-
-        <div className="space-y-3 pt-1">
-          <div className="space-y-1">
-            <Label className="text-xs">Monto <span className="text-destructive text-xs">*</span></Label>
-            <Input
-              type="number"
-              min={0}
-              step={0.01}
-              className="h-8 text-sm"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Fecha de cobro <span className="text-destructive text-xs">*</span></Label>
-            <Input
-              type="date"
-              className="h-8 text-sm"
-              value={incomeDate}
-              onChange={(e) => setIncomeDate(e.target.value)}
-            />
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Cuenta contable <span className="text-destructive text-xs">*</span></Label>
-            <Select
-              value={accountId ? String(accountId) : ''}
-              onValueChange={(v) => setAccountId(v ? parseInt(v) : null)}
-            >
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue placeholder="Seleccionar cuenta..." />
-              </SelectTrigger>
-              <SelectContent>
-                {cuentas.map((c) => (
-                  <SelectItem key={c.id} value={String(c.id)}>{c.account_code} — {c.nombre}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-xs">Detalle / concepto</Label>
-            <Input
-              className="h-8 text-sm"
-              value={detail}
-              onChange={(e) => setDetail(e.target.value)}
-            />
-          </div>
+  return <Dialog open onOpenChange={onClose}>
+    <DialogContent className="max-w-xl">
+      <DialogHeader><DialogTitle>Pagos · {invoice.invoice_number}</DialogTitle></DialogHeader>
+      <p className="text-sm">{invoice.client_name} · Total {formatCurrency(invoice.total)} · Aplicado {formatCurrency(invoice.paid)} · Saldo {formatCurrency(invoice.status === 'Cancelada' ? 0 : invoice.balance)}</p>
+      {invoice.needs_review && <p className="text-sm text-amber-600">El historial anterior tiene una diferencia entre factura y pagos. Revisa sus registros antes de continuar.</p>}
+      {invoice.status === 'Cancelada' && <p className="text-sm text-muted-foreground">Los pagos conservan su ingreso y quedan disponibles para aplicarlos a otra factura del mismo expediente.</p>}
+      {invoice.payments.length > 0 && <div className="max-h-48 overflow-y-auto space-y-2 rounded-lg border p-3">
+        {invoice.payments.map((p) => <div key={p.id} className="text-xs border-b pb-2 last:border-0">
+          <p className="font-medium">{formatDate(p.income_date)} · {formatCurrency(p.amount_cents / 100)} {p.released_at ? '· Liberado como saldo a favor' : '· Aplicado'}</p>
+          <p className="text-muted-foreground">{p.detail} · Ingreso #{p.income_id}</p>
+          {p.reimbursement_cents > 0 && <p>Reembolso: {formatCurrency(p.reimbursement_cents / 100)}</p>}
+        </div>)}
+      </div>}
+      {canPay && <div className="space-y-3">
+        <div className="space-y-1"><Label>Origen del pago</Label>
+          <Select value={source} onValueChange={(v) => {setSource(v);const c=credits.find((x)=>String(x.id)===v);setAmount(String(Math.min(invoice.balance,c?.applicable ?? invoice.balance)))}}>
+            <SelectTrigger><SelectValue /></SelectTrigger><SelectContent>
+              <SelectItem value="new">Nuevo pago recibido</SelectItem>
+              {credits.map((c)=><SelectItem key={c.id} value={String(c.id)} disabled={c.applicable<=0}>Anticipo #{c.id} · {formatDate(c.income_date)} · {formatCurrency(c.available)} (aplicable {formatCurrency(c.applicable)})</SelectItem>)}
+            </SelectContent></Select>
         </div>
-
-        <DialogFooter className="mt-2">
-          <Button variant="ghost" onClick={onClose}>Omitir</Button>
-          <Button disabled={save.isPending || !accountId} onClick={() => save.mutate()}>
-            <Check className="h-4 w-4" />
-            {save.isPending ? 'Guardando...' : 'Registrar'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-1"><Label htmlFor="payment-amount">Importe a aplicar</Label><Input id="payment-amount" type="number" min="0.01" step="0.01" max={Math.min(invoice.balance,selected?.applicable ?? invoice.balance)} value={amount} onChange={(e)=>setAmount(e.target.value)} /></div>
+          {source === 'new' && <div className="space-y-1"><Label htmlFor="payment-date">Fecha real del pago</Label><Input id="payment-date" type="date" max={todayStr()} value={incomeDate} onChange={(e)=>setIncomeDate(e.target.value)} /></div>}
+        </div>
+        {source === 'new' ? <>
+          <div className="space-y-1"><Label>Cuenta de ingreso</Label><Select value={accountId} onValueChange={setAccountId}><SelectTrigger><SelectValue placeholder="Seleccionar cuenta..." /></SelectTrigger><SelectContent>{cuentas.map((c)=><SelectItem key={c.id} value={String(c.id)}>{c.account_code} — {c.nombre}</SelectItem>)}</SelectContent></Select></div>
+          <div className="space-y-1"><Label htmlFor="payment-reference">Medio y referencia</Label><Input id="payment-reference" placeholder="Transferencia, banco y referencia / efectivo..." value={detail} onChange={(e)=>setDetail(e.target.value)} /></div>
+          {invoice.reimbursement_total > 0 && <p className="text-xs text-muted-foreground">El pago se distribuye proporcionalmente entre honorarios y reembolsos. La parte reembolsable no cuenta como honorario.</p>}
+        </> : <p className="text-xs text-muted-foreground">Aplica dinero que ya está en caja. Se conserva su clasificación: {formatCurrency(selected?.reimbursement_available ?? 0)} disponible como reembolso.</p>}
+      </div>}
+      <DialogFooter><Button variant="outline" onClick={onClose}>Cerrar</Button>
+        {canPay && <Button disabled={save.isPending || Number(amount)<=0 || Number(amount)>invoice.balance || (source==='new' ? !accountId || !incomeDate || !detail.trim() : !selected || Number(amount)>selected.applicable)} onClick={()=>save.mutate()}>{save.isPending ? 'Guardando...' : source==='new' ? 'Registrar pago' : 'Aplicar anticipo'}</Button>}
+      </DialogFooter>
+    </DialogContent>
+  </Dialog>
 }
 
 // ─── Line items editor ────────────────────────────────────────────────────────
@@ -292,11 +262,12 @@ function LineItemsEditor({
             value={it.description}
             onChange={(e) => update(it._key, 'description', e.target.value)}
           />
-          <div className="flex gap-2 items-center shrink-0 ml-auto">
+          <div className="flex flex-wrap gap-2 items-center ml-auto">
             <Input
               type="number"
               className="w-16 text-sm h-8"
               placeholder="Cant."
+              disabled={!!it.entity_type}
               min={0.01}
               step={0.01}
               value={it.quantity}
@@ -306,13 +277,14 @@ function LineItemsEditor({
               type="number"
               className="w-24 text-sm h-8"
               placeholder="Precio"
-              min={0}
+              disabled={it.entity_type === 'case_task' || it.entity_type === 'cost'}
+              min={0.01}
               step={0.01}
               value={it.unit_price}
               onChange={(e) => update(it._key, 'unit_price', parseFloat(e.target.value) || 0)}
             />
             <span className="w-20 text-right text-sm font-medium shrink-0">
-              {formatCurrency(it.quantity * it.unit_price)}
+              {formatCurrency(lineSubtotal(it))}
             </span>
             <button
               onClick={() => remove(it._key)}
@@ -333,16 +305,48 @@ function LineItemsEditor({
 
 // ─── Unbilled items picker ────────────────────────────────────────────────────
 
+function UnbilledSection({
+    id,
+    title,
+    count,
+    children,
+    open,
+    onToggle,
+  }: {
+    id: string
+    open: string | null
+    onToggle: () => void
+    title: string
+    count: number
+    children: React.ReactNode
+  }) { return (
+    <div className="rounded-lg border" style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
+      <button
+        className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium"
+        onClick={onToggle}
+      >
+        <span>
+          {title} <span className="text-muted-foreground font-normal">({count})</span>
+        </span>
+        {open === id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+      </button>
+      {open === id && <div className="px-3 pb-3 space-y-1">{children}</div>}
+    </div>
+  )
+}
+
 function UnbilledPicker({
   clientId,
   caseId,
   onSelect,
+  existing,
 }: {
+  existing: LineItem[]
   clientId: number
   caseId?: number | null
   onSelect: (items: LineItem[]) => void
 }) {
-  const [open, setOpen] = useState<'sessions' | 'tasks' | 'costs' | 'horas' | null>('sessions')
+  const [open, setOpen] = useState<'sessions' | 'tasks' | 'costs' | 'horas' | null>('tasks')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [prices, setPrices] = useState<Record<string, number>>({})
 
@@ -400,7 +404,7 @@ function UnbilledPicker({
             _key: crypto.randomUUID(),
             description: `Tarea: ${t.title}${t.case_title ? ` (${t.case_title})` : ''}`,
             quantity: 1,
-            unit_price: price,
+            unit_price: t.monto_adicional_cents / 100,
             entity_type: 'case_task',
             entity_id: t.id,
           })
@@ -411,7 +415,8 @@ function UnbilledPicker({
             _key: crypto.randomUUID(),
             description: `${c.concept}${c.detail ? ` — ${c.detail}` : ''}`,
             quantity: 1,
-            unit_price: price || c.amount,
+            unit_price: c.amount,
+            charge_type: 'Reembolso',
             entity_type: 'cost',
             entity_id: c.id,
           })
@@ -429,7 +434,9 @@ function UnbilledPicker({
       }
     })
     if (lines.length === 0) return
-    onSelect(lines)
+    const unique = lines.filter((line) => !existing.some((it) => it.entity_type === line.entity_type && it.entity_id === line.entity_id))
+    if (unique.some((line) => line.unit_price <= 0)) { toast.error('Indica el precio de las sesiones y horas seleccionadas'); return }
+    onSelect(unique)
     setSel(new Set())
   }
 
@@ -441,32 +448,7 @@ function UnbilledPicker({
       </p>
     )
 
-  const Section = ({
-    id,
-    title,
-    count,
-    children,
-  }: {
-    id: 'sessions' | 'tasks' | 'costs' | 'horas'
-    title: string
-    count: number
-    children: React.ReactNode
-  }) => (
-    <div className="rounded-lg border" style={{ borderColor: 'hsl(var(--c-inner-border))' }}>
-      <button
-        className="w-full flex items-center justify-between px-3 py-2 text-sm font-medium"
-        onClick={() => setOpen(open === id ? null : id)}
-      >
-        <span>
-          {title} <span className="text-muted-foreground font-normal">({count})</span>
-        </span>
-        {open === id ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-      </button>
-      {open === id && <div className="px-3 pb-3 space-y-1">{children}</div>}
-    </div>
-  )
-
-  const PriceInput = ({ k }: { k: string }) => (
+  const priceInput = ({ k }: { k: string }) => (
     <Input
       type="number"
       min={0}
@@ -482,80 +464,81 @@ function UnbilledPicker({
   return (
     <div className="space-y-2">
       {sessions.length > 0 && (
-        <Section id="sessions" title="Sesiones" count={sessions.length}>
+        <UnbilledSection open={open} onToggle={()=>setOpen(open === 'sessions' ? null : 'sessions')} id="sessions" title="Sesiones" count={sessions.length}>
           {sessions.map((s) => {
             const k = key('session', s.id)
             return (
               <label key={s.id} className="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-muted/30 rounded px-1">
-                <input type="checkbox" checked={sel.has(k)} onChange={() => toggle(k)} className="h-4 w-4 shrink-0" />
+                <input type="checkbox" disabled={existing.some((it) => `${it.entity_type === 'case_task' ? 'task' : it.entity_type === 'time_entry' ? 'horas' : it.entity_type}:${it.entity_id}` === k)} checked={sel.has(k)} onChange={() => toggle(k)} className="h-4 w-4 shrink-0" />
                 <span className="flex-1 text-xs">
                   <span className="font-medium">{s.session_date}</span>{' '}
                   <span className="text-muted-foreground">— {s.consult_type}</span>
                 </span>
-                {sel.has(k) && <PriceInput k={k} />}
+                {sel.has(k) && priceInput({k})}
               </label>
             )
           })}
-        </Section>
+        </UnbilledSection>
       )}
       {tasks.length > 0 && (
-        <Section id="tasks" title="Tareas completadas" count={tasks.length}>
+        <UnbilledSection open={open} onToggle={()=>setOpen(open === 'tasks' ? null : 'tasks')} id="tasks" title="Extras autorizados listos para facturar" count={tasks.length}>
           {tasks.map((t) => {
             const k = key('task', t.id)
             return (
               <label key={t.id} className="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-muted/30 rounded px-1">
-                <input type="checkbox" checked={sel.has(k)} onChange={() => toggle(k)} className="h-4 w-4 shrink-0" />
+                <input type="checkbox" disabled={existing.some((it) => `${it.entity_type === 'case_task' ? 'task' : it.entity_type === 'time_entry' ? 'horas' : it.entity_type}:${it.entity_id}` === k)} checked={sel.has(k)} onChange={() => toggle(k)} className="h-4 w-4 shrink-0" />
                 <span className="flex-1 text-xs">
                   <span className="font-medium">{t.title}</span>
                   {t.case_title && <span className="text-muted-foreground"> — {t.case_title}</span>}
                   {t.monto_adicional_cents > 0 && (
                     <span className="text-amber-600"> · acordado {formatCurrency(t.monto_adicional_cents / 100)}</span>
                   )}
+                  {t.cobro_anticipado && <span className="text-muted-foreground"> · anticipado acordado</span>}
                   {t.costo_es_reembolsable && t.costo_real_cents > 0 && (
                     <span className="text-blue-400"> · reembolsable {formatCurrency(t.costo_real_cents / 100)}</span>
                   )}
                 </span>
-                {sel.has(k) && <PriceInput k={k} />}
+
               </label>
             )
           })}
-        </Section>
+        </UnbilledSection>
       )}
       {costs.length > 0 && (
-        <Section id="costs" title="Costos del cliente" count={costs.length}>
+        <UnbilledSection open={open} onToggle={()=>setOpen(open === 'costs' ? null : 'costs')} id="costs" title="Gastos reembolsables" count={costs.length}>
           {costs.map((c) => {
             const k = key('cost', c.id)
             return (
               <label key={c.id} className="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-muted/30 rounded px-1">
-                <input type="checkbox" checked={sel.has(k)} onChange={() => toggle(k)} className="h-4 w-4 shrink-0" />
+                <input type="checkbox" disabled={existing.some((it) => `${it.entity_type === 'case_task' ? 'task' : it.entity_type === 'time_entry' ? 'horas' : it.entity_type}:${it.entity_id}` === k)} checked={sel.has(k)} onChange={() => toggle(k)} className="h-4 w-4 shrink-0" />
                 <span className="flex-1 text-xs">
                   <span className="font-medium">{c.concept}</span>
                   {c.detail && <span className="text-muted-foreground"> — {c.detail}</span>}
                   <span className="text-muted-foreground"> ({formatCurrency(c.amount)})</span>
                 </span>
-                {sel.has(k) && <PriceInput k={k} />}
+
               </label>
             )
           })}
-        </Section>
+        </UnbilledSection>
       )}
       {horas.length > 0 && (
-        <Section id="horas" title="Horas trabajadas" count={horas.length}>
+        <UnbilledSection open={open} onToggle={()=>setOpen(open === 'horas' ? null : 'horas')} id="horas" title="Horas trabajadas" count={horas.length}>
           {horas.map((h) => {
             const k = key('horas', h.id)
             return (
               <label key={h.id} className="flex items-center gap-3 py-1.5 cursor-pointer hover:bg-muted/30 rounded px-1">
-                <input type="checkbox" checked={sel.has(k)} onChange={() => toggle(k)} className="h-4 w-4 shrink-0" />
+                <input type="checkbox" disabled={existing.some((it) => `${it.entity_type === 'case_task' ? 'task' : it.entity_type === 'time_entry' ? 'horas' : it.entity_type}:${it.entity_id}` === k)} checked={sel.has(k)} onChange={() => toggle(k)} className="h-4 w-4 shrink-0" />
                 <span className="flex-1 text-xs">
                   <span className="font-medium">{h.work_date} · {h.hours}h</span>
                   {h.description && <span className="text-muted-foreground"> — {h.description}</span>}
                   {h.case_title && <span className="text-muted-foreground"> ({h.case_title})</span>}
                 </span>
-                {sel.has(k) && <PriceInput k={k} />}
+                {sel.has(k) && priceInput({k})}
               </label>
             )
           })}
-        </Section>
+        </UnbilledSection>
       )}
       {sel.size > 0 && (
         <Button size="sm" onClick={addSelected}>
@@ -579,12 +562,12 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
   const { firm } = useSettingsStore()
   const today = new Date().toISOString().split('T')[0]
 
-  const [clientId, setClientId] = useState<number | null>(editing?.client_id ?? null)
-  const [caseId, setCaseId] = useState<number | null>(editing?.case_id ?? null)
+  const [params] = useSearchParams()
+  const [clientId, setClientId] = useState<number | null>(editing?.client_id ?? (Number(params.get('client')) || null))
+  const [caseId, setCaseId] = useState<number | null>(editing?.case_id ?? (Number(params.get('case')) || null))
   const [invNumber, setInvNumber] = useState(editing?.invoice_number ?? '')
   const [invDate, setInvDate] = useState(editing?.invoice_date ?? today)
   const [dueDate, setDueDate] = useState(editing?.due_date ?? '')
-  const [status, setStatus] = useState<InvoiceStatus>(editing?.status ?? 'Borrador')
   const [notes, setNotes] = useState(editing?.notes ?? '')
   const [firmName, setFirmName] = useState(editing?.firm_name ?? firm.name)
   const [firmPhone, setFirmPhone] = useState(editing?.firm_phone ?? firm.phone)
@@ -599,6 +582,7 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
       unit_price: it.unit_price,
       entity_type: it.entity_type,
       entity_id: it.entity_id,
+      charge_type: it.charge_type,
     })) ?? [],
   )
   const [showUnbilled, setShowUnbilled] = useState(!editing)
@@ -619,15 +603,7 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
     enabled: !!clientId,
   })
 
-  const { data: nextNumber } = useQuery<string>({
-    queryKey: ['next-invoice-number'],
-    queryFn: invoicesApi.nextNumber,
-    enabled: !editing,
-  })
-  useEffect(() => {
-    if (!editing && nextNumber && !invNumber) setInvNumber(nextNumber)
-  }, [nextNumber]) // eslint-disable-line react-hooks/exhaustive-deps
-
+  const { data: pending } = useQuery({queryKey:['unbilled',clientId,caseId],queryFn:()=>invoicesApi.unbilled(clientId!,caseId),enabled:!!clientId})
   const save = useMutation({
     mutationFn: async (asStatus: string) => {
       const items: InvoiceItemIn[] = lineItems.map(({ _key, ...rest }) => rest)
@@ -655,19 +631,19 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
       return created
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ['invoices'] })
+      refreshBilling(qc)
       toast.success(editing ? 'Factura actualizada' : 'Factura creada')
       onClose()
     },
-    onError: () => toast.error('Error al guardar la factura'),
+    onError: (e: unknown) => toast.error((e as {response?:{data?:{detail?:string}}})?.response?.data?.detail ?? 'Error al guardar la factura'),
   })
 
-  const total = lineItems.reduce((s, it) => s + it.quantity * it.unit_price, 0)
-  const canSave = !!clientId && !!invNumber && !!invDate
+  const total = lineItems.reduce((s, it) => s + lineSubtotal(it), 0)
+  const canSave = !!clientId && !!invDate && lineItems.length > 0 && lineItems.every((it) => it.description.trim() && it.quantity > 0 && it.unit_price > 0)
 
   return (
     <Dialog open onOpenChange={onClose}>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Receipt className="h-5 w-5" />
@@ -675,19 +651,17 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-5">
+        <div className="space-y-5 min-h-0 overflow-y-auto overscroll-contain px-1">
           {/* Datos del despacho */}
-          <section>
-            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
-              Datos del Despacho
-            </p>
-            <div className="grid grid-cols-2 gap-3">
+          <details className="rounded-lg border p-3">
+            <summary className="cursor-pointer text-sm font-medium">Datos del despacho {firmName ? `· ${firmName}` : '(opcional)'}</summary>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
               <div className="space-y-1">
                 <Label className="text-xs">Nombre</Label>
                 <Input className="h-8 text-sm" value={firmName} onChange={(e) => setFirmName(e.target.value)} />
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">RFC / Cédula jurídica</Label>
+                <Label className="text-xs">Identificación del despacho</Label>
                 <Input className="h-8 text-sm" value={firmTaxId} onChange={(e) => setFirmTaxId(e.target.value)} />
               </div>
               <div className="space-y-1">
@@ -698,24 +672,24 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
                 <Label className="text-xs">Email</Label>
                 <Input className="h-8 text-sm" value={firmEmail} onChange={(e) => setFirmEmail(e.target.value)} />
               </div>
-              <div className="col-span-2 space-y-1">
+              <div className="sm:col-span-2 space-y-1">
                 <Label className="text-xs">Dirección</Label>
                 <Input className="h-8 text-sm" value={firmAddress} onChange={(e) => setFirmAddress(e.target.value)} />
               </div>
             </div>
-          </section>
+          </details>
 
           {/* Datos de la factura */}
           <section>
             <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">
               Datos de la Factura
             </p>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label className="text-xs">Cliente <span className="text-destructive text-xs">*</span></Label>
                 <Select
                   value={clientId ? String(clientId) : ''}
-                  onValueChange={(v) => { setClientId(parseInt(v)); setCaseId(null) }}
+                  onValueChange={(v) => { setClientId(parseInt(v)); setCaseId(null); setLineItems([]) }}
                   disabled={!!editing}
                 >
                   <SelectTrigger className="h-8 text-sm">
@@ -732,8 +706,8 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
                 <Label className="text-xs">Expediente</Label>
                 <Select
                   value={caseId ? String(caseId) : 'none'}
-                  onValueChange={(v) => setCaseId(v === 'none' ? null : parseInt(v))}
-                  disabled={!clientId}
+                  onValueChange={(v) => {setCaseId(v === 'none' ? null : parseInt(v)); setLineItems([])}}
+                  disabled={!clientId || !!editing}
                 >
                   <SelectTrigger className="h-8 text-sm">
                     <SelectValue placeholder="Ninguno" />
@@ -747,19 +721,8 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
                 </Select>
               </div>
               <div className="space-y-1">
-                <Label className="text-xs">Número de factura <span className="text-destructive text-xs">*</span></Label>
-                <Input className="h-8 text-sm font-mono" value={invNumber} onChange={(e) => setInvNumber(e.target.value)} />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Estado</Label>
-                <Select value={status} onValueChange={(v) => setStatus(v as InvoiceStatus)}>
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                  </SelectContent>
-                </Select>
+                <Label className="text-xs">Número de factura</Label>
+                <Input className="h-8 text-sm font-mono" placeholder="Automático al guardar" value={invNumber} onChange={(e) => setInvNumber(e.target.value)} />
               </div>
               <div className="space-y-1">
                 <Label className="text-xs">Fecha de emisión <span className="text-destructive text-xs">*</span></Label>
@@ -772,12 +735,18 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
             </div>
           </section>
 
+          {pending?.summary && <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 rounded-lg border p-3 text-xs">
+            <div>Honorarios acordados<strong className="block">{formatCurrency(pending.summary.contract_total)}</strong><span className="text-muted-foreground">Incluyen {formatCurrency(pending.summary.task_extras)} de extras de tareas</span></div>
+            <div>Reservado / facturado<strong className="block">{formatCurrency(pending.summary.reserved_or_invoiced)}</strong></div>
+            <div>Por facturar en honorarios<strong className="block">{formatCurrency(pending.summary.unbilled_fees)}</strong></div>
+            <div>Facturas por cobrar<strong className="block">{formatCurrency(pending.summary.outstanding_invoices)}</strong></div>
+          </div>}
           {/* Unbilled items picker */}
           {clientId && (
             <section>
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  Partidas no facturadas {caseId ? '(solo de este expediente)' : '(de todos los expedientes del cliente)'}
+                  Partidas no facturadas {caseId ? '(solo de este expediente)' : '(sin expediente)'}
                 </p>
                 <button
                   className="text-xs text-primary underline"
@@ -787,10 +756,12 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
                 </button>
               </div>
               {!caseId && (
-                <p className="text-[11px] text-amber-600 mb-2">⚠ Sin expediente seleccionado, estas partidas pueden venir de cualquier caso de este cliente. Elige un expediente arriba para acotar la factura a su trabajo.</p>
+                <p className="text-[11px] text-amber-600 mb-2">Selecciona un expediente para facturar sus extras y reembolsos. Sin expediente solo se ofrecen partidas independientes.</p>
               )}
               {showUnbilled && (
                 <UnbilledPicker
+                  key={`${clientId}-${caseId}`}
+                  existing={lineItems}
                   clientId={clientId}
                   caseId={caseId}
                   onSelect={(items) => setLineItems((prev) => [...prev, ...items])}
@@ -833,9 +804,9 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
           </section>
         </div>
 
-        <DialogFooter className="flex-row justify-between items-center mt-2">
+        <DialogFooter className="flex-wrap justify-between items-center mt-2">
           <Button variant="ghost" onClick={onClose}>Cancelar</Button>
-          <div className="flex gap-2">
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
             <Button
               variant="outline"
               disabled={!canSave || save.isPending}
@@ -845,10 +816,10 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
             </Button>
             <Button
               disabled={!canSave || save.isPending}
-              onClick={() => save.mutate(status)}
+              onClick={() => save.mutate('Enviada')}
             >
               <Check className="h-4 w-4" />
-              {save.isPending ? 'Guardando...' : 'Guardar'}
+              {save.isPending ? 'Guardando...' : 'Emitir factura'}
             </Button>
           </div>
         </DialogFooter>
@@ -860,14 +831,17 @@ function InvoiceBuilder({ editing, onClose }: BuilderProps) {
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
 const FILTER_LABELS: Record<string, string> = {
-  all: 'Todas', Borrador: 'Borrador', Enviada: 'Enviada', Pagada: 'Pagada', Cancelada: 'Cancelada',
+  all: 'Todas', Borrador: 'Borrador', Enviada: 'Emitidas', Parcial: 'Pago parcial', vencida: 'Vencidas', Pagada: 'Pagada', Cancelada: 'Cancelada',
 }
 
 export default function Invoices() {
   const qc = useQueryClient()
   const { currency } = useSettingsStore()
+  const user = useAuthStore((s)=>s.user)
+  const can = (action: string) => !!user?.is_admin || !!user?.permissions.includes(`facturas.${action}`)
   const [filter, setFilter] = useState('all')
-  const [building, setBuilding] = useState(false)
+  const [params, setParams] = useSearchParams()
+  const [building, setBuilding] = useState(params.get('new') === '1')
   const [editing, setEditing] = useState<Invoice | null>(null)
   const [registerFor, setRegisterFor] = useState<Invoice | null>(null)
 
@@ -876,13 +850,8 @@ export default function Invoices() {
     queryFn: () => invoicesApi.list(),
   })
 
-  // Dejar de estar pagada (o borrarla) devuelve el cobro que la factura había generado,
-  // así que hay que refrescar también la caja, el expediente y las comisiones.
-  const refrescarTodo = () => {
-    for (const key of [['invoices'], ['incomes'], ['cashflow'], ['dashboard'], ['cases'], ['comisiones']]) {
-      qc.invalidateQueries({ queryKey: key })
-    }
-  }
+  // Pagos y cancelaciones actualizan la asignación de caja al expediente.
+  const refrescarTodo = () => refreshBilling(qc)
   const errMsg = (e: unknown, fallback: string) =>
     toast.error((e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? fallback)
 
@@ -891,10 +860,7 @@ export default function Invoices() {
       invoicesApi.updateStatus(id, status),
     onSuccess: (_, { status }) => {
       refrescarTodo()
-      toast.success(
-        status === 'Pagada' ? 'Factura pagada — ingreso registrado automáticamente en Flujo de Caja'
-          : status === 'Cancelada' ? 'Factura cancelada — si estaba pagada, su ingreso se revirtió'
-            : 'Estado actualizado')
+      toast.success(status === 'Cancelada' ? 'Factura cancelada. Los pagos se conservan como saldo disponible.' : 'Factura emitida; pendiente de pago')
     },
     onError: (e) => errMsg(e, 'No se pudo cambiar el estado'),
   })
@@ -903,18 +869,18 @@ export default function Invoices() {
     mutationFn: (id: number) => invoicesApi.delete(id),
     onSuccess: () => {
       refrescarTodo()
-      toast.success('Factura eliminada — su ingreso, si lo tenía, se revirtió')
+      toast.success('Borrador eliminado; partidas liberadas')
     },
     onError: (e) => errMsg(e, 'No se pudo eliminar la factura'),
   })
 
-  const visible = filter === 'all' ? invoices : invoices.filter((i) => i.status === filter)
+  const visible = filter === 'all' ? invoices : invoices.filter((i) => filter === 'vencida' ? i.overdue : i.status === filter)
 
   const stats = {
     total: invoices.length,
     paid: invoices.filter((i) => i.status === 'Pagada').length,
-    pending: invoices.filter((i) => i.status === 'Borrador' || i.status === 'Enviada').length,
-    amount: invoices.filter((i) => i.status === 'Pagada').reduce((s, i) => s + i.total, 0),
+    pending: invoices.filter((i) => i.status === 'Enviada' || i.status === 'Parcial').length,
+    amount: invoices.filter((i) => i.status !== 'Cancelada').reduce((s, i) => s + i.paid, 0),
   }
 
   return (
@@ -934,14 +900,14 @@ export default function Invoices() {
             onClick={() =>
               exportCsv(
                 `facturas_${todayStr()}.csv`,
-                ['N°', 'Cliente', 'Expediente', 'Fecha', 'Vencimiento', 'Estado', 'Total'],
-                visible.map((i) => [i.invoice_number, i.client_name, i.case_title, i.invoice_date, i.due_date, i.status, i.total]),
+                ['N°', 'Cliente', 'Expediente', 'Fecha', 'Vencimiento', 'Estado', 'Total', 'Pagado', 'Saldo'],
+                visible.map((i) => [i.invoice_number, i.client_name, i.case_title, i.invoice_date, i.due_date, i.status, i.total, i.paid, i.status === 'Cancelada' ? 0 : i.balance]),
               )
             }
           >
             <Download className="h-4 w-4" />CSV
           </Button>
-          <Button onClick={() => setBuilding(true)}>
+          <Button disabled={!can('crear')} onClick={() => setBuilding(true)}>
             <Plus className="h-4 w-4" />
             Nueva Factura
           </Button>
@@ -954,7 +920,7 @@ export default function Invoices() {
           { label: 'Total facturas', value: stats.total, icon: FileText, color: 'text-muted-foreground' },
           { label: 'Pagadas', value: stats.paid, icon: CheckCircle, color: 'text-emerald-500' },
           { label: 'Pendientes', value: stats.pending, icon: Clock, color: 'text-amber-500' },
-          { label: 'Ingresos cobrados', value: formatCurrency(stats.amount), icon: DollarSign, color: 'text-primary' },
+          { label: 'Pagos aplicados', value: formatCurrency(stats.amount), icon: DollarSign, color: 'text-primary' },
         ].map(({ label, value, icon: Icon, color }) => (
           <div
             key={label}
@@ -1031,20 +997,15 @@ export default function Invoices() {
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-2">
                       <StatusBadge status={inv.status} />
-                      <Select
-                        value={inv.status}
-                        onValueChange={(v) => updateStatus.mutate({ id: inv.id, status: v, invoice: inv })}
-                      >
-                        <SelectTrigger className="h-6 w-6 p-0 border-0 bg-transparent opacity-0 hover:opacity-100 focus:opacity-100 transition-opacity">
-                          <span />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {STATUSES.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        </SelectContent>
-                      </Select>
+                      {inv.overdue && <span className="text-xs text-red-500">Vencida</span>}
+                      {inv.needs_review && <span className="text-xs text-amber-600">Revisar historial</span>}
+                      {can('editar') && inv.status === 'Borrador' && <Button size="sm" variant="outline" disabled={updateStatus.isPending} onClick={()=>updateStatus.mutate({id:inv.id,status:'Enviada',invoice:inv})}>Emitir</Button>}
+
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right font-semibold">{formatCurrency(inv.total)}</td>
+                  <td className="px-4 py-3 text-right font-semibold">{formatCurrency(inv.total)}
+                    <span className="block text-xs font-normal text-muted-foreground">Pagado {formatCurrency(inv.paid)} · Saldo {formatCurrency(inv.status === 'Cancelada' ? 0 : inv.balance)}</span>
+                  </td>
                   <td className="px-4 py-3">
                     <div className="flex items-center justify-end gap-1">
                       {inv.status === 'Pagada' && inv.has_income && (
@@ -1059,22 +1020,26 @@ export default function Invoices() {
                       >
                         <Printer className="h-3.5 w-3.5" />
                       </button>
-                      <button
+                      {can('editar') && inv.status === 'Borrador' && <button
                         onClick={() => setEditing(inv)}
                         className="h-7 w-7 flex items-center justify-center rounded hover:bg-muted/50 transition-colors text-muted-foreground"
                         title="Editar"
                       >
                         <Pencil className="h-3.5 w-3.5" />
-                      </button>
-                      <button
+                      </button>}
+                      {can('eliminar') && inv.status === 'Borrador' && <button
                         onClick={() => {
-                          if (confirm(`¿Eliminar factura ${inv.invoice_number}?`)) del.mutate(inv.id)
+                          if (confirm(`¿Eliminar borrador ${escapeHtml(inv.invoice_number)}?`)) del.mutate(inv.id)
                         }}
                         className="h-7 w-7 flex items-center justify-center rounded hover:bg-destructive/10 text-destructive transition-colors"
                         title="Eliminar"
                       >
                         <Trash2 className="h-3.5 w-3.5" />
-                      </button>
+                      </button>}
+                      <Button variant="outline" size="sm" onClick={()=>setRegisterFor(inv)}>{inv.status==='Enviada' || inv.status==='Parcial' ? 'Registrar pago' : 'Ver pagos'}</Button>
+                      {can('editar') && inv.status !== 'Cancelada' && <Button variant="ghost" size="sm" disabled={updateStatus.isPending} onClick={()=>{
+                        if(confirm('¿Cancelar esta factura? Las partidas se liberarán y los pagos se conservarán como saldo disponible; no se devolverá ni borrará dinero.')) updateStatus.mutate({id:inv.id,status:'Cancelada',invoice:inv})
+                      }}>Cancelar factura</Button>}
                     </div>
                   </td>
                 </tr>
@@ -1089,7 +1054,7 @@ export default function Invoices() {
       {(building || editing) && (
         <InvoiceBuilder
           editing={editing}
-          onClose={() => { setBuilding(false); setEditing(null) }}
+          onClose={() => { setBuilding(false); setEditing(null); const next=new URLSearchParams(params);next.delete('new');setParams(next,{replace:true}) }}
         />
       )}
 

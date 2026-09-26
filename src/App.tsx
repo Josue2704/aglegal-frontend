@@ -1,7 +1,7 @@
 import { useEffect, Component } from 'react'
 import type { ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import { Layout } from './components/Layout'
 import { ProtectedRoute } from './components/ProtectedRoute'
@@ -27,7 +27,7 @@ import Roles from './pages/Roles'
 import Reports from './pages/Reports'
 import ResumenMensual from './pages/ResumenMensual'
 
-const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } })
+import { queryClient as qc } from '@/lib/queryClient'
 
 class AppErrorBoundary extends Component<{ children: ReactNode }, { error: Error | null }> {
   state = { error: null }
@@ -76,6 +76,15 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
   return <Navigate to="/" replace />
 }
 
+function HomeRoute() {
+  const user=useAuthStore(s=>s.user)
+  if (user?.is_admin || user?.permissions.includes('dashboard.ver')) return <Dashboard/>
+  const routes=[['tareas','/tasks'],['expedientes','/cases'],['agenda','/sessions'],['clientes','/clients'],['pipeline','/pipeline'],['flujo_caja','/cashflow'],['facturas','/invoices'],['finanzas','/finanzas'],['comisiones','/comisiones'],['nominas','/payroll'],['catalogo','/catalogo'],['gobierno_catalogo','/gobierno-catalogo']]
+  const first=routes.find(([module])=>user?.permissions.includes(module+'.ver'))
+  if (first) return <Navigate to={first[1]} replace/>
+  return <div className="p-6 space-y-2"><h1 className="text-xl font-semibold">Sin módulos habilitados</h1><p>Solicita al administrador los permisos que necesitas para trabajar.</p></div>
+}
+
 export default function App() {
   return (
     <AppErrorBoundary>
@@ -92,7 +101,7 @@ export default function App() {
                 </ProtectedRoute>
               }
             >
-              <Route index element={<Dashboard />} />
+              <Route index element={<HomeRoute />} />
               <Route path="clients" element={<PermissionRoute permission="clientes.ver"><Clients /></PermissionRoute>} />
               <Route path="cases" element={<PermissionRoute permission="expedientes.ver"><Cases /></PermissionRoute>} />
               <Route path="pipeline" element={<PermissionRoute permission="pipeline.ver"><Pipeline /></PermissionRoute>} />

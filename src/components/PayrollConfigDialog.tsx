@@ -21,7 +21,7 @@ export function PayrollConfigDialog({ open, onClose }: { open: boolean; onClose:
     vigente_desde: today(), isss_tasa_empleado: '0.03', isss_tasa_patronal: '0.075', isss_tope_cotizable: '1000',
     afp_tasa_empleado: '0.0725', afp_tasa_patronal: '0.0875', afp_tope_cotizable: '',
     tope_salario_indemnizacion: '',
-    recargo_hora_extra_pct: '0.5', recargo_nocturnidad_pct: '0.25', horas_jornada_mensual: '240', notas: '',
+    recargo_hora_extra_pct: '1', recargo_nocturnidad_pct: '0.25', horas_jornada_mensual: '240', notas: '',
   })
   const [tramos, setTramos] = useState<TramoForm[]>([])
 
@@ -115,7 +115,7 @@ export function PayrollConfigDialog({ open, onClose }: { open: boolean; onClose:
               <p className="text-[11px] text-muted-foreground">Salario base máximo a considerar en el cálculo de indemnización por despido (Art. 58 CT) — ligado al salario mínimo vigente, verifícalo con tu contador.</p>
             </div>
 
-            <div className="space-y-1"><Label>Recargo hora extra (ej. 0.5 = 50%)</Label><Input type="number" step="0.01" value={form.recargo_hora_extra_pct} onChange={(e) => setForm({ ...form, recargo_hora_extra_pct: e.target.value })} /></div>
+            <div className="space-y-1"><Label>Recargo hora extra diurna (1 = 100%)</Label><Input type="number" step="0.01" value={form.recargo_hora_extra_pct} onChange={(e) => setForm({ ...form, recargo_hora_extra_pct: e.target.value })} /></div>
             <div className="space-y-1"><Label>Recargo nocturnidad (ej. 0.25 = 25%)</Label><Input type="number" step="0.01" value={form.recargo_nocturnidad_pct} onChange={(e) => setForm({ ...form, recargo_nocturnidad_pct: e.target.value })} /></div>
           </div>
 
@@ -126,12 +126,12 @@ export function PayrollConfigDialog({ open, onClose }: { open: boolean; onClose:
             </div>
             {!tramos.length && <p className="text-xs text-muted-foreground">Sin tramos — mientras esté vacía, el motor no retendrá renta y avisará en cada cálculo.</p>}
             {tramos.map((t, i) => (
-              <div key={i} className="grid grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-end">
+              <div key={i} className="grid grid-cols-2 sm:grid-cols-[1fr_1fr_1fr_1fr_auto] gap-2 items-end rounded-lg border p-2 sm:border-0 sm:p-0">
                 <div className="space-y-1"><Label className="text-[10px]">Sobre exceso de ($)</Label><Input type="number" step="0.01" value={t.sobre_exceso_de} onChange={(e) => setTramos((p) => p.map((x, j) => j === i ? { ...x, sobre_exceso_de: e.target.value } : x))} /></div>
                 <div className="space-y-1"><Label className="text-[10px]">Hasta ($, vacío = sin techo)</Label><Input type="number" step="0.01" value={t.hasta} onChange={(e) => setTramos((p) => p.map((x, j) => j === i ? { ...x, hasta: e.target.value } : x))} /></div>
                 <div className="space-y-1"><Label className="text-[10px]">Cuota fija ($)</Label><Input type="number" step="0.01" value={t.cuota_fija} onChange={(e) => setTramos((p) => p.map((x, j) => j === i ? { ...x, cuota_fija: e.target.value } : x))} /></div>
-                <div className="space-y-1"><Label className="text-[10px]">% sobre exceso</Label><Input type="number" step="0.01" value={t.porcentaje_exceso} onChange={(e) => setTramos((p) => p.map((x, j) => j === i ? { ...x, porcentaje_exceso: e.target.value } : x))} /></div>
-                <Button type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => setTramos((p) => p.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" /></Button>
+                <div className="space-y-1"><Label className="text-[10px]">Tasa (0.10 = 10%)</Label><Input type="number" step="0.01" value={t.porcentaje_exceso} onChange={(e) => setTramos((p) => p.map((x, j) => j === i ? { ...x, porcentaje_exceso: e.target.value } : x))} /></div>
+                <Button aria-label={`Eliminar tramo ${i + 1}`} type="button" size="icon" variant="ghost" className="text-destructive" onClick={() => setTramos((p) => p.filter((_, j) => j !== i))}><Trash2 className="h-3.5 w-3.5" /></Button>
               </div>
             ))}
           </div>

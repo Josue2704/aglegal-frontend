@@ -1,3 +1,4 @@
+import { ApprovalHistory } from '@/components/ApprovalHistory'
 import { useState, useEffect, useMemo } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Plus, Pencil, Trash2, Info, Wallet, Users, Receipt, Gauge, Search, Target, PieChart } from 'lucide-react'
@@ -47,6 +48,7 @@ function CuentaDialog({ open, onClose, editing, categorias, familias }: {
   open: boolean; onClose: () => void; editing: Cuenta | null; categorias: Categoria[]; familias: Familia[]
 }) {
   const qc = useQueryClient()
+  const [motivo,setMotivo]=useState('')
   const [form, setForm] = useState({
     account_code: '', tipo: 'Ingreso', grupo: '', subgrupo: '', nombre: '', naturaleza: 'Operativo',
     category_id: '', family_id: '', centro_costo: 'Administración', afecta_utilidad: true, regla_de_uso: '', estado: 'Activo' as CatalogoEstado,
@@ -68,22 +70,22 @@ function CuentaDialog({ open, onClose, editing, categorias, familias }: {
   }, [open, editing])
 
   const create = useMutation({
-    mutationFn: () => finanzasApi.createCuenta({
+    mutationFn: () => finanzasApi.createCuenta({ motivo,
       account_code: form.account_code, tipo: form.tipo, grupo: form.grupo, subgrupo: form.subgrupo, nombre: form.nombre,
       naturaleza: form.naturaleza, category_id: form.category_id ? Number(form.category_id) : null,
       family_id: form.family_id ? Number(form.family_id) : null, centro_costo: form.centro_costo,
       afecta_utilidad: form.afecta_utilidad, regla_de_uso: form.regla_de_uso,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['finanzas-cuentas'] }); toast.success('Cuenta creada'); onClose() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['financial-proposals'] }); qc.invalidateQueries({ queryKey: ['finanzas-cuentas'] }); toast.success('Propuesta enviada a Autorizaciones'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
   const update = useMutation({
-    mutationFn: () => finanzasApi.updateCuenta(editing!.id, {
+    mutationFn: () => finanzasApi.updateCuenta(editing!.id, { motivo,
       grupo: form.grupo, subgrupo: form.subgrupo, nombre: form.nombre, naturaleza: form.naturaleza,
       category_id: form.category_id ? Number(form.category_id) : null, family_id: form.family_id ? Number(form.family_id) : null,
       centro_costo: form.centro_costo, afecta_utilidad: form.afecta_utilidad, regla_de_uso: form.regla_de_uso, estado: form.estado,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['finanzas-cuentas'] }); toast.success('Cuenta actualizada'); onClose() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['financial-proposals'] }); qc.invalidateQueries({ queryKey: ['finanzas-cuentas'] }); toast.success('Propuesta enviada a Autorizaciones'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
 
@@ -175,9 +177,11 @@ function CuentaDialog({ open, onClose, editing, categorias, familias }: {
               </Select>
             </div>
           )}
+          <div className="space-y-1"><Label>Motivo de la propuesta *</Label><Input required value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Justifica el alta o cambio"/></div>
+          <p className="text-xs text-muted-foreground">Requiere aprobación del socio administrador en Autorizaciones.</p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={create.isPending || update.isPending}>Guardar</Button>
+            <Button type="submit" disabled={create.isPending || update.isPending}>Enviar propuesta</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -619,6 +623,7 @@ function ForecastDialog({ open, onClose, editing, familias, mes }: {
   open: boolean; onClose: () => void; editing: Forecast | null; familias: Familia[]; mes: string
 }) {
   const qc = useQueryClient()
+  const [motivo,setMotivo]=useState('')
   const [form, setForm] = useState({ family_id: '', mes, volumen_meta: '', ticket_objetivo: '', margen_directo_objetivo_pct: '' })
 
   useEffect(() => {
@@ -634,22 +639,22 @@ function ForecastDialog({ open, onClose, editing, familias, mes }: {
   }, [editing, open, mes])
 
   const create = useMutation({
-    mutationFn: () => finanzasApi.createForecast({
+    mutationFn: () => finanzasApi.createForecast({ motivo,
       family_id: Number(form.family_id), mes: form.mes,
       volumen_meta: form.volumen_meta ? Number(form.volumen_meta) : null,
       ticket_objetivo: form.ticket_objetivo ? Number(form.ticket_objetivo) : null,
       margen_directo_objetivo_pct: Number(form.margen_directo_objetivo_pct) / 100,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['finanzas-forecast'] }); toast.success('Meta creada'); onClose() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['financial-proposals'] }); qc.invalidateQueries({ queryKey: ['finanzas-forecast'] }); toast.success('Propuesta enviada a Autorizaciones'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
   const update = useMutation({
-    mutationFn: () => finanzasApi.updateForecast(editing!.id, {
+    mutationFn: () => finanzasApi.updateForecast(editing!.id, { motivo,
       volumen_meta: form.volumen_meta ? Number(form.volumen_meta) : null,
       ticket_objetivo: form.ticket_objetivo ? Number(form.ticket_objetivo) : null,
       margen_directo_objetivo_pct: Number(form.margen_directo_objetivo_pct) / 100,
     }),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['finanzas-forecast'] }); toast.success('Meta actualizada'); onClose() },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['financial-proposals'] }); qc.invalidateQueries({ queryKey: ['finanzas-forecast'] }); toast.success('Propuesta enviada a Autorizaciones'); onClose() },
     onError: (e: ApiErr) => toast.error(errMsg(e)),
   })
 
@@ -678,9 +683,11 @@ function ForecastDialog({ open, onClose, editing, familias, mes }: {
             <div className="space-y-1"><Label>Ticket objetivo ($)</Label><Input type="number" step="0.01" min="0" value={form.ticket_objetivo} onChange={(e) => setForm({ ...form, ticket_objetivo: e.target.value })} /></div>
             <div className="space-y-1"><Label>Margen directo objetivo (%)</Label><Input type="number" step="0.1" min="0" max="99" value={form.margen_directo_objetivo_pct} onChange={(e) => setForm({ ...form, margen_directo_objetivo_pct: e.target.value })} /></div>
           </div>
+          <div className="space-y-1"><Label>Motivo de la propuesta *</Label><Input required value={motivo} onChange={e=>setMotivo(e.target.value)} placeholder="Justifica el alta o cambio"/></div>
+          <p className="text-xs text-muted-foreground">Requiere aprobación del socio administrador en Autorizaciones.</p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={onClose}>Cancelar</Button>
-            <Button type="submit" disabled={create.isPending || update.isPending}>Guardar</Button>
+            <Button type="submit" disabled={create.isPending || update.isPending}>Enviar propuesta</Button>
           </DialogFooter>
         </form>
       </DialogContent>
@@ -700,8 +707,8 @@ function PresupuestoTab() {
   const { data: cartera } = useQuery({ queryKey: ['finanzas-cartera', mes], queryFn: () => finanzasApi.carteraPonderada(mes) })
 
   const remove = useMutation({
-    mutationFn: (id: number) => finanzasApi.deleteForecast(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['finanzas-forecast'] }); toast.success('Meta eliminada') },
+    mutationFn: ({id,motivo}: {id:number;motivo:string}) => finanzasApi.deleteForecast(id,motivo),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['finanzas-forecast'] }); qc.invalidateQueries({queryKey:['financial-proposals']}); toast.success('Eliminación pendiente de aprobación') },
   })
 
   function openNew() { setEditing(null); setDlg(true) }
@@ -711,7 +718,7 @@ function PresupuestoTab() {
 
   return (
     <div className="space-y-4">
-      <InfoBanner>Proyección de cierre de mes = ingresos ya cobrados en el mes + cartera pendiente ponderada por probabilidad de cobro según el estado de cada expediente. La meta sale de las metas de presupuesto por familia definidas abajo.</InfoBanner>
+      <InfoBanner>Proyección de cierre de mes = ingresos ya cobrados en el mes + cartera pendiente ponderada por la probabilidad definida en cada expediente. La proyección comercial suma presupuesto y cartera; solo es aditiva cuando la meta corresponde a negocio adicional. La meta sale de las metas de presupuesto por familia definidas abajo.</InfoBanner>
 
       <div className="flex items-center gap-2">
         <Label className="text-sm">Mes</Label>
@@ -724,8 +731,14 @@ function PresupuestoTab() {
           <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Cartera ponderada</div><div className="text-xl font-semibold font-mono mt-1" style={{ color: 'hsl(43 80% 50%)' }}>{money(proyeccion.cartera_ponderada_mes)}</div></CardContent></Card>
           <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Proyección de cierre</div><div className="text-xl font-semibold font-mono mt-1">{money(proyeccion.proyeccion_cierre)}</div></CardContent></Card>
           <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Meta de presupuesto</div><div className="text-xl font-semibold font-mono mt-1">{money(proyeccion.meta_ingresos)}</div></CardContent></Card>
+          <Card><CardContent className="p-4"><div className="text-xs text-muted-foreground">Proyección comercial (meta + cartera)</div><div className="text-xl font-semibold font-mono mt-1">{money(proyeccion.proyeccion_comercial)}</div><p className="text-xs text-muted-foreground mt-1">Escenario de negocio adicional; no equivale a efectivo ni a la estimación de cierre.</p></CardContent></Card>
         </div>
       )}
+
+      {!!proyeccion?.expedientes_sin_plan.length && <div role="status" className="rounded-lg border border-amber-500/40 p-3 text-sm">
+        <strong>{proyeccion.expedientes_sin_plan.length} expedientes pendientes de plan de cobro.</strong> Completa el mes y la probabilidad en <a href="/cases" className="underline">Expedientes</a> para que la proyección sea completa.
+        <p className="text-xs mt-1">{proyeccion.expedientes_sin_plan.map(c=>c.title).join(' · ')}</p>
+      </div>}
 
       {cumplimiento != null && (
         <Card>
@@ -776,7 +789,7 @@ function PresupuestoTab() {
                   <td className="px-4 py-2.5">
                     <div className="flex gap-1 justify-end">
                       <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(f)}><Pencil className="h-3.5 w-3.5" /></Button>
-                      <Button size="icon" variant="ghost" className="text-destructive h-7 w-7" onClick={() => { if (confirm('¿Eliminar esta meta?')) remove.mutate(f.id) }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      <Button size="icon" variant="ghost" className="text-destructive h-7 w-7" onClick={() => { const motivo=prompt('Motivo de la solicitud de eliminación'); if (motivo?.trim()) remove.mutate({id:f.id,motivo}) }}><Trash2 className="h-3.5 w-3.5" /></Button>
                     </div>
                   </td>
                 </tr>
@@ -1029,6 +1042,7 @@ export default function Finanzas() {
       </div>
       <Tabs defaultValue="cuentas">
         <TabsList className="flex-wrap h-auto gap-1">
+          <TabsTrigger value="autorizaciones">Autorizaciones</TabsTrigger>
           <TabsTrigger value="cuentas" className="gap-1.5"><Wallet className="h-3.5 w-3.5" />Plan de Cuentas (Categorías)</TabsTrigger>
           <TabsTrigger value="personal" className="gap-1.5"><Users className="h-3.5 w-3.5" />Personal</TabsTrigger>
           <TabsTrigger value="gastos" className="gap-1.5"><Receipt className="h-3.5 w-3.5" />Gastos Fijos</TabsTrigger>
@@ -1036,6 +1050,7 @@ export default function Finanzas() {
           <TabsTrigger value="presupuesto" className="gap-1.5"><Target className="h-3.5 w-3.5" />Presupuesto</TabsTrigger>
           <TabsTrigger value="centros" className="gap-1.5"><PieChart className="h-3.5 w-3.5" />Centros de Costo</TabsTrigger>
         </TabsList>
+        <TabsContent value="autorizaciones" className="mt-4"><ApprovalHistory/></TabsContent>
         <TabsContent value="cuentas" className="mt-4"><PlanCuentasTab /></TabsContent>
         <TabsContent value="personal" className="mt-4"><PersonalTab /></TabsContent>
         <TabsContent value="gastos" className="mt-4"><GastosFijosTab /></TabsContent>

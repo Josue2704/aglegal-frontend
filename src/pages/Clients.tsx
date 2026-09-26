@@ -1,3 +1,4 @@
+import { FormGuidance } from '@/components/FormGuidance'
 import { useEffect, useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -681,6 +682,7 @@ export default function Clients() {
             <DialogTitle>{editing ? 'Editar cliente' : 'Nuevo cliente'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
+            <FormGuidance required="Nombre o razón social y tipo de cliente." optional="Documento de identidad, teléfonos, email, dirección y notas. El identificador interno se asigna al guardar." missing={[!form.name.trim() && 'nombre o razón social']} recommended={[!form.id_number?.trim() && 'documento de identidad', !form.phone?.trim() && !form.phone2?.trim() && !form.email?.trim() && 'al menos un medio de contacto']} />
 
             {/* Avatar (solo en edición) */}
             {editing && (

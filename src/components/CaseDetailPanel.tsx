@@ -1,3 +1,5 @@
+import { useAuthStore } from '@/store/auth'
+import { WorkflowHistory } from '@/components/WorkflowHistory'
 import { useRef, useState } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import {
@@ -197,6 +199,7 @@ function DocumentsTab({ kase }: { kase: Case }) {
     } catch {
       toast.error('Error al subir documento')
     } finally {
+      qc.invalidateQueries({ queryKey: ['case-attachments', kase.id] })
       setUploading(false)
       setUploadTarget(null)
       if (fileRef.current) fileRef.current.value = ''
@@ -209,14 +212,14 @@ function DocumentsTab({ kase }: { kase: Case }) {
 
   const bySession: Record<string, CaseAttachment[]> = {}
   for (const d of sessionDocs) {
-    const key = `${d.session_date ?? '?'} — ${d.session_type ?? 'Sesión'}`
+    const key = `#${d.entity_id} · ${d.session_date ?? '?'} — ${d.session_type ?? 'Sesión'}`
     if (!bySession[key]) bySession[key] = []
     bySession[key].push(d)
   }
 
   const byTask: Record<string, CaseAttachment[]> = {}
   for (const d of taskDocs) {
-    const key = d.task_title ?? 'Tarea sin título'
+    const key = `#${d.entity_id} · ${d.task_title ?? 'Tarea sin título'}`
     if (!byTask[key]) byTask[key] = []
     byTask[key].push(d)
   }
@@ -247,6 +250,7 @@ function DocumentsTab({ kase }: { kase: Case }) {
         </Button>
       </div>
 
+      <p className="text-xs text-muted-foreground">Puedes seleccionar varios archivos. Máximo 20 MB por archivo. Se organizan por expediente, sesión o tarea.</p>
       {/* Case docs */}
       <div className="space-y-2">
         <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
@@ -317,7 +321,7 @@ function AttachmentRow({ attach, onDelete }: { attach: CaseAttachment; onDelete:
       <span className="text-base">{fileIcon(attach.original_name)}</span>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-foreground truncate">{attach.original_name}</p>
-        <p className="text-[10px] text-muted-foreground">{formatDate(attach.created_at.slice(0, 10))}</p>
+        <p className="text-[10px] text-muted-foreground">{formatDate(attach.created_at.slice(0, 10))} · {attach.doc_role === 'guide' ? 'Documento guía' : attach.doc_role === 'evidence' ? 'Evidencia' : 'Documento general'}</p>
       </div>
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         <button
@@ -348,9 +352,22 @@ function TasksTab({ kase }: { kase: Case }) {
     queryFn: () => casesApi.listTasks(kase.id),
   })
   const doneCount = tasks.filter((t) => t.done).length
+  const sinResponsable = tasks.filter(t=>!t.done && !t.responsible_username && !kase.responsible_username).length
+  const criticasSinFecha = tasks.filter(t=>!t.done && t.es_critico && !t.due_date).length
 
   return (
     <div className="space-y-4">
+      <div className="rounded-lg border p-3 text-xs space-y-1">
+        <p>Presupuesto interno del expediente: <strong>{formatCurrency(kase.costos_directos_estimados)}</strong></p>
+        <p>Estimación actual de tareas: <strong>{formatCurrency(tasks.reduce((sum,t)=>sum+t.costo_estimado,0))}</strong></p>
+        <p>Costos reales del expediente: <strong>{formatCurrency(kase.costos_directos_reales)}</strong></p>
+        <p className="text-muted-foreground">Estas cifras se comparan; no se suman entre sí ni aumentan los honorarios. Solo un extra autorizado aumenta el cobro al cliente.</p>
+      </div>
+      {(!tasks.length || sinResponsable>0 || criticasSinFecha>0) && <div className="rounded-md border border-amber-500/40 p-3 text-xs text-amber-600">
+        {!tasks.length && <p>Este expediente todavía no tiene plan de trabajo. Define su primera tarea.</p>}
+        {sinResponsable>0 && <p>{sinResponsable} tareas pendientes sin responsable.</p>}
+        {criticasSinFecha>0 && <p>{criticasSinFecha} tareas críticas sin fecha límite.</p>}
+      </div>}
       {tasks.length > 0 && (
         <div className="flex items-center gap-2">
           <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'hsl(var(--c-table-border-h))' }}>
@@ -536,8 +553,11 @@ interface CaseDetailPanelProps {
 }
 
 export default function CaseDetailPanel({ kase: initial, onClose, onEdit, initialTab }: CaseDetailPanelProps) {
+  const user=useAuthStore(s=>s.user)
+  const can=(module:string)=>!!user&&(user.is_admin||user.permissions.includes(module+'.ver'))
+  const allowed:Record<Tab,boolean>={sessions:can('agenda'),documents:can('expedientes'),tasks:can('tareas'),horas:can('expedientes')}
   const navigate = useNavigate()
-  const [tab, setTab] = useState<Tab>(initialTab ?? 'sessions')
+  const [tab, setTab] = useState<Tab>(initialTab && allowed[initialTab] ? initialTab : allowed.tasks ? 'tasks' : (Object.keys(allowed) as Tab[]).find(t=>allowed[t]) ?? 'documents')
   const [agendar, setAgendar] = useState(false)
   // Datos frescos: honorarios, saldo y estado cambian al agregar tareas/citas/cobros
   // mientras el panel está abierto — antes mostraba la foto del momento en que se abrió.
@@ -618,6 +638,8 @@ export default function CaseDetailPanel({ kase: initial, onClose, onEdit, initia
             ))}
           </div>
 
+          <Link to={`/invoices?new=1&client=${kase.client_id}&case=${kase.id}`} className="inline-flex text-sm font-medium text-primary hover:underline">Preparar factura de este expediente</Link>
+
           {/* Acciones rápidas — todo lo del expediente sin salir de aquí */}
           <div className="flex flex-wrap gap-1.5">
             {onEdit && (
@@ -682,7 +704,7 @@ export default function CaseDetailPanel({ kase: initial, onClose, onEdit, initia
 
           {/* Tabs */}
           <div className="flex gap-0" style={{ borderBottom: '1px solid hsl(var(--c-inner-border))' }}>
-            {tabs.map((t) => (
+            {tabs.filter(t=>allowed[t.id]).map((t) => (
               <button
                 key={t.id}
                 onClick={() => setTab(t.id)}
@@ -707,10 +729,11 @@ export default function CaseDetailPanel({ kase: initial, onClose, onEdit, initia
 
         {/* Tab content */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
-          {tab === 'sessions' && <SessionsTab kase={kase} />}
-          {tab === 'documents' && <DocumentsTab kase={kase} />}
-          {tab === 'tasks' && <TasksTab kase={kase} />}
-          {tab === 'horas' && <HorasTab kase={kase} />}
+          {allowed.sessions && tab === 'sessions' && <SessionsTab kase={kase} />}
+          {allowed.documents && tab === 'documents' && <DocumentsTab kase={kase} />}
+          <WorkflowHistory path={`/cases/${kase.id}/historial`}/>
+          {allowed.tasks && tab === 'tasks' && <TasksTab kase={kase} />}
+          {allowed.horas && tab === 'horas' && <HorasTab kase={kase} />}
         </div>
       </div>
     </div>

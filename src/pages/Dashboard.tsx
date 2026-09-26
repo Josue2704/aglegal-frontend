@@ -1,3 +1,4 @@
+import { useAuthStore } from '@/store/auth'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
@@ -142,6 +143,8 @@ export default function Dashboard() {
   const [mes, setMes] = useState(currentMonth())
 
   // ── Financiero / general ──
+  const user=useAuthStore(s=>s.user)
+  const can=(module:string)=>!!user && (user.is_admin || user.permissions.includes(module+'.ver'))
   const { data: kpis } = useQuery({ queryKey: ['dashboard-kpis'], queryFn: dashboardApi.kpis })
   const { data: cashflow } = useQuery({ queryKey: ['dashboard-cashflow'], queryFn: () => dashboardApi.cashflow() })
   const { data: topClients } = useQuery({ queryKey: ['dashboard-top-clients'], queryFn: () => dashboardApi.topClients() })
@@ -154,29 +157,30 @@ export default function Dashboard() {
   const { data: alertsData } = useQuery({ queryKey: ['dashboard-alerts'], queryFn: () => dashboardApi.alerts({ stale_days: 15 }) })
   const { soloMio, setSoloMio, esMio } = useSoloMio()
 
-  const { data: puntoEquilibrio, isError: peError } = useQuery({ queryKey: ['dashboard-pe', mes], queryFn: () => finanzasApi.puntoEquilibrio(mes), retry: false })
-  const { data: proyeccion } = useQuery({ queryKey: ['dashboard-proyeccion', mes], queryFn: () => finanzasApi.proyeccionCierreMes(mes) })
-  const { data: cartera } = useQuery({ queryKey: ['dashboard-cartera', mes], queryFn: () => finanzasApi.carteraPonderada(mes) })
-  const { data: comisionesResumen = [] } = useQuery({ queryKey: ['dashboard-comisiones', mes], queryFn: () => comisionesApi.resumen(mes) })
-  const { data: utilidadOperativa } = useQuery({ queryKey: ['dashboard-utilidad-operativa', mes], queryFn: () => finanzasApi.utilidadOperativaReal(mes) })
+  const { data: puntoEquilibrio, isError: peError } = useQuery({ enabled: can('finanzas'), queryKey: ['dashboard-pe', mes], queryFn: () => finanzasApi.puntoEquilibrio(mes), retry: false })
+  const { data: proyeccion } = useQuery({ enabled: can('finanzas'), queryKey: ['dashboard-proyeccion', mes], queryFn: () => finanzasApi.proyeccionCierreMes(mes) })
+  const { data: cartera } = useQuery({ enabled: can('finanzas'), queryKey: ['dashboard-cartera', mes], queryFn: () => finanzasApi.carteraPonderada(mes) })
+  const { data: comisionesResumen = [] } = useQuery({ enabled: can('comisiones'), queryKey: ['dashboard-comisiones', mes], queryFn: () => comisionesApi.resumen(mes) })
+  const { data: utilidadOperativa } = useQuery({ enabled: can('finanzas'), queryKey: ['dashboard-utilidad-operativa', mes], queryFn: () => finanzasApi.utilidadOperativaReal(mes) })
 
   // ── Comercial ──
-  const { data: conversion } = useQuery({ queryKey: ['dashboard-conversion'], queryFn: pipelineApi.conversion })
-  const { data: oportunidades = [] } = useQuery({ queryKey: ['dashboard-oportunidades'], queryFn: () => pipelineApi.list() })
+  const { data: conversion } = useQuery({ enabled: can('pipeline'), queryKey: ['dashboard-conversion', mes], queryFn: () => pipelineApi.conversion({mes}) })
+  const { data: oportunidades = [] } = useQuery({ enabled: can('pipeline'), queryKey: ['dashboard-oportunidades'], queryFn: () => pipelineApi.list() })
 
   // ── Operativo ──
-  const { data: allCases = [] } = useQuery({ queryKey: ['dashboard-cases'], queryFn: () => casesApi.list() })
+  const { data: allCases = [] } = useQuery({ enabled: can('expedientes'), queryKey: ['dashboard-cases'], queryFn: () => casesApi.list() })
   const hoyIso = today()
   const { data: citasDelDia = [] } = useQuery({
     queryKey: ['sessions', { dia: hoyIso }],
+    enabled: can('agenda'),
     queryFn: (): Promise<Session[]> => sessionsApi.list({ start_date: hoyIso, end_date: hoyIso }),
   })
   const responsablePorCaso = new Map(allCases.map((c) => [c.id, c.responsible_username]))
   const citasHoy = citasDelDia
     .filter((s) => esMio(s.case_id ? responsablePorCaso.get(s.case_id) : null))
     .sort((a, b) => (a.start_time ?? '99:99').localeCompare(b.start_time ?? '99:99'))
-  const { data: tiempos = [] } = useQuery({ queryKey: ['dashboard-tiempos'], queryFn: () => casesApi.tiemposAtencion() })
-  const { data: cumplimiento = [] } = useQuery({ queryKey: ['dashboard-cumplimiento', mes], queryFn: () => finanzasApi.cumplimientoFamilia(mes) })
+  const { data: tiempos = [] } = useQuery({ enabled: can('expedientes'), queryKey: ['dashboard-tiempos'], queryFn: () => casesApi.tiemposAtencion() })
+  const { data: cumplimiento = [] } = useQuery({ enabled: can('finanzas'), queryKey: ['dashboard-cumplimiento', mes], queryFn: () => finanzasApi.cumplimientoFamilia(mes) })
 
   const monthlyChart = cashflow?.monthly_chart?.map((p) => ({
     month: p.month.slice(5),

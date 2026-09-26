@@ -1,3 +1,6 @@
+import { Link } from 'react-router-dom'
+import { usePermission } from '@/hooks/usePermission'
+import { FinancialExplorer } from '@/components/FinancialExplorer'
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { BarChart2, Clock, Download, Layers, Target, TrendingUp } from 'lucide-react'
@@ -268,6 +271,7 @@ function AgingTab() {
 // ─── Indicadores: ticket promedio, días de cobro y origen del negocio ──────────
 
 function IndicadoresTab() {
+  const canCases=usePermission('expedientes','ver')
   const [desde, setDesde] = useState(monthsAgo(5))
   const [hasta, setHasta] = useState(currentMonth())
   const [agrupacion, setAgrupacion] = useState<TicketAgrupacion>('servicio')
@@ -282,9 +286,11 @@ function IndicadoresTab() {
     queryFn: () => finanzasApi.diasCobro(desde, hasta),
     enabled: Boolean(desde && hasta),
   })
+  const [origenAgrupacion,setOrigenAgrupacion]=useState('originador')
+  const [origenFiltro,setOrigenFiltro]=useState(''),[tipoFiltro,setTipoFiltro]=useState('')
   const origen = useQuery({
-    queryKey: ['ingresos-por-origen', desde, hasta],
-    queryFn: () => finanzasApi.ingresosPorOrigen(desde, hasta),
+    queryKey: ['ingresos-por-origen', desde, hasta, origenAgrupacion],
+    queryFn: () => finanzasApi.ingresosPorOrigen(desde, hasta, origenAgrupacion),
     enabled: Boolean(desde && hasta),
   })
 
@@ -296,12 +302,13 @@ function IndicadoresTab() {
       ticket.data.detalle.map((r) => [r.codigo, r.nombre, r.ingresos, r.casos_cobrados, r.ticket_promedio]),
     )
   }
+  const origenFiltrado=origen.data?.filter(r=>(!origenFiltro||r.origen===origenFiltro)&&(!tipoFiltro||r.tipo_origen===tipoFiltro))
   const exportarOrigen = () => {
     if (!origen.data) return
     exportCsv(
       `ingresos_por_origen_${today()}.csv`,
       ['Origen', 'Tipo de origen', 'Expedientes', 'Ingresos', 'Costos directos', 'Utilidad directa', 'Margen %'],
-      origen.data.map((r) => [r.origen, r.tipo_origen, r.casos, r.ingresos, r.costos_directos, r.utilidad_directa, r.margen_pct]),
+      (origenFiltrado??[]).map((r) => [r.origen, r.tipo_origen, r.casos, r.ingresos, r.costos_directos, r.utilidad_directa, r.margen_pct]),
     )
   }
 
@@ -322,7 +329,7 @@ function IndicadoresTab() {
             <p className="text-xs uppercase text-muted-foreground flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" />Días de cobro</p>
             <p className="text-2xl font-bold mt-1">{dias.data?.promedio_dias != null ? `${dias.data.promedio_dias} d` : '—'}</p>
             <p className="text-xs text-muted-foreground">
-              {dias.data?.cobros_medidos ?? 0} medidos
+              {dias.data?.cobros_medidos ?? 0} aplicaciones medidas (o cobros sin factura con cierre)
               {dias.data?.sin_referencia ? ` · ${dias.data.sin_referencia} sin referencia` : ''}
             </p>
           </CardContent>
@@ -386,8 +393,8 @@ function IndicadoresTab() {
 
       <div className="space-y-2">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h3 className="font-semibold text-sm">Ingresos y utilidad por origen del negocio</h3>
-          <Button variant="outline" size="sm" onClick={exportarOrigen} disabled={!origen.data?.length} className="gap-2">
+          <div><h3 className="font-semibold text-sm">Ingresos y utilidad por origen del negocio</h3><div className="flex gap-2 flex-wrap my-2"><select aria-label="Filtrar origen comercial" className="bg-background border rounded p-2" value={origenFiltro} onChange={e=>setOrigenFiltro(e.target.value)}><option value="">Todos los orígenes</option>{[...new Set(origen.data?.map(r=>r.origen)??[])].map(v=><option key={v}>{v}</option>)}</select><select aria-label="Filtrar tipo de origen" className="bg-background border rounded p-2" value={tipoFiltro} onChange={e=>setTipoFiltro(e.target.value)}><option value="">Todos los tipos</option>{[...new Set(origen.data?.map(r=>r.tipo_origen)??[])].map(v=><option key={v}>{v}</option>)}</select></div><select aria-label="Agrupar origen" className="bg-background border rounded-md p-2 mt-2" value={origenAgrupacion} onChange={e=>setOrigenAgrupacion(e.target.value)}><option value="originador">Por originador</option><option value="canal">Por canal de captación</option></select></div>
+          <Button variant="outline" size="sm" onClick={exportarOrigen} disabled={!origenFiltrado?.length} className="gap-2">
             <Download className="h-4 w-4" />CSV
           </Button>
         </div>
@@ -406,9 +413,9 @@ function IndicadoresTab() {
                 </tr>
               </thead>
               <tbody>
-                {origen.data?.map((r) => (
+                {origenFiltrado?.map((r) => (
                   <tr key={`${r.origen}-${r.tipo_origen}`} className="border-b last:border-0 hover:bg-muted/40">
-                    <td className="p-3">{r.origen}</td>
+                    <td className="p-3"><details><summary>{r.origen}</summary><div className="space-y-1 pt-2 text-xs">{r.expedientes.map((c,i)=><p key={i}>{c.id&&canCases?<Link className="underline" to={`/cases?case_id=${c.id}`}>{c.title}</Link>:c.title}</p>)}</div></details></td>
                     <td className="p-3 text-muted-foreground">{r.tipo_origen}</td>
                     <td className="p-3 text-right">{r.casos}</td>
                     <td className="p-3 text-right">{money(r.ingresos)}</td>
@@ -417,7 +424,7 @@ function IndicadoresTab() {
                     <td className="p-3 text-right">{pct(r.margen_pct)}</td>
                   </tr>
                 ))}
-                {!origen.data?.length && (
+                {!origenFiltrado?.length && (
                   <tr><td colSpan={7}><Vacio>Sin cobros con originador registrado en este rango.</Vacio></td></tr>
                 )}
               </tbody>
@@ -472,10 +479,12 @@ export default function ResumenMensual() {
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="resumen" className="gap-1.5"><BarChart2 className="h-3.5 w-3.5" />Meta vs. Real</TabsTrigger>
           <TabsTrigger value="aging" className="gap-1.5"><Layers className="h-3.5 w-3.5" />Cartera por antigüedad</TabsTrigger>
+          <TabsTrigger value="explorador">Explorador y detalle</TabsTrigger>
           <TabsTrigger value="indicadores" className="gap-1.5"><Target className="h-3.5 w-3.5" />Indicadores</TabsTrigger>
         </TabsList>
         <TabsContent value="resumen" className="mt-4"><ResumenTab /></TabsContent>
         <TabsContent value="aging" className="mt-4"><AgingTab /></TabsContent>
+        <TabsContent value="explorador" className="mt-4"><FinancialExplorer/></TabsContent>
         <TabsContent value="indicadores" className="mt-4"><IndicadoresTab /></TabsContent>
       </Tabs>
     </div>

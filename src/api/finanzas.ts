@@ -1,7 +1,10 @@
 import type { AgingCartera, CarteraPonderada, CentrosCosto, ComparativoGastos, CumplimientoFamilia, Cuenta, DiasCobro, Forecast, ForecastIn, ForecastUpdate, GastoFijo, IngresoPorOrigen, Persona, ProyeccionCierreMes, PuntoEquilibrio, ResumenMensual, Supuestos, TicketAgrupacion, TicketPromedio, UtilidadOperativaReal } from '@/types'
 import api from './client'
 
+export interface FinancialProposal { id: number; entity: 'cuenta' | 'forecast'; entity_id: number | null; status: 'Pendiente' | 'Aprobada' | 'Rechazada' }
+
 export interface CuentaPayload {
+  motivo?: string
   account_code?: string
   tipo?: string
   grupo: string
@@ -37,12 +40,13 @@ export interface GastoFijoPayload {
 }
 
 export const finanzasApi = {
+  personalChoices: () => api.get<{id:number; persona:string}[]>('/finanzas/personal/choices').then(r => r.data),
   // Plan de cuentas
   listCuentas: (params?: { tipo?: string; estado?: string }) =>
     api.get<Cuenta[]>('/finanzas/cuentas', { params }).then((r) => r.data),
-  createCuenta: (data: CuentaPayload) => api.post<Cuenta>('/finanzas/cuentas', data).then((r) => r.data),
+  createCuenta: (data: CuentaPayload) => api.post<FinancialProposal>('/finanzas/cuentas', data).then((r) => r.data),
   updateCuenta: (id: number, data: Omit<CuentaPayload, 'account_code' | 'tipo'>) =>
-    api.put<Cuenta>(`/finanzas/cuentas/${id}`, data).then((r) => r.data),
+    api.put<FinancialProposal>(`/finanzas/cuentas/${id}`, data).then((r) => r.data),
 
   // Personal
   listPersonal: (estado?: string) => api.get<Persona[]>('/finanzas/personal', { params: { estado } }).then((r) => r.data),
@@ -68,9 +72,9 @@ export const finanzasApi = {
   // Presupuesto por familia (forecast)
   listForecast: (params?: { mes?: string; family_id?: number }) =>
     api.get<Forecast[]>('/finanzas/forecast', { params }).then((r) => r.data),
-  createForecast: (data: ForecastIn) => api.post<Forecast>('/finanzas/forecast', data).then((r) => r.data),
-  updateForecast: (id: number, data: ForecastUpdate) => api.put<Forecast>(`/finanzas/forecast/${id}`, data).then((r) => r.data),
-  deleteForecast: (id: number) => api.delete(`/finanzas/forecast/${id}`),
+  createForecast: (data: ForecastIn & {motivo:string}) => api.post<FinancialProposal>('/finanzas/forecast', data).then((r) => r.data),
+  updateForecast: (id: number, data: ForecastUpdate & {motivo:string}) => api.put<FinancialProposal>(`/finanzas/forecast/${id}`, data).then((r) => r.data),
+  deleteForecast: (id: number, motivo: string) => api.delete(`/finanzas/forecast/${id}`, {params:{motivo}}),
 
   // Cartera ponderada y proyección de cierre de mes
   carteraPonderada: (mes?: string) => api.get<CarteraPonderada>('/finanzas/cartera-ponderada', { params: { mes } }).then((r) => r.data),
@@ -101,8 +105,8 @@ export const finanzasApi = {
     api.get<TicketPromedio>('/finanzas/ticket-promedio', { params: { desde, hasta, agrupar_por } }).then((r) => r.data),
 
   // KPI-015 · ingresos y utilidad directa por origen del negocio
-  ingresosPorOrigen: (desde: string, hasta: string) =>
-    api.get<IngresoPorOrigen[]>('/finanzas/ingresos-por-origen', { params: { desde, hasta } }).then((r) => r.data),
+  ingresosPorOrigen: (desde: string, hasta: string, agrupar_por = 'originador') =>
+    api.get<IngresoPorOrigen[]>('/finanzas/ingresos-por-origen', { params: { desde, hasta, agrupar_por } }).then((r) => r.data),
 
   // KPI-016 · días promedio entre la facturación (o el cierre) y el cobro
   diasCobro: (desde: string, hasta: string) =>
